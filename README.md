@@ -1,0 +1,93 @@
+<p align="center">
+  <img src="src/assets/logo.svg" alt="Atlas logo" width="160" />
+</p>
+
+<h1 align="center">Atlas</h1>
+
+<p align="center">
+  A modern, end-to-end encrypted chat app built with Tauri, Solid.js, and Rust.<br />
+  Desktop and mobile from one codebase.
+</p>
+
+## Features
+
+- **Direct messages & groups** — folders, mute, typing indicators, read receipts
+- **End-to-end encryption** for DMs (X25519 + HKDF-SHA256, private keys never leave the device)
+- **Voice & video calls** over WebRTC, with TURN relay support
+- **Rich messages** — replies, reactions, attachments (images, voice notes, files)
+- **Runtime-themeable UI** — light/dark, accent color, font, wallpaper, all switchable without a rebuild
+- Cross-platform: Windows, Linux, and Android from a single Tauri app
+
+## Tech Stack
+
+- **Frontend**: Solid.js + TypeScript + Tailwind CSS
+- **App shell**: Tauri v2 (Rust)
+- **Server**: Rust (Axum + SQLx/Postgres), WebSocket-based realtime sync
+- **Package manager**: Bun
+
+## Project Structure
+
+```
+atlas_tauri/
+├── src/                    # Solid.js frontend
+│   ├── screens/            # Page components (ChatList, ChatView, Settings, Profile, ...)
+│   ├── components/         # Shared UI components
+│   ├── store/               # Reactive app state
+│   └── data/                # API client + repository layer
+├── src-tauri/               # Tauri app shell (Rust)
+│   ├── src/                 # Rust source (E2EE, secure storage, ...)
+│   └── tauri.conf.json      # Tauri configuration (desktop + mobile)
+├── server/                  # Backend server (Rust/Axum)
+│   ├── src/
+│   └── migrations/
+└── package.json
+```
+
+## Getting Started
+
+### Prerequisites
+
+- [Bun](https://bun.sh)
+- [Rust](https://www.rust-lang.org/) (for Tauri)
+- [Android Studio](https://developer.android.com/studio) (for Android development)
+
+### Install
+
+```bash
+bun install
+```
+
+### Run (desktop)
+
+```bash
+bun run tauri:dev
+```
+
+### Run (Android)
+
+```bash
+bun run tauri:android
+```
+
+## Building
+
+```bash
+bun run build
+bun run tauri build
+```
+
+```bash
+bun run tauri android build
+```
+
+See [`server/README.md`](server/README.md) for running the backend.
+
+## Releases
+
+Prebuilt Windows, Linux, and Android (debug-signed APK) builds are published via the
+[Release workflow](.github/workflows/release.yml), triggered manually from the Actions
+tab. Grab the latest build from the [Releases page](../../releases).
+
+## License
+
+MIT

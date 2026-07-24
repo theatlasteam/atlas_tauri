@@ -1,0 +1,287 @@
+// Per-chat message cache: single source of truth for ChatView, reactions,
+// receipts and search jump-ins. Fed by REST (history, sends) and by server
+// events routed from the chats store.
+//
+// Send pipeline: optimistic row (pending, client_tag) -> REST POST (idempotent
+// on client_tag, so retry after a network error can't duplicate) -> reconcile
+// by clientTag. E2EE bodies decrypt asynchronously via the Rust core and
+// patch the row in place.
+
+import { createRoot } from "solid-js";
+import { createStore, produce } from "solid-js/store";
+import { api } from "../data/api";
+import type { MessageDto } from "../data/generated";
+import { toMessage } from "../data/mapping";
+import type { Message } from "../data/types";
+import { e2eeAvailable, e2eeOpen, e2eeSeal } from "../lib/tauri";
+import { e2ee } from "./e2ee";
+import { session } from "./session";
+
+export const PAGE_SIZE = 50;
+
+interface ChatMessages {
+  messages: Message[];
+  reachedStart: boolean; // no older history left
+  loaded: boolean;
+}
+
+function createMessagesStore() {
+  const [state, setState] = createStore<Record<string, ChatMessages>>({});
+
+  const myId = () => session.user()?.id ?? "";
+
+  const ensure = (chatId: string) => {
+    if (!state[chatId]) {
+      setState(chatId, { messages: [], reachedStart: false, loaded: false });
+    }
+  };
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  /**
+   * Kick off async decryption of an E2EE message and patch the row.
+   *
+   * The peer's identity key can lag a few seconds behind the first message
+   * in a conversation (they publish it on login, which races with delivery).
+   * Retry a few times before surfacing a real failure — a single missed
+   * fetch shouldn't be a permanent, unrecoverable "Unable to decrypt".
+   */
+  const decrypt = (chatId: string, messageId: string, scheme: string, body: string, peerUserId?: string) => {
+    if (!e2eeAvailable || scheme !== "x25519-v1") {
+      patch(chatId, messageId, { text: "🔒 Encrypted message (unsupported here)", decrypting: false });
+      return;
+    }
+    const otherId = peerUserId ?? "";
+    void (async () => {
+      const attempts = [0, 800, 2000, 4000];
+      for (let i = 0; i < attempts.length; i++) {
+        if (attempts[i]) await sleep(attempts[i]);
+        try {
+          const key = otherId ? await e2ee.peerKey(otherId) : null;
+          if (!key) continue; // peer hasn't published yet — worth another try
+          const text = await e2eeOpen(key, body);
+          patch(chatId, messageId, { text, decrypting: false });
+          return;
+        } catch {
+          // A key was found but decryption itself failed (e.g. genuine key
+          // mismatch) — retrying with the same key won't help, stop now.
+          break;
+        }
+      }
+      patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false });
+    })();
+  };
+
+  const patch = (chatId: string, messageId: string, changes: Partial<Message>) => {
+    setState(
+      chatId,
+      "messages",
+      (m) => m.id === messageId,
+      (m) => ({ ...m, ...changes }),
+    );
+  };
+
+  /**
+   * Insert or replace by id, keeping UUIDv7 time order.
+   *
+   * The server fans a plain `message` event out to every chat member
+   * INCLUDING the author (so other devices see it too) — that event carries
+   * no client_tag. It routinely arrives at the sending client before that
+   * client's own REST response does. Without a fallback, that race leaves
+   * the optimistic `pending` row unmatched forever (stuck spinner) while a
+   * second, real row appears alongside it (the duplicate). So reconciliation
+   * has two paths: exact clientTag match when we have one (the REST-response
+   * call site sets it), and otherwise — for our own messages — the oldest
+   * still-pending row in this chat, since a single connection's messages
+   * necessarily arrive in the order they were sent.
+   */
+  const upsert = (chatId: string, message: Message) => {
+    ensure(chatId);
+    setState(
+      chatId,
+      produce((chat) => {
+        const existing = chat.messages.findIndex((m) => m.id === message.id);
+        if (existing >= 0) {
+          chat.messages[existing] = { ...chat.messages[existing], ...message };
+          return;
+        }
+
+        let pendingIndex = -1;
+        if (message.clientTag) {
+          pendingIndex = chat.messages.findIndex((m) => m.clientTag === message.clientTag && m.pending);
+        } else if (message.mine) {
+          let oldestAt: string | undefined;
+          chat.messages.forEach((m, i) => {
+            if (m.pending && m.mine && (oldestAt === undefined || m.sentAt < oldestAt)) {
+              oldestAt = m.sentAt;
+              pendingIndex = i;
+            }
+          });
+        }
+        if (pendingIndex >= 0) {
+          chat.messages[pendingIndex] = message;
+          return;
+        }
+
+        chat.messages.push(message);
+        chat.messages.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      }),
+    );
+  };
+
+  const ingestDto = (dto: MessageDto, opts?: { peerUserId?: string }) => {
+    const message = toMessage(dto, myId());
+    upsert(dto.chatId, message);
+    if (message.decrypting) {
+      // For DMs the counterparty key is the peer; for groups the author's key.
+      const other = message.mine ? opts?.peerUserId : message.authorId;
+      decrypt(dto.chatId, dto.id, dto.scheme, dto.body, message.mine ? opts?.peerUserId : other);
+    }
+    return message;
+  };
+
+  const loadInitial = async (chatId: string, peerUserId?: string) => {
+    ensure(chatId);
+    if (state[chatId].loaded) return;
+    const dtos = await api.listMessages(chatId, { limit: PAGE_SIZE });
+    setState(chatId, { messages: [], reachedStart: dtos.length < PAGE_SIZE, loaded: true });
+    for (const dto of dtos) ingestDto(dto, { peerUserId });
+  };
+
+  const loadOlder = async (chatId: string, peerUserId?: string) => {
+    const chat = state[chatId];
+    if (!chat?.loaded || chat.reachedStart || chat.messages.length === 0) return 0;
+    const oldest = chat.messages.find((m) => !m.pending);
+    if (!oldest) return 0;
+    const dtos = await api.listMessages(chatId, { before: oldest.id, limit: PAGE_SIZE });
+    if (dtos.length < PAGE_SIZE) setState(chatId, "reachedStart", true);
+    for (const dto of dtos) ingestDto(dto, { peerUserId });
+    return dtos.length;
+  };
+
+  /** Refetch anything newer than the last known message (reconnect resync). */
+  const resync = async (chatId: string, peerUserId?: string) => {
+    const chat = state[chatId];
+    if (!chat?.loaded) return;
+    const newest = [...chat.messages].reverse().find((m) => !m.pending);
+    const dtos = newest
+      ? await api.listMessages(chatId, { after: newest.id, limit: 200 })
+      : await api.listMessages(chatId, { limit: PAGE_SIZE });
+    for (const dto of dtos) ingestDto(dto, { peerUserId });
+  };
+
+  const send = async (
+    chatId: string,
+    text: string,
+    opts?: { replyToId?: string; attachmentId?: string; peerUserId?: string; attachmentPreview?: Message["attachment"] },
+  ): Promise<void> => {
+    ensure(chatId);
+    const clientTag = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    let scheme = "plain";
+    let body = text;
+    const encrypted = opts?.peerUserId && e2ee.enabledFor(chatId);
+    if (encrypted) {
+      const key = await e2ee.peerKey(opts!.peerUserId!);
+      if (key) {
+        body = await e2eeSeal(key, text);
+        scheme = "x25519-v1";
+      }
+      // Peer without a published key: fall back to plaintext rather than
+      // silently dropping the message; the lock badge reflects per-message
+      // scheme so the sender can see what happened.
+    }
+
+    const optimistic: Message = {
+      id: `pending-${clientTag}`,
+      chatId,
+      authorId: myId(),
+      text,
+      scheme,
+      sentAt: now,
+      mine: true,
+      reactions: [],
+      attachment: opts?.attachmentPreview,
+      pending: true,
+      clientTag,
+    };
+    setState(chatId, "messages", (m) => [...m, optimistic]);
+
+    try {
+      const dto = await api.sendMessage(chatId, {
+        scheme,
+        body,
+        clientTag,
+        replyToId: opts?.replyToId,
+        attachmentId: opts?.attachmentId,
+      });
+      const message = toMessage(dto, myId());
+      message.clientTag = clientTag;
+      if (message.decrypting) {
+        // We know the plaintext we just sent; skip the decrypt round-trip.
+        message.text = text;
+        message.decrypting = false;
+      }
+      upsert(chatId, message);
+    } catch (e) {
+      patch(chatId, `pending-${clientTag}`, { pending: false, failed: true });
+      throw e;
+    }
+  };
+
+  const retryFailed = async (chatId: string, message: Message) => {
+    if (!message.failed) return;
+    setState(chatId, "messages", (m) => m.filter((x) => x.id !== message.id));
+    await send(chatId, message.text, { replyToId: message.replyTo?.id });
+  };
+
+  const applyReaction = (chatId: string, messageId: string, userId: string, emoji: string, added: boolean) => {
+    setState(
+      chatId,
+      "messages",
+      (m) => m.id === messageId,
+      "reactions",
+      produce((reactions) => {
+        const group = reactions.find((r) => r.emoji === emoji);
+        if (added) {
+          if (group) {
+            if (!group.userIds.includes(userId)) group.userIds.push(userId);
+          } else {
+            reactions.push({ emoji, userIds: [userId] });
+          }
+        } else if (group) {
+          group.userIds = group.userIds.filter((id) => id !== userId);
+          if (group.userIds.length === 0) reactions.splice(reactions.indexOf(group), 1);
+        }
+      }),
+    );
+  };
+
+  const toggleReaction = async (message: Message, emoji: string) => {
+    const me = myId();
+    const mine = message.reactions.find((r) => r.emoji === emoji)?.userIds.includes(me);
+    // Optimistic; the echoed server event is idempotent on top of this.
+    applyReaction(message.chatId, message.id, me, emoji, !mine);
+    try {
+      if (mine) await api.removeReaction(message.id, emoji);
+      else await api.addReaction(message.id, emoji);
+    } catch {
+      applyReaction(message.chatId, message.id, me, emoji, !!mine); // roll back
+    }
+  };
+
+  return {
+    state,
+    loadInitial,
+    loadOlder,
+    resync,
+    send,
+    retryFailed,
+    ingestDto,
+    applyReaction,
+    toggleReaction,
+  };
+}
+
+export const messagesStore = createRoot(createMessagesStore);

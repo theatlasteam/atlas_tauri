@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Merged into the app bundle's Info.plist by Tauri (macOS + iOS).
+         Required for getUserMedia in WKWebView; without these the app
+         crashes on first mic/camera access instead of prompting. -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Atlas uses the microphone for voice messages and audio calls.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Atlas uses the camera for video calls.</string>
+
+    <!-- Required to talk to a self-hosted atlas-server on the LAN (e.g. the
+         server-config dialog pointed at http://192.168.x.x:8080). Without
+         this, iOS 14+ silently refuses the connection instead of prompting
+         — WKWebView's fetch() then fails with the generic "Load failed". -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Atlas connects to your Atlas server on the local network.</string>
+
+    <!-- ATS blocks plain http:// by default. NSAllowsLocalNetworking relaxes
+         that only for local/private addresses (RFC1918, .local, loopback) —
+         a real internet-facing atlas-server should still be served over TLS
+         and needs no exception here. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+</dict>
+</plist>

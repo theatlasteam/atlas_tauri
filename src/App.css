@@ -1,0 +1,419 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+/*
+  Atlas design system.
+  Palette: deep teal / amber accent — deliberately not Telegram-blue or WhatsApp-green.
+  Runtime-switchable: theme (light/dark), accent color, font family/size, wallpaper —
+  all exposed as CSS custom properties so JS can flip them without a rebuild.
+*/
+
+:root {
+  /*
+    The whole neutral ramp is tinted from the active accent via color-mix, so
+    switching accent re-colors backgrounds, app bars and borders — the theme
+    feels like one material rather than a hue swap on buttons only.
+  */
+  --color-bg: color-mix(in oklab, var(--color-accent) 6%, #f7f5f1);
+  --color-surface: color-mix(in oklab, var(--color-accent) 2%, #ffffff);
+  --color-surface-raised: #ffffff;
+  --color-border: color-mix(in oklab, var(--color-accent) 12%, #e7e3db);
+  --color-appbar: color-mix(in oklab, var(--color-accent) 10%, #faf8f4);
+  --color-ink: color-mix(in oklab, var(--color-accent) 10%, #201c16);
+  --color-ink-muted: color-mix(in oklab, var(--color-accent) 10%, #6b6459);
+  --color-ink-subtle: color-mix(in oklab, var(--color-accent) 8%, #9c9587);
+
+  --color-bubble-sent: var(--color-accent);
+  --color-bubble-sent-ink: var(--color-accent-ink);
+  --color-bubble-received: #ffffff;
+  --color-bubble-received-ink: #201c16;
+
+  --color-danger: #c4453a;
+
+  /* Wallpaper: gradient tokens so wallpaper picker can swap without touching layout */
+  --wallpaper: none;
+
+  --font-sans: "Inter var", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-heading: "Inter var", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-size-base: 15px;
+}
+
+:root[data-theme="dark"] {
+  --color-bg: color-mix(in oklab, var(--color-accent) 6%, #131110);
+  --color-surface: color-mix(in oklab, var(--color-accent) 7%, #1c1916);
+  --color-surface-raised: color-mix(in oklab, var(--color-accent) 10%, #26221d);
+  --color-border: color-mix(in oklab, var(--color-accent) 14%, #322e27);
+  --color-appbar: color-mix(in oklab, var(--color-accent) 11%, #1b1815);
+  --color-ink: color-mix(in oklab, var(--color-accent) 6%, #f2ede2);
+  --color-ink-muted: color-mix(in oklab, var(--color-accent) 8%, #b8b0a0);
+  --color-ink-subtle: color-mix(in oklab, var(--color-accent) 8%, #837a6a);
+
+  --color-bubble-received: color-mix(in oklab, var(--color-accent) 10%, #26221d);
+  --color-bubble-received-ink: #f2ede2;
+}
+
+/* Accent presets — the picker sets data-accent on <html>, these define the hue */
+:root,
+:root[data-accent="amber"] {
+  --color-accent: #c9772e;
+  --color-accent-soft: #f2decb;
+  --color-accent-ink: #fffaf3;
+}
+:root[data-theme="dark"][data-accent="amber"] {
+  --color-accent-soft: #3a2c1a;
+}
+
+:root[data-accent="jade"] {
+  --color-accent: #2f8f6e;
+  --color-accent-soft: #d3ece2;
+  --color-accent-ink: #fbfffb;
+}
+:root[data-theme="dark"][data-accent="jade"] {
+  --color-accent-soft: #1a3329;
+}
+
+:root[data-accent="violet"] {
+  --color-accent: #7b5ec9;
+  --color-accent-soft: #e5ddf5;
+  --color-accent-ink: #fdfcff;
+}
+:root[data-theme="dark"][data-accent="violet"] {
+  --color-accent-soft: #29223f;
+}
+
+:root[data-accent="rose"] {
+  --color-accent: #c9436f;
+  --color-accent-soft: #f5dbe4;
+  --color-accent-ink: #fffafb;
+}
+:root[data-theme="dark"][data-accent="rose"] {
+  --color-accent-soft: #3a1f2a;
+}
+
+:root[data-accent="slate"] {
+  --color-accent: #4a6b7c;
+  --color-accent-soft: #dde6ea;
+  --color-accent-ink: #fafdff;
+}
+:root[data-theme="dark"][data-accent="slate"] {
+  --color-accent-soft: #1f2f37;
+}
+
+:root[data-accent="sky"] {
+  --color-accent: #2f6fc9;
+  --color-accent-soft: #cfe0f5;
+  --color-accent-ink: #f7fbff;
+}
+:root[data-theme="dark"][data-accent="sky"] {
+  --color-accent-soft: #182c3f;
+}
+
+:root[data-accent="teal"] {
+  --color-accent: #1f8f8a;
+  --color-accent-soft: #c8ece9;
+  --color-accent-ink: #f3fffe;
+}
+:root[data-theme="dark"][data-accent="teal"] {
+  --color-accent-soft: #123330;
+}
+
+:root[data-accent="coral"] {
+  --color-accent: #d9603f;
+  --color-accent-soft: #f6dcd0;
+  --color-accent-ink: #fff8f5;
+}
+:root[data-theme="dark"][data-accent="coral"] {
+  --color-accent-soft: #3a2318;
+}
+
+:root[data-accent="indigo"] {
+  --color-accent: #4550b8;
+  --color-accent-soft: #dadcf5;
+  --color-accent-ink: #fafaff;
+}
+:root[data-theme="dark"][data-accent="indigo"] {
+  --color-accent-soft: #232a4a;
+}
+
+:root[data-accent="plum"] {
+  --color-accent: #9c4fa0;
+  --color-accent-soft: #ecd9ee;
+  --color-accent-ink: #fffbff;
+}
+:root[data-theme="dark"][data-accent="plum"] {
+  --color-accent-soft: #3a1f3c;
+}
+
+/* Font family presets */
+:root[data-font="inter"] {
+  --font-sans: "Inter var", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+:root[data-font="system"] {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+:root[data-font="serif"] {
+  --font-sans: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+}
+:root[data-font="mono"] {
+  --font-sans: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+html {
+  font-size: var(--font-size-base);
+  overflow-x: hidden; /* the page-transition slide briefly exceeds viewport width */
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* Crossfade surfaces when the theme or accent changes at runtime. Element
+   selectors only, so Tailwind transition utilities still win where set. */
+body,
+header,
+nav,
+main {
+  transition:
+    background-color 300ms ease,
+    border-color 300ms ease,
+    color 300ms ease;
+}
+
+/* Wallpaper presets applied to the chat-view scroll container */
+[data-wallpaper="none"] {
+  background: var(--color-bg);
+}
+[data-wallpaper="dawn"] {
+  background: linear-gradient(160deg, #f6e3c8 0%, #f4c9a8 45%, #eda98f 100%);
+}
+[data-wallpaper="dusk"] {
+  background: linear-gradient(160deg, #2c2440 0%, #402b4d 45%, #522f45 100%);
+}
+[data-wallpaper="grove"] {
+  background: linear-gradient(160deg, #e2ecd8 0%, #c4dcc0 45%, #9fc7ae 100%);
+}
+[data-wallpaper="paper"] {
+  background-color: #efe8d8;
+  background-image: radial-gradient(#dcd3ba 0.6px, transparent 0.6px);
+  background-size: 14px 14px;
+}
+
+/*
+  Transition classes for solid-transition-group, used by the Dialog/Popover/Menu
+  primitives and by AnimatedList. Kept short and mechanical — everything else in
+  the app (buttons, nav, switches) stays instant/click-only.
+*/
+.fade-enter,
+.fade-exit-to {
+  opacity: 0;
+}
+.fade-enter-active,
+.fade-exit-active {
+  transition: opacity 150ms ease;
+}
+.fade-enter-to,
+.fade-exit {
+  opacity: 1;
+}
+
+.pop-enter,
+.pop-exit-to {
+  opacity: 0;
+  transform: scale(0.96) translateY(-2px);
+}
+.pop-enter-active,
+.pop-exit-active {
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.pop-enter-to,
+.pop-exit {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.list-enter,
+.list-exit-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.list-enter-active,
+.list-exit-active {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.list-enter-to,
+.list-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+.list-exit-active {
+  position: absolute;
+  width: 100%;
+}
+.list-move {
+  transition: transform 200ms ease;
+}
+
+/*
+  Page transitions via the same-document View Transitions API (Shell.tsx hooks
+  navigation through solid-router's useBeforeLeave + document.startViewTransition).
+  Note: `@view-transition { navigation: auto }` only covers full cross-document
+  (MPA) navigations — this is a client-routed SPA, so the transition has to be
+  started from JS around each route change instead.
+
+  `.vt-page` (the routed content) gets its own named group so it can slide;
+  `.vt-nav` (the floating pill nav) gets its own group with animation disabled
+  so it stays put while the page behind it slides.
+*/
+.vt-page {
+  view-transition-name: page;
+  background-color: var(--color-bg);
+}
+.vt-nav {
+  view-transition-name: bottom-nav;
+}
+
+::view-transition-old(bottom-nav),
+::view-transition-new(bottom-nav) {
+  animation: none;
+}
+
+::view-transition-old(page),
+::view-transition-new(page) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  mix-blend-mode: normal;
+}
+
+@keyframes vt-slide-out-left {
+  to {
+    transform: translateX(-25%);
+  }
+}
+@keyframes vt-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes vt-slide-out-right {
+  to {
+    transform: translateX(25%);
+  }
+}
+@keyframes vt-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes vt-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+:root[data-nav-direction="forward"]::view-transition-old(page) {
+  animation-name: vt-slide-out-left;
+}
+:root[data-nav-direction="forward"]::view-transition-new(page) {
+  animation-name: vt-slide-in-right;
+}
+
+:root[data-nav-direction="back"]::view-transition-old(page) {
+  animation-name: vt-slide-out-right;
+}
+:root[data-nav-direction="back"]::view-transition-new(page) {
+  animation-name: vt-slide-in-left;
+}
+
+:root[data-nav-direction="fade"]::view-transition-old(page) {
+  animation-name: vt-fade-out;
+}
+:root[data-nav-direction="fade"]::view-transition-new(page) {
+  animation-name: vt-fade-in;
+}
+
+/* Mount animations for elements that appear via <Show> (no exit animation
+   possible there, so entrances carry the fluidity). */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(4px);
+  }
+}
+.pop-in {
+  animation: pop-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.fade-in-up {
+  animation: fade-in-up 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Slide-up for the reply/attachment strips above the composer */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.rise-in {
+  animation: rise-in 160ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(page),
+  ::view-transition-new(page) {
+    animation: none;
+  }
+  .pop-in,
+  .fade-in-up,
+  .rise-in,
+  .list-move,
+  .list-enter-active,
+  .list-exit-active,
+  .pop-enter-active,
+  .pop-exit-active {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Utility: hide scrollbar but keep scrolling (chat list / folder tabs) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

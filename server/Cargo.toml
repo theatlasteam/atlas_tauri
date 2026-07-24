@@ -1,0 +1,57 @@
+[package]
+name = "atlas-server"
+version = "0.1.0"
+edition = "2021"
+description = "Standalone backend for the Atlas messenger: HTTP API, realtime WebSocket, call signaling"
+license = "MIT"
+
+[dependencies]
+# Web framework / async runtime
+axum = { version = "0.8", features = ["ws", "macros"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["trace", "cors"] }
+futures-util = "0.3"
+
+# Database
+sqlx = { version = "0.8", features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "migrate",
+] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Crypto / auth
+argon2 = "0.5"
+rand = "0.8"
+sha2 = "0.10"
+sha1 = "0.10"
+hmac = "0.12"
+base64 = "0.22"
+
+# Shared types: DTOs and WS protocol are exported to TypeScript so the Solid
+# client compiles against the exact wire shapes (no schema drift).
+ts-rs = { version = "11", features = ["uuid-impl", "chrono-impl", "serde-json-impl"] }
+
+# Infrastructure
+tokio-util = { version = "0.7", features = ["io"] }
+dashmap = "6"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy = "0.15"
+
+[profile.release]
+lto = "thin"
+
+# Keep the build directory small on this machine (debuginfo dominates target
+# size); flip back to `debug = 2` when line-level backtraces are needed.
+[profile.dev]
+debug = 0

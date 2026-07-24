@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas_dev_password
+      POSTGRES_DB: atlas
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # TURN/STUN relay for calls. In production this MUST run on a host with a
+  # public IP (or correct NAT hairpin + external-ip config) — a TURN server
+  # behind NAT cannot relay for clients that need it most.
+  coturn:
+    image: coturn/coturn:4
+    network_mode: host   # TURN needs a wide UDP relay port range; host mode avoids conntrack pain
+    volumes:
+      - ./turnserver.conf.example:/etc/coturn/turnserver.conf:ro
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+
+volumes:
+  pgdata:
