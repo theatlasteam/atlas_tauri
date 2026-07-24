@@ -13,13 +13,14 @@ tower-http = { version = "0.6", features = ["trace", "cors"] }
 futures-util = "0.3"
 
 # Database
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.8", default-features = false, features = [
     "runtime-tokio",
     "tls-rustls",
     "postgres",
     "uuid",
     "chrono",
     "migrate",
+    "macros",
 ] }
 
 # Serialization
