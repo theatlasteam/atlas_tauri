@@ -9,7 +9,10 @@ import { createRoot, createSignal } from "solid-js";
 const STORAGE_KEY = "atlas.server.override";
 
 function defaultApiBase(): string {
-  return (import.meta.env.VITE_ATLAS_API as string | undefined) ?? "http://127.0.0.1:8080";
+  return (
+    (import.meta.env.VITE_ATLAS_API as string | undefined) ??
+    "https://atlas-server-upsidedowncan.waw0.amvera.tech"
+  );
 }
 
 function normalize(url: string): string {

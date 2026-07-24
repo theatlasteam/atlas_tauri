@@ -1,0 +1,9 @@
+[advisories]
+# rsa/RUSTSEC-2023-0071 (Marvin Attack timing sidechannel): pulled in as an
+# unreachable optional dependency of sqlx-mysql. Cargo.lock records versions
+# for all of sqlx's backend features (mysql/sqlite/postgres) regardless of
+# which are active — this server only enables "postgres" (see Cargo.toml),
+# and `cargo tree -i rsa` confirms it's absent from the actual resolved
+# feature graph and never gets compiled. No fix is upstream anyway since the
+# crate isn't in use.
+ignore = ["RUSTSEC-2023-0071"]
