@@ -1,0 +1,37 @@
+# coturn config for Atlas calls.
+#
+# The backend mints ephemeral credentials with HMAC(static-auth-secret), so no
+# user database is shared between the API server and coturn — only this secret.
+# Set the SAME value in the server's TURN_SECRET env var.
+
+listening-port=3478
+# TLS TURN on 443 defeats "UDP blocked, only TLS egress" corporate/mobile
+# networks; requires real certs:
+# tls-listening-port=443
+# cert=/etc/letsencrypt/live/turn.example.com/fullchain.pem
+# pkey=/etc/letsencrypt/live/turn.example.com/privkey.pem
+
+fingerprint
+use-auth-secret
+static-auth-secret=CHANGE_ME_LONG_RANDOM_SECRET
+realm=atlas
+
+# Public address of this host. Mandatory when the host is behind 1:1 NAT
+# (cloud VMs): external-ip=<public-ip>/<private-ip>
+# external-ip=203.0.113.10
+
+# Relay port range — open this range in the firewall (UDP).
+min-port=49152
+max-port=65535
+
+# Abuse hardening: TURN must never become an open proxy into your infra.
+no-multicast-peers
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+
+# Per-user relay quota (bits per second) so one client can't saturate the box.
+max-bps=3000000
+total-quota=1200
