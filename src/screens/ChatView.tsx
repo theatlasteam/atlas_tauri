@@ -51,6 +51,11 @@ const QUICK_EMOJI = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
  */
 const LIVE_TYPING_INTERVAL_MS = 300;
 
+/** Hold Send this long to schedule instead of sending. Matches the
+ *  press-and-hold that opens reactions on a bubble, so the app has one
+ *  "hold for more" duration rather than two that feel different. */
+const HOLD_TO_SCHEDULE_MS = 450;
+
 /** Preset offsets for the time-capsule picker, relative to "now". */
 const CAPSULE_PRESETS: Array<{ label: string; hint: string; offsetMs: number }> = [
   { label: "In an hour", hint: "", offsetMs: 60 * 60_000 },
@@ -100,8 +105,26 @@ export default function ChatView() {
 
   let recorder: MediaRecorder | null = null;
   let recordStart = 0;
-  let capsuleBtn: HTMLButtonElement | undefined;
+  let sendBtn: HTMLButtonElement | undefined;
+  let holdTimer: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * Set when a hold on Send opened the capsule picker, so the click that ends
+   * that same press doesn't also fire the form submit underneath it.
+   */
+  let holdOpenedPicker = false;
   let lastTypingSent = 0;
+
+  const startHold = () => {
+    holdOpenedPicker = false;
+    holdTimer = setTimeout(() => {
+      holdOpenedPicker = true;
+      setCapsuleOpen(true);
+    }, HOLD_TO_SCHEDULE_MS);
+  };
+  const cancelHold = () => {
+    if (holdTimer) clearTimeout(holdTimer);
+    holdTimer = undefined;
+  };
 
   const scrollToBottom = (smooth = true) => {
     scrollRef?.scrollTo({ top: scrollRef.scrollHeight, behavior: smooth ? "smooth" : "auto" });
@@ -136,6 +159,7 @@ export default function ChatView() {
   onCleanup(() => {
     chatsStore.setActiveChat(null);
     clearPendingAttachment();
+    cancelHold();
   });
 
   // Resolve author names for group bubbles.
@@ -214,6 +238,12 @@ export default function ChatView() {
 
   const submit = async (e: Event) => {
     e.preventDefault();
+    // The press that opened the capsule picker still ends in a click on a
+    // submit button. Swallow exactly that one.
+    if (holdOpenedPicker) {
+      holdOpenedPicker = false;
+      return;
+    }
     const text = draft().trim();
     const attachment = pendingAttachment();
     if ((!text && !attachment) || sending() || blocked()) return;
@@ -634,19 +664,6 @@ export default function ChatView() {
               <AttachIcon size={20} />
             </Show>
           </button>
-          <button
-            ref={capsuleBtn}
-            type="button"
-            onClick={() => setCapsuleOpen(true)}
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 hover:bg-surface active:scale-95"
-            classList={{
-              "text-accent bg-accent-soft": !!capsuleAt(),
-              "text-ink-muted hover:text-ink": !capsuleAt(),
-            }}
-            aria-label={capsuleAt() ? "Change when this opens" : "Send as a time capsule"}
-          >
-            <HourglassIcon size={19} />
-          </button>
           <input
             type="text"
             value={draft()}
@@ -684,11 +701,21 @@ export default function ChatView() {
               </button>
             }
           >
+            {/* Tap sends. Hold opens the time-capsule picker — the same
+                press-and-hold that already reveals reactions on a bubble,
+                rather than a third permanent button in the composer. */}
             <button
+              ref={sendBtn}
               type="submit"
               disabled={sending()}
-              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink transition-transform duration-150 hover:brightness-105 disabled:opacity-40 active:scale-95"
-              aria-label={capsuleAt() ? "Seal and send" : "Send message"}
+              onPointerDown={startHold}
+              onPointerUp={cancelHold}
+              onPointerLeave={cancelHold}
+              onPointerCancel={cancelHold}
+              onContextMenu={(e) => e.preventDefault()}
+              class="flex h-11 w-11 shrink-0 select-none items-center justify-center rounded-full bg-accent text-accent-ink transition-transform duration-150 hover:brightness-105 disabled:opacity-40 active:scale-95"
+              aria-label={capsuleAt() ? "Seal and send — hold to change when it opens" : "Send message — hold to send later"}
+              title={capsuleAt() ? "Hold to change when it opens" : "Hold to send later"}
             >
               <Show when={!capsuleAt()} fallback={<HourglassIcon size={18} />}>
                 <SendIcon size={18} />
@@ -714,8 +741,20 @@ export default function ChatView() {
         </MenuItem>
       </Menu>
 
-      {/* Time capsule: when should the other side be able to read this? */}
-      <Menu open={capsuleOpen()} onOpenChange={setCapsuleOpen} anchorRef={() => capsuleBtn} placement="top-start">
+      {/* Time capsule: when should the other side be able to read this?
+          Reached by holding Send. */}
+      <Menu
+        open={capsuleOpen()}
+        onOpenChange={(open) => {
+          setCapsuleOpen(open);
+          // Releasing the hold outside the button produces no click, so the
+          // submit guard would never be spent. Clear it when the picker goes
+          // away instead, or the next genuine tap on Send gets swallowed.
+          if (!open) holdOpenedPicker = false;
+        }}
+        anchorRef={() => sendBtn}
+        placement="top-end"
+      >
         <For each={CAPSULE_PRESETS}>
           {(preset) => (
             <MenuItem

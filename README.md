@@ -16,10 +16,10 @@
   ciphertext it can't read, and nothing is ever stored. Reciprocal: the app doesn't render anyone
   else's draft while yours are private. (This half is the client's own rule — unlike read receipts
   below, the preference is device-local, so the server can't enforce it.)
-- **Time capsules** — send a message now that can't be read until a moment you choose. The recipient
-  gets a sealed bubble with a live countdown from the second you send it, and the body stays in the
-  database until it opens: the server refuses to hand it over, so an early peek would take database
-  access, not a patched client.
+- **Time capsules** — hold Send to pick a moment instead of sending now. The recipient gets a sealed
+  bubble with a live countdown from the second you send it, and the body stays in the database until
+  it opens: the server refuses to hand it over, so an early peek would take database access, not a
+  patched client.
 - **Direct messages & groups** — folders, mute, typing indicators, read receipts
 - **End-to-end encryption** for DMs (X25519 + HKDF-SHA256, private keys never leave the device)
 - **Voice & video calls** over WebRTC, with TURN relay support
