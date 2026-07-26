@@ -13,13 +13,11 @@ import {
 } from "../lib/time";
 import { session } from "../store/session";
 import { messagesStore } from "../store/messages";
-import { Menu, MenuItem } from "../ui/Menu";
 import {
   CheckIcon,
   ChecksIcon,
   DotsIcon,
   DownloadIcon,
-  EditIcon,
   HourglassIcon,
   LockIcon,
   PauseIcon,
@@ -28,11 +26,18 @@ import {
   PlayIcon,
   ProhibitIcon,
   ReplyIcon,
-  SmileyIcon,
   SpinnerIcon,
-  TrashIcon,
   VideoIcon,
 } from "../icons";
+
+/**
+ * How long a press has to be held to count as "hold for more".
+ *
+ * Exported so the composer's hold-to-schedule uses the same number: two
+ * hold gestures in one app that trigger at different times feel like a bug in
+ * whichever one you learn second.
+ */
+export const HOLD_MS = 450;
 
 // Object-URL cache so scrolling doesn't refetch attachment bytes.
 //
@@ -261,9 +266,8 @@ export default function MessageBubble(props: {
   isFirstInGroup?: boolean;
   isLastInGroup?: boolean;
   onReply: (message: Message) => void;
-  onReactPick: (message: Message, anchor: HTMLElement) => void;
-  onEdit: (message: Message) => void;
-  onUnsend: (message: Message) => void;
+  /** Open the message-actions sheet (reactions, reply, edit, unsend). */
+  onActions: (message: Message, anchor: HTMLElement) => void;
 }) {
   const isFirst = () => props.isFirstInGroup ?? true;
   const isLast = () => props.isLastInGroup ?? true;
@@ -283,8 +287,13 @@ export default function MessageBubble(props: {
 
   let bubbleRef: HTMLDivElement | undefined;
   let pressTimer: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * Press-and-hold is the *only* way into a message's actions on a phone —
+   * the hover row below is `sm:` and up — so it opens the full sheet, not
+   * just the reaction row.
+   */
   const startPress = () => {
-    pressTimer = setTimeout(() => props.onReactPick(m(), bubbleRef!), 450);
+    pressTimer = setTimeout(() => props.onActions(m(), bubbleRef!), HOLD_MS);
   };
   const cancelPress = () => pressTimer && clearTimeout(pressTimer);
   onCleanup(cancelPress);
@@ -313,13 +322,7 @@ export default function MessageBubble(props: {
       <div class="group flex w-full items-end gap-1" classList={{ "justify-end": mine(), "justify-start": !mine() }}>
         {/* Hover affordances (desktop) */}
         <Show when={mine()}>
-          <BubbleActions
-            message={m()}
-            onReply={props.onReply}
-            onReactPick={props.onReactPick}
-            onEdit={props.onEdit}
-            onUnsend={props.onUnsend}
-          />
+          <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
         </Show>
 
         {/* Avatar slot for received group messages — only drawn on the last
@@ -345,7 +348,12 @@ export default function MessageBubble(props: {
             onTouchStart={startPress}
             onTouchEnd={cancelPress}
             onTouchMove={cancelPress}
-            class="rounded-[1.1rem] px-3.5 py-2 shadow-sm transition-opacity"
+            onTouchCancel={cancelPress}
+            // Without this, a long press races our own handler: Android pops
+            // the text-selection toolbar and iOS the callout, over the sheet.
+            // Selection still works on desktop, where the gesture doesn't exist.
+            onContextMenu={(e) => e.preventDefault()}
+            class="rounded-[1.1rem] px-3.5 py-2 shadow-sm transition-opacity [-webkit-touch-callout:none]"
             classList={{
               "bg-bubble-sent text-bubble-sent-ink": mine(),
               "bg-bubble-received text-bubble-received-ink": !mine(),
@@ -417,13 +425,7 @@ export default function MessageBubble(props: {
         </div>
 
         <Show when={!mine()}>
-          <BubbleActions
-            message={m()}
-            onReply={props.onReply}
-            onReactPick={props.onReactPick}
-            onEdit={props.onEdit}
-            onUnsend={props.onUnsend}
-          />
+          <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
         </Show>
       </div>
 
@@ -506,41 +508,24 @@ function MessageBody(props: { message: Message }) {
 function BubbleActions(props: {
   message: Message;
   onReply: (message: Message) => void;
-  onReactPick: (message: Message, anchor: HTMLElement) => void;
-  onEdit: (message: Message) => void;
-  onUnsend: (message: Message) => void;
+  onActions: (message: Message, anchor: HTMLElement) => void;
 }) {
-  let reactBtn: HTMLButtonElement | undefined;
   let moreBtn: HTMLButtonElement | undefined;
-  const [moreOpen, setMoreOpen] = createSignal(false);
   const action =
     "flex h-7 w-7 items-center justify-center rounded-full text-ink-subtle transition-[background-color,transform] duration-150 hover:bg-surface active:scale-90";
 
   const m = () => props.message;
-  /** A tombstone has nothing to react to, quote, or change. */
+  /** A tombstone has nothing to quote or act on. */
   const inert = () => !!m().deleted;
-  /** Editing a capsule mid-countdown would make "sealed" mean "provisional",
-   *  so the server refuses it — don't offer it either. */
-  const editable = () =>
-    m().mine && !inert() && !m().callLog && !m().pending && !m().failed && !m().sealed;
-  const removable = () => m().mine && !inert() && !m().pending && !m().failed;
 
   return (
     <div class="mb-1 hidden shrink-0 items-center gap-0.5 self-end opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
-      {/* Phosphor icons, not literal "😊"/"↩" glyphs: those rendered at a
-          different size and weight on every platform, and the app already had
-          matching icons exported but unused. */}
+      {/* Reply stays a one-click shortcut because it is by far the most
+          frequent action; everything else lives behind the same sheet the
+          phone reaches by pressing and holding, so no action can end up
+          desktop-only again. Phosphor icons rather than literal "↩" glyphs,
+          which rendered at a different size and weight on every platform. */}
       <Show when={!inert()}>
-        <button
-          ref={reactBtn}
-          type="button"
-          onClick={() => props.onReactPick(m(), reactBtn!)}
-          class={action}
-          aria-label="React"
-          title="React"
-        >
-          <SmileyIcon size={16} />
-        </button>
         <button
           type="button"
           onClick={() => props.onReply(m())}
@@ -551,42 +536,16 @@ function BubbleActions(props: {
           <ReplyIcon size={16} />
         </button>
       </Show>
-      <Show when={editable() || removable()}>
-        <button
-          ref={moreBtn}
-          type="button"
-          onClick={() => setMoreOpen(true)}
-          class={action}
-          aria-label="More actions"
-          title="More"
-        >
-          <DotsIcon size={16} />
-        </button>
-        <Menu open={moreOpen()} onOpenChange={setMoreOpen} anchorRef={() => moreBtn} placement="top-end">
-          <Show when={editable()}>
-            <MenuItem
-              onSelect={() => {
-                setMoreOpen(false);
-                props.onEdit(m());
-              }}
-            >
-              <span>Edit</span>
-              <EditIcon size={16} />
-            </MenuItem>
-          </Show>
-          <Show when={removable()}>
-            <MenuItem
-              onSelect={() => {
-                setMoreOpen(false);
-                props.onUnsend(m());
-              }}
-            >
-              <span class="text-danger">Unsend</span>
-              <TrashIcon size={16} class="text-danger" />
-            </MenuItem>
-          </Show>
-        </Menu>
-      </Show>
+      <button
+        ref={moreBtn}
+        type="button"
+        onClick={() => props.onActions(m(), moreBtn!)}
+        class={action}
+        aria-label="Message actions"
+        title="More"
+      >
+        <DotsIcon size={16} />
+      </button>
     </div>
   );
 }

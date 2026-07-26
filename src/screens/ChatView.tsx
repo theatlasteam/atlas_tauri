@@ -9,7 +9,7 @@ import { e2eeAvailable } from "../lib/tauri";
 import { preferences } from "../store/preferences";
 import Avatar from "../components/Avatar";
 import EmptyState from "../components/EmptyState";
-import MessageBubble from "../components/MessageBubble";
+import MessageBubble, { HOLD_MS } from "../components/MessageBubble";
 import ConnectionBanner from "../components/ConnectionBanner";
 import { MessageListSkeleton } from "../components/Skeleton";
 import VerifiedBadge from "../components/VerifiedBadge";
@@ -33,9 +33,11 @@ import {
   MicIcon,
   PhoneIcon,
   ProhibitIcon,
+  ReplyIcon,
   SendIcon,
   SpinnerIcon,
   StopIcon,
+  TrashIcon,
   VideoIcon,
 } from "../icons";
 import type { Message, User } from "../data/types";
@@ -52,11 +54,6 @@ const QUICK_EMOJI = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
  * comfortably above per-keystroke.
  */
 const LIVE_TYPING_INTERVAL_MS = 300;
-
-/** Hold Send this long to schedule instead of sending. Matches the
- *  press-and-hold that opens reactions on a bubble, so the app has one
- *  "hold for more" duration rather than two that feel different. */
-const HOLD_TO_SCHEDULE_MS = 450;
 
 /** Preset offsets for the time-capsule picker, relative to "now". */
 const CAPSULE_PRESETS: Array<{ label: string; hint: string; offsetMs: number }> = [
@@ -94,7 +91,9 @@ export default function ChatView() {
   const [sending, setSending] = createSignal(false);
   const [replyTo, setReplyTo] = createSignal<Message | null>(null);
   const [menuOpen, setMenuOpen] = createSignal(false);
-  const [reactFor, setReactFor] = createSignal<{ message: Message; anchor: HTMLElement } | null>(null);
+  const [actionsFor, setActionsFor] = createSignal<{ message: Message; anchor: HTMLElement } | null>(
+    null,
+  );
   const [uploading, setUploading] = createSignal(false);
   const [pendingAttachment, setPendingAttachment] = createSignal<PendingAttachment | null>(null);
   const [recording, setRecording] = createSignal(false);
@@ -123,7 +122,8 @@ export default function ChatView() {
     holdTimer = setTimeout(() => {
       holdOpenedPicker = true;
       setCapsuleOpen(true);
-    }, HOLD_TO_SCHEDULE_MS);
+          // Same duration as press-and-hold on a bubble — see HOLD_MS.
+    }, HOLD_MS);
   };
   const cancelHold = () => {
     if (holdTimer) clearTimeout(holdTimer);
@@ -389,6 +389,16 @@ export default function ChatView() {
     if (message.failed) void messagesStore.retryFailed(params.id, message, chat()?.peerUserId);
   };
 
+  // What the actions sheet may offer for a given bubble. These live with the
+  // sheet rather than the bubble so there is one answer per action, whichever
+  // way the sheet was opened.
+  const canReact = (m: Message) => !m.deleted && !m.pending && !m.failed;
+  /** Editing a capsule mid-countdown would make "sealed" mean "provisional",
+   *  so the server refuses it — don't offer it either. */
+  const canEdit = (m: Message) =>
+    m.mine && !m.deleted && !m.callLog && !m.pending && !m.failed && !m.sealed;
+  const canUnsend = (m: Message) => m.mine && !m.deleted && !m.pending && !m.failed;
+
   const startEdit = (message: Message) => {
     setEditing(message);
     setReplyTo(null);
@@ -558,9 +568,7 @@ export default function ChatView() {
                           isFirstInGroup={isFirst()}
                           isLastInGroup={isLast()}
                           onReply={(m) => setReplyTo(m)}
-                          onReactPick={(m, anchor) => setReactFor({ message: m, anchor })}
-                          onEdit={startEdit}
-                          onUnsend={unsend}
+                          onActions={(m, anchor) => setActionsFor({ message: m, anchor })}
                         />
                       </div>
                     );
@@ -883,31 +891,72 @@ export default function ChatView() {
         </Show>
       </Menu>
 
-      {/* Quick emoji reactions */}
+      {/* One message-actions sheet for both platforms: the phone reaches it by
+          pressing and holding a bubble, the desktop by the ⋯ on hover. It used
+          to be reactions only, which left Edit and Unsend reachable on desktop
+          and nowhere else. */}
       <Popover
-        open={reactFor() !== null}
-        onOpenChange={(open) => !open && setReactFor(null)}
-        anchorRef={() => reactFor()?.anchor}
+        open={actionsFor() !== null}
+        onOpenChange={(open) => !open && setActionsFor(null)}
+        anchorRef={() => actionsFor()?.anchor}
         placement="top-start"
       >
-        <div class="flex gap-0.5 rounded-pill border border-border bg-surface-raised p-1 shadow-floating">
-          <For each={QUICK_EMOJI}>
-            {(emoji) => (
-              <button
-                type="button"
-                onClick={() => {
-                  const target = reactFor();
-                  setReactFor(null);
-                  if (target) void messagesStore.toggleReaction(target.message, emoji);
-                }}
-                class="flex h-9 w-9 items-center justify-center rounded-full text-lg transition-[background-color,transform] duration-150 hover:scale-110 hover:bg-accent-soft active:scale-90"
-                aria-label={`React with ${emoji}`}
+        <Show when={actionsFor()}>
+          {(target) => {
+            const message = () => target().message;
+            const run = (action: (m: Message) => void) => {
+              const m = message();
+              setActionsFor(null);
+              action(m);
+            };
+            return (
+              <div
+                role="menu"
+                class="min-w-[13rem] overflow-hidden rounded-2xl border border-border bg-surface-raised shadow-floating"
               >
-                {emoji}
-              </button>
-            )}
-          </For>
-        </div>
+                <Show when={canReact(message())}>
+                  <div class="flex justify-between gap-0.5 border-b border-border p-1.5">
+                    <For each={QUICK_EMOJI}>
+                      {(emoji) => (
+                        <button
+                          type="button"
+                          onClick={() => run((m) => void messagesStore.toggleReaction(m, emoji))}
+                          class="flex h-9 w-9 items-center justify-center rounded-full text-lg transition-[background-color,transform] duration-150 hover:scale-110 hover:bg-accent-soft active:scale-90"
+                          aria-label={`React with ${emoji}`}
+                        >
+                          {emoji}
+                        </button>
+                      )}
+                    </For>
+                  </div>
+                </Show>
+                <div class="p-1.5">
+                  <Show when={!message().deleted}>
+                    <MenuItem onSelect={() => run(setReplyTo)}>
+                      <span>Reply</span>
+                      <ReplyIcon size={16} />
+                    </MenuItem>
+                  </Show>
+                  <Show when={canEdit(message())}>
+                    <MenuItem onSelect={() => run(startEdit)}>
+                      <span>Edit</span>
+                      <EditIcon size={16} />
+                    </MenuItem>
+                  </Show>
+                  <Show when={canUnsend(message())}>
+                    <MenuItem onSelect={() => run(unsend)}>
+                      <span class="text-danger">Unsend</span>
+                      <TrashIcon size={16} class="text-danger" />
+                    </MenuItem>
+                  </Show>
+                  <Show when={message().deleted}>
+                    <p class="px-3 py-2 text-sm text-ink-subtle">Nothing to do here.</p>
+                  </Show>
+                </div>
+              </div>
+            );
+          }}
+        </Show>
       </Popover>
     </div>
   );
