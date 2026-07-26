@@ -43,6 +43,7 @@ export function parseCallLog(body: string): CallLog | undefined {
 
 /** Text shown before/without decryption. */
 export function initialText(dto: MessageDto): string {
+  if (dto.deleted) return "Message deleted";
   // A sealed capsule has no body to show yet — the bubble renders a countdown
   // instead, so this text only ever surfaces in list previews.
   if (dto.sealed) return "⏳ Time capsule";
@@ -73,21 +74,25 @@ export function formatDuration(totalSecs: number): string {
 
 /** Quoted preview of the message a reply points at. */
 function toReplyPreview(dto: ReplyPreviewDto): Message["replyTo"] {
+  // The server blanks a quote of anything that has no readable content — a
+  // capsule that hasn't opened, a message that was unsent — so a quote can
+  // never be used as a peephole into either.
+  const PLACEHOLDERS: Record<string, string> = {
+    sealed: "⏳ Time capsule",
+    deleted: "Message deleted",
+  };
   const text =
     dto.scheme === "plain"
       ? dto.body
-      : // The server blanks a quote of a capsule that hasn't opened yet, so
-        // the quote can't be used as a peephole into it.
-        dto.scheme === "sealed"
-        ? "⏳ Time capsule"
-        : "🔒 Encrypted message";
+      : (PLACEHOLDERS[dto.scheme] ?? "🔒 Encrypted message");
   return { id: dto.id, authorId: dto.authorId, text };
 }
 
 export function toMessage(dto: MessageDto, myUserId: string): Message {
-  // A sealed capsule carries no ciphertext to work on, so there is nothing to
-  // decrypt until it opens and the client refetches it.
-  const isE2ee = !dto.sealed && dto.scheme !== "plain" && dto.scheme !== "call-log";
+  // A sealed capsule and an unsent message both carry no ciphertext to work
+  // on: the first until it opens and the client refetches it, the second ever.
+  const isE2ee =
+    !dto.sealed && !dto.deleted && dto.scheme !== "plain" && dto.scheme !== "call-log";
   return {
     id: dto.id,
     chatId: dto.chatId,
@@ -102,12 +107,15 @@ export function toMessage(dto: MessageDto, myUserId: string): Message {
     callLog: dto.scheme === "call-log" ? parseCallLog(dto.body) : undefined,
     unlockAt: dto.unlockAt ?? undefined,
     sealed: dto.sealed,
+    editedAt: dto.editedAt ?? undefined,
+    deleted: dto.deleted,
     decrypting: isE2ee,
   };
 }
 
 /** Chat-list preview line for a message. */
 export function previewText(message: Message): string {
+  if (message.deleted) return "Message deleted";
   if (message.sealed) return "⏳ Time capsule";
   if (message.attachment) {
     switch (message.attachment.kind) {

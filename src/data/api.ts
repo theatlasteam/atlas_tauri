@@ -162,6 +162,11 @@ export const api = {
   ) => request<MessageDto>("POST", `/api/chats/${chatId}/messages`, msg),
   /** One message by id — used to pick a capsule up the moment it opens. */
   getMessage: (id: string) => request<MessageDto>("GET", `/api/messages/${id}`),
+  /** Rewrite a message I sent. The previous text is not kept anywhere. */
+  editMessage: (id: string, msg: { scheme?: string; body: string }) =>
+    request<MessageDto>("PATCH", `/api/messages/${id}`, msg),
+  /** Unsend for everyone. The row survives as a tombstone. */
+  deleteMessage: (id: string) => request<MessageDto>("DELETE", `/api/messages/${id}`),
   markRead: (chatId: string, messageId?: string) =>
     request<{ ok: boolean }>("POST", `/api/chats/${chatId}/read`, { messageId }),
   searchMessages: (q: string, limit = 30) =>

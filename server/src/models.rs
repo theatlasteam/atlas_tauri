@@ -34,8 +34,13 @@ pub struct MessageRow {
     pub reply_to_id: Option<Uuid>,
     pub attachment_id: Option<Uuid>,
     /// Time capsule: NULL for ordinary messages, otherwise the moment the body
-    /// becomes readable by anyone other than its author.
+    /// becomes readable.
     pub unlock_at: Option<DateTime<Utc>>,
+    /// Last time the author rewrote the body. NULL if never edited.
+    pub edited_at: Option<DateTime<Utc>>,
+    /// Unsent by its author. The row survives as a tombstone so reply chains
+    /// and read cursors stay valid; the body is wiped on write, not on read.
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -179,15 +184,26 @@ pub struct MessageDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub unlock_at: Option<DateTime<Utc>>,
-    /// True when `body`/`attachment` were withheld from *this* viewer because
-    /// the capsule has not opened yet. The client renders the countdown from
-    /// `unlock_at` and refetches the message when it reaches zero.
+    /// True while `body`/`attachment` are being withheld because the capsule
+    /// has not opened yet. The client renders the countdown from `unlock_at`
+    /// and refetches the message when it reaches zero.
     pub sealed: bool,
+    /// When the author last rewrote this message; absent if never edited.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub edited_at: Option<DateTime<Utc>>,
+    /// Unsent by its author. `body` and `attachment` are empty; the row is
+    /// kept so replies pointing at it, and read cursors past it, still resolve.
+    pub deleted: bool,
 }
 
 impl From<MessageRow> for MessageDto {
     fn from(m: MessageRow) -> Self {
-        let body = encode_body(&m.scheme, &m.body);
+        // An unsent message keeps its row but loses its contents. The wipe
+        // happens at DELETE time, so this is belt-and-braces: even a row that
+        // somehow still held bytes could not serve them.
+        let deleted = m.deleted_at.is_some();
+        let body = if deleted { String::new() } else { encode_body(&m.scheme, &m.body) };
         Self {
             id: m.id,
             chat_id: m.chat_id,
@@ -199,25 +215,31 @@ impl From<MessageRow> for MessageDto {
             attachment: None, // hydrated separately where needed
             reactions: Vec::new(),
             unlock_at: m.unlock_at,
-            sealed: false, // decided per viewer, in seal_for
+            sealed: false, // decided by seal(), once the clock is known
+            edited_at: m.edited_at,
+            deleted,
         }
     }
 }
 
 impl MessageDto {
-    /// Withhold a still-shut time capsule's contents from one viewer.
+    /// Withhold a still-shut time capsule's contents — from everyone.
     ///
     /// This is what makes a capsule more than a client-side animation: the
     /// bytes never leave the database until `unlock_at`, so an early peek
-    /// would need database access, not a patched client. It has to be applied
-    /// per recipient rather than once per message, because the author is
-    /// always allowed to see what they scheduled.
+    /// would need database access, not a patched client.
+    ///
+    /// The author is sealed out too, which is the whole point of the
+    /// metaphor — you bury it, you don't get to keep lifting the lid. It also
+    /// means there is exactly one version of a capsule on the wire rather
+    /// than a per-viewer one, so no call site can leak it by picking the
+    /// wrong audience.
     ///
     /// The quoted reply preview and the reaction tally stay visible — neither
     /// is part of the sealed content, and hiding them would make the bubble
     /// jump around when it opens.
-    pub fn seal_for(mut self, viewer_id: Uuid, now: DateTime<Utc>) -> Self {
-        if self.author_id != viewer_id && self.unlock_at.is_some_and(|at| at > now) {
+    pub fn seal(mut self, now: DateTime<Utc>) -> Self {
+        if self.unlock_at.is_some_and(|at| at > now) {
             self.body = String::new();
             self.attachment = None;
             self.sealed = true;

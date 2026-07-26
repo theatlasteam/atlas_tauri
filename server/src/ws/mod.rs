@@ -123,6 +123,9 @@ async fn session(mut socket: WebSocket, state: AppState) {
     }
 
     // --- cleanup ---
+    // Vacate the room before deregistering, or co-presence would show this
+    // device sitting in a chat it can no longer be reached in.
+    let _ = handle_focus(&state, user_id, conn_id, None).await;
     let went_offline = state.hub.unregister(user_id, conn_id);
     calls::handle_disconnect(&state, user_id, conn_id);
     writer.abort();
@@ -194,6 +197,12 @@ async fn handle_client_msg(state: &AppState, user_id: Uuid, conn_id: u64, msg: C
             }
         }
 
+        ClientMsg::Focus { chat_id } => {
+            if let Err(e) = handle_focus(state, user_id, conn_id, chat_id).await {
+                tracing::warn!(error = %e, "focus update failed");
+            }
+        }
+
         ClientMsg::CallOffer { call_id, to_user_id, sdp, media } => {
             calls::handle_offer(state, user_id, conn_id, call_id, to_user_id, sdp, media).await;
         }
@@ -212,6 +221,62 @@ async fn handle_client_msg(state: &AppState, user_id: Uuid, conn_id: u64, msg: C
 
         ClientMsg::Ping => state.hub.send_to_conn(user_id, conn_id, &ServerEvent::Pong),
     }
+}
+
+/// Move a connection's co-presence marker, announcing both halves of the move.
+///
+/// Announcing a departure from the *previous* chat is what keeps the other
+/// side's "in the chat with you" honest: without it, walking away from a
+/// conversation would leave you apparently standing in it until you
+/// disconnected entirely.
+///
+/// Membership is checked before anything is announced, so this can't be used
+/// to advertise presence in a stranger's chat — or to discover, by watching
+/// who responds, that a chat id exists at all.
+async fn handle_focus(
+    state: &AppState,
+    user_id: Uuid,
+    conn_id: u64,
+    chat_id: Option<Uuid>,
+) -> sqlx::Result<()> {
+    if let Some(target) = chat_id {
+        let members = chat_member_ids(state, target).await?;
+        if !members.contains(&user_id) {
+            return Ok(());
+        }
+    }
+
+    let previous = state.hub.set_focus(user_id, conn_id, chat_id);
+    if previous == chat_id {
+        return Ok(());
+    }
+
+    // Left the old room — but only if no *other* device of mine is still in it.
+    if let Some(old) = previous.filter(|old| !state.hub.is_focused_on(user_id, *old)) {
+        let event = ServerEvent::Focus { chat_id: old, user_id, present: false };
+        for member in chat_member_ids(state, old).await?.into_iter().filter(|m| *m != user_id) {
+            state.hub.send_to_user(member, &event);
+        }
+    }
+
+    if let Some(target) = chat_id {
+        let members = chat_member_ids(state, target).await?;
+        let event = ServerEvent::Focus { chat_id: target, user_id, present: true };
+        for member in members.iter().copied().filter(|m| *m != user_id) {
+            state.hub.send_to_user(member, &event);
+            // Replay whoever is already here, so arriving second looks the
+            // same as arriving first. Only to the connection that just
+            // focused — my other devices don't care where this one is.
+            if state.hub.is_focused_on(member, target) {
+                state.hub.send_to_conn(
+                    user_id,
+                    conn_id,
+                    &ServerEvent::Focus { chat_id: target, user_id: member, present: true },
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 pub async fn chat_member_ids(state: &AppState, chat_id: Uuid) -> sqlx::Result<Vec<Uuid>> {

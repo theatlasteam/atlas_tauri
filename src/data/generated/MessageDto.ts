@@ -22,8 +22,17 @@ body: string, sentAt: string, replyTo: ReplyPreviewDto | null, attachment: Attac
  */
 unlockAt?: string, 
 /**
- * True when `body`/`attachment` were withheld from *this* viewer because
- * the capsule has not opened yet. The client renders the countdown from
- * `unlock_at` and refetches the message when it reaches zero.
+ * True while `body`/`attachment` are being withheld because the capsule
+ * has not opened yet. The client renders the countdown from `unlock_at`
+ * and refetches the message when it reaches zero.
  */
-sealed: boolean, };
+sealed: boolean, 
+/**
+ * When the author last rewrote this message; absent if never edited.
+ */
+editedAt?: string, 
+/**
+ * Unsent by its author. `body` and `attachment` are empty; the row is
+ * kept so replies pointing at it, and read cursors past it, still resolve.
+ */
+deleted: boolean, };

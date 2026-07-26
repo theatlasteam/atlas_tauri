@@ -49,6 +49,7 @@ import {
   SealCheck,
   HourglassMedium,
   Eye,
+  DotsThree,
 } from "phosphor-solid-js";
 import type { JSX } from "solid-js";
 
@@ -117,3 +118,5 @@ export const VerifiedIcon = wrap(SealCheck, "fill");
 export const HourglassIcon = wrap(HourglassMedium);
 /** Live typing. */
 export const EyeIcon = wrap(Eye);
+/** Overflow actions on a message bubble (edit, unsend). */
+export const DotsIcon = wrap(DotsThree);
