@@ -2,6 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import BackHeader from "../components/BackHeader";
 import Avatar from "../components/Avatar";
+import VerifiedBadge from "../components/VerifiedBadge";
 import { repository } from "../data/repository";
 import { chatsStore } from "../store/chats";
 import type { User } from "../data/types";
@@ -141,7 +142,12 @@ export default function NewChat() {
                       hasPhoto={user.hasAvatar}
                     />
                     <span class="min-w-0 flex-1">
-                      <span class="block truncate font-medium text-ink">{user.name}</span>
+                      <span class="flex items-center gap-1.5 font-medium text-ink">
+                        <span class="truncate">{user.name}</span>
+                        <Show when={user.verified}>
+                          <VerifiedBadge size={14} name={user.name} />
+                        </Show>
+                      </span>
                       <span class="block truncate text-xs text-ink-subtle">{user.handle}</span>
                     </span>
                     <Show when={groupMode() && isSelected(user)}>

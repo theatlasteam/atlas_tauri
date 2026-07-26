@@ -1,5 +1,6 @@
 pub mod attachments;
 pub mod chats;
+pub mod devices;
 pub mod folders;
 pub mod keys;
 pub mod messages;

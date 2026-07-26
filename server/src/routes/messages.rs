@@ -40,6 +40,30 @@ async fn require_membership(state: &AppState, chat_id: Uuid, user_id: Uuid) -> R
     }
 }
 
+/// Blocks a DM (either direction) after it already exists — fresh DM
+/// *creation* between blocked users is rejected earlier, in create_dm.
+async fn require_not_blocked(state: &AppState, chat_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
+    let blocked: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM chats c
+            JOIN chat_members other ON other.chat_id = c.id AND other.user_id <> $2
+            JOIN blocks b ON
+                (b.blocker_id = $2 AND b.blocked_id = other.user_id)
+             OR (b.blocker_id = other.user_id AND b.blocked_id = $2)
+            WHERE c.id = $1 AND c.kind = 'dm'
+         )",
+    )
+    .bind(chat_id)
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await?;
+    if blocked {
+        Err(AppError::Forbidden)
+    } else {
+        Ok(())
+    }
+}
+
 /// Attach reply previews, attachment metadata, and reaction tallies to a page
 /// of message rows — three set-based queries regardless of page size.
 pub async fn hydrate(state: &AppState, rows: Vec<MessageRow>) -> Result<Vec<MessageDto>, AppError> {
@@ -144,6 +168,7 @@ pub async fn persist_and_fanout(
     }
 
     require_membership(state, chat_id, author_id).await?;
+    require_not_blocked(state, chat_id, author_id).await?;
 
     // A reply must point at a message in the same chat — otherwise a crafted
     // reply_to_id would leak previews across chat boundaries via hydration.
@@ -217,8 +242,87 @@ pub async fn persist_and_fanout(
         for member in chat_member_ids(state, chat_id).await? {
             state.hub.send_to_user(member, &event);
         }
+        push_to_absent_members(state, author_id, chat_id, &dto).await;
     }
     Ok(dto)
+}
+
+/// Notify members who won't see the WS event. A live socket means the client
+/// can raise its own notification, so a push would double up; muting the chat
+/// means the user asked for neither.
+async fn push_to_absent_members(
+    state: &AppState,
+    author_id: Uuid,
+    chat_id: Uuid,
+    dto: &MessageDto,
+) {
+    if !state.push.enabled() {
+        return;
+    }
+    let candidates: Vec<Uuid> = match sqlx::query_scalar(
+        "SELECT user_id FROM chat_members
+         WHERE chat_id = $1 AND user_id <> $2 AND NOT muted",
+    )
+    .bind(chat_id)
+    .bind(author_id)
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(ids) => ids,
+        Err(e) => {
+            tracing::warn!(error = %e, "could not resolve push recipients");
+            return;
+        }
+    };
+    let offline: Vec<Uuid> =
+        candidates.into_iter().filter(|id| !state.hub.is_online(*id)).collect();
+    if offline.is_empty() {
+        return;
+    }
+
+    // Display name only — the body is deliberately absent. E2EE bodies are
+    // opaque here, and a plaintext one can exceed FCM's 4KB payload limit, so
+    // the client fetches and decrypts the message itself.
+    let sender_name: String =
+        match sqlx::query_scalar("SELECT name FROM users WHERE id = $1").bind(author_id).fetch_one(&state.db).await {
+            Ok(name) => name,
+            Err(e) => {
+                tracing::warn!(error = %e, "could not load sender name for push");
+                return;
+            }
+        };
+
+    crate::push::notify_detached(
+        state.push.clone(),
+        state.db.clone(),
+        offline,
+        crate::push::PushMessage {
+            chat_id,
+            message_id: dto.id,
+            sender_id: author_id,
+            sender_name,
+        },
+    );
+}
+
+/// One message by id. Exists for the Android notification service: a push
+/// carries only ids, so the device fetches the body it needs to decrypt and
+/// display. Membership is checked against the message's own chat, so this
+/// can't be used to read messages from chats the caller isn't in.
+pub async fn get_message(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(message_id): Path<Uuid>,
+) -> ApiResult<Json<MessageDto>> {
+    let row: Option<MessageRow> = sqlx::query_as(&format!(
+        "SELECT {MESSAGE_COLUMNS} FROM messages WHERE id = $1"
+    ))
+    .bind(message_id)
+    .fetch_optional(&state.db)
+    .await?;
+    let row = row.ok_or(AppError::NotFound)?;
+    require_membership(&state, row.chat_id, auth.user_id).await?;
+    hydrate(&state, vec![row]).await?.pop().map(Json).ok_or(AppError::NotFound)
 }
 
 #[derive(Deserialize)]

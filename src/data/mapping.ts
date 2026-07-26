@@ -99,5 +99,8 @@ export function toChat(dto: ChatDto, myUserId: string): Chat {
     memberCount: dto.memberCount,
     peerReadUpTo: dto.peerReadUpTo ?? undefined,
     peerHasAvatar: dto.peerHasAvatar,
+    peerVerified: dto.peerVerified,
+    blockedByMe: dto.blockedByMe,
+    blockedMe: dto.blockedMe,
   };
 }

@@ -16,6 +16,14 @@ src-tauri/gen/android/*.keystore
 src-tauri/gen/android/*.jks
 *.mp4
 
+# Firebase service-account keys — these carry a live RSA private key that can
+# send push as this project and reach admin APIs. Never commit one; the server
+# reads the credential from the FCM_SERVICE_ACCOUNT env var instead.
+*firebase-adminsdk*.json
+# Stray root copy. The one the Android build needs lives at
+# src-tauri/gen/android/app/google-services.json — not a secret, and tracked.
+/google-services.json
+
 # Server
 server/target/
 server/.env

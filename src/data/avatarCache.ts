@@ -21,3 +21,8 @@ export function invalidateAvatar(userId: string) {
   cache.get(userId)?.then((url) => URL.revokeObjectURL(url)).catch(() => {});
   cache.delete(userId);
 }
+
+/** Drop every cached avatar (dev tool: force a full refetch). */
+export function clearAvatarCache() {
+  for (const userId of [...cache.keys()]) invalidateAvatar(userId);
+}

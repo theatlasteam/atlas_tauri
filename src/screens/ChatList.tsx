@@ -7,6 +7,7 @@ import EmptyState from "../components/EmptyState";
 import ConnectionBanner from "../components/ConnectionBanner";
 import MessageSearchDialog from "../components/MessageSearchDialog";
 import { ChatListSkeleton } from "../components/Skeleton";
+import VerifiedBadge from "../components/VerifiedBadge";
 import { formatRelativeTime } from "../lib/time";
 import { BellSlashIcon, ChatIcon, PlusIcon, SearchIcon } from "../icons";
 
@@ -116,6 +117,9 @@ export default function ChatList() {
                         <div class="flex items-baseline justify-between gap-2">
                           <p class="flex min-w-0 items-center gap-1.5 truncate font-semibold text-ink">
                             <span class="truncate">{chat.name}</span>
+                            <Show when={chat.peerVerified}>
+                              <VerifiedBadge size={14} name={chat.name} />
+                            </Show>
                             <Show when={chat.muted}>
                               <BellSlashIcon size={14} class="shrink-0 text-ink-subtle" />
                             </Show>

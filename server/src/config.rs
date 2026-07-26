@@ -16,6 +16,9 @@ pub struct Config {
     pub cors_origins: Option<Vec<String>>,
     /// Directory for uploaded attachment blobs (created on demand).
     pub attachments_dir: String,
+    /// Firebase service account used to send Android pushes. `None` => push is
+    /// disabled and every notification is a no-op (see push.rs).
+    pub fcm_service_account: Option<crate::push::ServiceAccount>,
 }
 
 fn var(key: &str) -> Option<String> {
@@ -56,6 +59,17 @@ impl Config {
             cors_origins: var("CORS_ORIGINS")
                 .map(|v| v.split(',').map(|s| s.trim().to_string()).collect()),
             attachments_dir: var("ATTACHMENTS_DIR").unwrap_or_else(|| "./data/attachments".into()),
+            // Raw JSON or base64 of the service-account key file. A malformed
+            // value is fatal rather than ignored: silently booting with push
+            // disabled is how a deployment spends a week wondering why
+            // notifications never arrive.
+            fcm_service_account: match var("FCM_SERVICE_ACCOUNT") {
+                Some(raw) => Some(
+                    crate::push::ServiceAccount::parse(&raw)
+                        .map_err(|e| format!("FCM_SERVICE_ACCOUNT is set but unusable: {e}"))?,
+                ),
+                None => None,
+            },
         })
     }
 }

@@ -2,11 +2,15 @@ import { Match, Switch } from "solid-js";
 import { Router, Route } from "@solidjs/router";
 import ChatLayout from "./components/ChatLayout";
 import Profile from "./screens/Profile";
+import UserProfile from "./screens/UserProfile";
 import SettingsHome from "./screens/settings/SettingsHome";
 import Appearance from "./screens/settings/Appearance";
 import Notifications from "./screens/settings/Notifications";
 import Folders from "./screens/settings/Folders";
 import Privacy from "./screens/settings/Privacy";
+import BlockedUsers from "./screens/settings/BlockedUsers";
+import Dev from "./screens/settings/Dev";
+import Verification from "./screens/settings/Verification";
 import NewChat from "./screens/NewChat";
 import Shell from "./components/Shell";
 import Login from "./screens/Login";
@@ -36,7 +40,11 @@ function App() {
           <Route path="/settings/notifications" component={Notifications} />
           <Route path="/settings/folders" component={Folders} />
           <Route path="/settings/privacy" component={Privacy} />
+          <Route path="/settings/blocked" component={BlockedUsers} />
+          <Route path="/settings/dev" component={Dev} />
+          <Route path="/settings/verification" component={Verification} />
           <Route path="/profile" component={Profile} />
+          <Route path="/user/:id" component={UserProfile} />
           <Route path="/new-chat" component={NewChat} />
           <Route path="*" component={ChatLayout} />
         </Router>

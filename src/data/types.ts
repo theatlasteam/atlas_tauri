@@ -1,7 +1,7 @@
 // View-model types used by the UI, plus re-exports of the wire types that are
 // generated from the Rust server via ts-rs (src/data/generated — do not edit).
 
-export type { UserDto, ChatDto, MessageDto, AttachmentDto, ReactionDto, ReplyPreviewDto, FolderDto } from "./generated";
+export type { UserDto, ChatDto, MessageDto, AttachmentDto, ReactionDto, ReplyPreviewDto, FolderDto, BlockDto } from "./generated";
 export type { ServerEvent, ClientMsg } from "./generated";
 
 import type { AttachmentDto, ReactionDto } from "./generated";
@@ -17,6 +17,7 @@ export interface User {
   /** True if the user has a profile photo — fetch it via avatarUrl(id). */
   hasAvatar: boolean;
   lastSeenAt?: string;
+  verified: boolean;
 }
 
 /** Parsed body of a "call-log" message. */
@@ -66,6 +67,12 @@ export interface Chat {
   peerReadUpTo?: string;
   /** DM only: does the peer have a profile photo (fetch via avatarUrl(peerUserId)). */
   peerHasAvatar?: boolean;
+  /** DM only: does the peer carry the verified checkmark. */
+  peerVerified?: boolean;
+  /** DM only: have I blocked the peer. */
+  blockedByMe?: boolean;
+  /** DM only: has the peer blocked me. */
+  blockedMe?: boolean;
 }
 
 export interface Folder {

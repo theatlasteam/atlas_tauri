@@ -8,6 +8,11 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
+    <!-- Push notifications. Required from Android 13 (API 33) and must also be
+         granted at runtime — see MainActivity. Without it FCM messages still
+         arrive but notifications are silently dropped. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
@@ -29,6 +34,40 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- "Native Experimental" prototype (see src/screens/settings/Dev.tsx): a
+             plain-Views chat list + chat screen that talks to the same REST API
+             directly, bypassing the WebView entirely. Reached via a custom-scheme
+             deep link so no custom Tauri plugin/JNI bridge is needed — the JS side
+             calls plugin-opener's openUrl("atlas-native://open?..."), Android
+             routes it straight back into this activity. -->
+        <activity
+            android:name=".native.NativeChatListActivity"
+            android:label="Atlas (Native)"
+            android:theme="@style/Theme.atlas"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="atlas-native" android:host="open" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".native.NativeChatActivity"
+            android:label="Atlas (Native)"
+            android:theme="@style/Theme.atlas"
+            android:exported="false" />
+
+        <!-- Receives the server's data-only pushes (server/src/push.rs) and
+             posts the notification after fetching + decrypting the message. -->
+        <service
+            android:name=".push.FcmService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <provider
           android:name="androidx.core.content.FileProvider"

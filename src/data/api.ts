@@ -3,6 +3,7 @@
 
 import type {
   AttachmentDto,
+  BlockDto,
   ChatDto,
   FolderDto,
   MessageDto,
@@ -105,6 +106,17 @@ export const api = {
     request<UserDto>("PATCH", "/api/me", patch),
   getUser: (id: string) => request<UserDto>("GET", `/api/users/${id}`),
   searchUsers: (q: string) => request<UserDto[]>("GET", `/api/users?q=${encodeURIComponent(q)}`),
+  /** Grant/revoke the verified checkmark — server restricts this to the "atlas" account. */
+  setVerified: (userId: string, verified: boolean) =>
+    request<UserDto>("PATCH", `/api/users/${userId}/verified`, { verified }),
+  /** Every account (verified first), for the atlas-only verification screen.
+   * Pass a query to narrow; 403s for anyone other than atlas. */
+  listAllUsers: (q = "") => request<UserDto[]>("GET", `/api/admin/users?q=${encodeURIComponent(q)}`),
+
+  // blocks
+  listBlocks: () => request<BlockDto[]>("GET", "/api/blocks"),
+  blockUser: (userId: string) => request<{ ok: boolean }>("POST", "/api/blocks", { userId }),
+  unblockUser: (userId: string) => request<{ ok: boolean }>("DELETE", `/api/blocks/${userId}`),
 
   // chats
   listChats: () => request<ChatDto[]>("GET", "/api/chats"),

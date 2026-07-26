@@ -42,6 +42,11 @@ import {
   DownloadSimple,
   Play,
   Pause,
+  Wrench,
+  Broom,
+  Fingerprint,
+  Prohibit,
+  SealCheck,
 } from "phosphor-solid-js";
 import type { JSX } from "solid-js";
 
@@ -52,8 +57,10 @@ export interface IconProps {
 
 const weight = "regular" as const;
 
-function wrap(Icon: any) {
-  return (p: IconProps): JSX.Element => <Icon size={p.size ?? 20} weight={weight} class={p.class} />;
+/** Icons are outlined app-wide; pass a weight to opt a single icon out (the
+ * verified checkmark is filled, so it reads as a badge rather than a glyph). */
+function wrap(Icon: any, iconWeight: "regular" | "fill" = weight) {
+  return (p: IconProps): JSX.Element => <Icon size={p.size ?? 20} weight={iconWeight} class={p.class} />;
 }
 
 export const ChatIcon = wrap(ChatCircle);
@@ -99,3 +106,8 @@ export const SpinnerIcon = wrap(CircleNotch);
 export const DownloadIcon = wrap(DownloadSimple);
 export const PlayIcon = wrap(Play);
 export const PauseIcon = wrap(Pause);
+export const WrenchIcon = wrap(Wrench);
+export const BroomIcon = wrap(Broom);
+export const FingerprintIcon = wrap(Fingerprint);
+export const ProhibitIcon = wrap(Prohibit);
+export const VerifiedIcon = wrap(SealCheck, "fill");

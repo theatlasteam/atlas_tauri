@@ -3,7 +3,7 @@
 // publication. Everything else keys off `session.status`.
 
 import { createRoot, createSignal } from "solid-js";
-import { api, setToken } from "../data/api";
+import { api, apiBase, setToken } from "../data/api";
 import { invalidateAvatar } from "../data/avatarCache";
 import { connectSocket, disconnectSocket } from "../data/socket";
 import type { UserDto } from "../data/generated";
@@ -11,6 +11,12 @@ import type { User } from "../data/types";
 import { e2eeAvailable, e2eePublicKey, isTauri, secretDelete, secretGet, secretSet } from "../lib/tauri";
 
 const TOKEN_KEY = "auth_token";
+/** Mirror of the active API base, written so the Android push notification
+ * service can reach the server. The URL itself lives in localStorage
+ * (serverConfig), which a background service can't read — see
+ * gen/android/.../push/Secrets.kt. Not a secret; it rides along in the same
+ * store purely because that file is what the service can already read. */
+const SERVER_URL_KEY = "server_url";
 
 export type SessionStatus = "loading" | "signedOut" | "signedIn";
 
@@ -25,6 +31,7 @@ function toUser(dto: UserDto): User {
     avatarInitial: dto.avatarInitial,
     hasAvatar: dto.hasAvatar,
     lastSeenAt: dto.lastSeenAt,
+    verified: dto.verified,
   };
 }
 
@@ -59,6 +66,7 @@ function createSessionStore() {
   const applySignIn = async (token: string, dto: UserDto) => {
     setToken(token);
     await secretSet(TOKEN_KEY, token);
+    await secretSet(SERVER_URL_KEY, apiBase()).catch(() => {});
     setUser(toUser(dto));
     setStatus("signedIn");
     connectSocket();
@@ -75,6 +83,9 @@ function createSessionStore() {
       }
       setToken(token);
       const me = await api.me();
+      // Refreshed on every restore, not just sign-in: the server URL can be
+      // changed from the config dialog while a session is already active.
+      await secretSet(SERVER_URL_KEY, apiBase()).catch(() => {});
       setUser(toUser(me));
       setStatus("signedIn");
       connectSocket();

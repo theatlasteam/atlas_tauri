@@ -2,6 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import { api } from "../data/api";
 import { session } from "../store/session";
 import Avatar from "../components/Avatar";
+import VerifiedBadge from "../components/VerifiedBadge";
 import { Skeleton } from "../components/Skeleton";
 import { CameraIcon, CheckIcon, EditIcon, SignOutIcon, SpinnerIcon, TrashIcon } from "../icons";
 import type { User } from "../data/types";
@@ -265,7 +266,12 @@ export default function Profile() {
       }
       >
       <div class="mt-1 text-center">
-      <h2 class="text-xl font-bold text-ink">{u().name}</h2>
+      <h2 class="flex items-center justify-center gap-1.5 text-xl font-bold text-ink">
+      <span class="min-w-0 truncate">{u().name}</span>
+      <Show when={u().verified}>
+      <VerifiedBadge size={18} name={u().name} />
+      </Show>
+      </h2>
       <p class="text-sm text-ink-subtle">@{u().handle}</p>
       <Show when={u().status}>
       <span class="mt-2 inline-flex items-center rounded-pill bg-accent/10 px-3 py-1 text-xs font-medium text-accent">

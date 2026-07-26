@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev"],
       "port": 1422,
       "autoPort": true
+    },
+    {
+      "name": "web-landing",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd web && bun run dev -- --port 4321"],
+      "port": 4321,
+      "autoPort": true
     }
   ]
 }

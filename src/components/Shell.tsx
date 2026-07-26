@@ -11,7 +11,10 @@ export default function Shell(props: RouteSectionProps) {
   const location = useLocation();
   // On mobile, ChatView owns the full screen with its own bottom input bar —
   // the floating nav would overlap it, so it only shows outside an open chat.
-  const showBottomNav = () => !isDesktop() && !location.pathname.startsWith("/chat/");
+  // A user's profile (reached by tapping a DM's appbar) is the same kind of
+  // drill-down push, not a tab destination, so it's excluded too.
+  const showBottomNav = () =>
+    !isDesktop() && !location.pathname.startsWith("/chat/") && !location.pathname.startsWith("/user/");
 
   useBeforeLeave((e) => {
     if (typeof e.to !== "string" || typeof document.startViewTransition !== "function") return;

@@ -1,6 +1,7 @@
 import { createResource, createSignal, For, Show } from "solid-js";
 import { api } from "../data/api";
 import Avatar from "./Avatar";
+import VerifiedBadge from "./VerifiedBadge";
 import type { Chat, Message, User } from "../data/types";
 import { formatBytes, formatClockTime } from "../lib/time";
 import { session } from "../store/session";
@@ -186,7 +187,7 @@ export default function MessageBubble(props: {
           "mb-2": hasReactions(),
     }}
     >
-    <div class="group flex items-end gap-1" classList={{ "justify-end": mine(), "justify-start": !mine() }}>
+    <div class="group flex w-full items-end gap-1" classList={{ "justify-end": mine(), "justify-start": !mine() }}>
     {/* Hover affordances (desktop) */}
     <Show when={mine()}>
     <BubbleActions message={m()} onReply={props.onReply} onReactPick={props.onReactPick} />
@@ -208,7 +209,7 @@ export default function MessageBubble(props: {
       </div>
       </Show>
 
-      <div class="relative max-w-[75%] sm:max-w-[65%]">
+      <div class="relative w-fit max-w-[75%] shrink-0 sm:max-w-[65%]">
       <div
       ref={bubbleRef}
       onDblClick={() => props.onReply(m())}
@@ -228,7 +229,12 @@ export default function MessageBubble(props: {
       }}
       >
       <Show when={!mine() && isGroupChat() && props.author && isFirst()}>
-      <p class="mb-0.5 text-xs font-semibold text-accent">{props.author!.name}</p>
+      <p class="mb-0.5 flex items-center gap-1 text-xs font-semibold text-accent">
+      <span class="truncate">{props.author!.name}</span>
+      <Show when={props.author!.verified}>
+      <VerifiedBadge size={12} name={props.author!.name} />
+      </Show>
+      </p>
       </Show>
 
       <Show when={m().replyTo}>

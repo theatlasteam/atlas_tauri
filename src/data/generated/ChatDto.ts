@@ -15,4 +15,18 @@ peerReadUpTo: string | null,
  * For DMs: whether the peer has a photo (fetch via their user avatar
  * endpoint). Always false for groups — group photos aren't supported yet.
  */
-peerHasAvatar: boolean, };
+peerHasAvatar: boolean, 
+/**
+ * For DMs: whether the peer carries the verified checkmark, so the chat
+ * list and appbar can show it without fetching the full user. Always
+ * false for groups.
+ */
+peerVerified: boolean, 
+/**
+ * For DMs: whether I've blocked the peer. Always false for groups.
+ */
+blockedByMe: boolean, 
+/**
+ * For DMs: whether the peer has blocked me. Always false for groups.
+ */
+blockedMe: boolean, };

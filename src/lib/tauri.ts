@@ -4,6 +4,8 @@
 // UI disables encrypted mode instead of pretending.
 
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { isAndroid } from "./platform";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -57,4 +59,20 @@ export function e2eeSeal(peerPublicKey: string, plaintext: string): Promise<stri
 
 export function e2eeOpen(peerPublicKey: string, body: string): Promise<string> {
   return invoke<string>("e2ee_open", { peerPublicKey, body });
+}
+
+// ---------- Native Experimental (Android-only prototype) ----------
+//
+// A plain-Views chat list + chat screen (src-tauri/gen/android/.../native/)
+// that talks to the REST API directly, bypassing the WebView entirely.
+// Plaintext only, no live updates — see NativeChatListActivity's in-app
+// banner. Launched via a custom-scheme deep link rather than a Tauri
+// plugin/JNI bridge, so no native Rust glue is needed: Android's intent
+// resolver routes atlas-native://open straight back into our own app.
+
+export const nativeExperimentalAvailable = isTauri && isAndroid();
+
+export async function launchNativeExperimental(serverUrl: string, token: string): Promise<void> {
+  const url = `atlas-native://open?serverUrl=${encodeURIComponent(serverUrl)}&token=${encodeURIComponent(token)}`;
+  await openUrl(url);
 }

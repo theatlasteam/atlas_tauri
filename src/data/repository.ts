@@ -21,6 +21,7 @@ function toUser(dto: UserDto): User {
     avatarInitial: dto.avatarInitial,
     hasAvatar: dto.hasAvatar,
     lastSeenAt: dto.lastSeenAt,
+    verified: dto.verified,
   };
 }
 

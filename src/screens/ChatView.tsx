@@ -1,9 +1,8 @@
 import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
-import { A, useParams } from "@solidjs/router";
+import { A, useNavigate, useParams } from "@solidjs/router";
 import { chatsState, chatsStore } from "../store/chats";
 import { messagesStore } from "../store/messages";
 import { calls } from "../store/calls";
-import { e2ee } from "../store/e2ee";
 import { session } from "../store/session";
 import { api } from "../data/api";
 import { e2eeAvailable } from "../lib/tauri";
@@ -13,6 +12,7 @@ import EmptyState from "../components/EmptyState";
 import MessageBubble from "../components/MessageBubble";
 import ConnectionBanner from "../components/ConnectionBanner";
 import { MessageListSkeleton } from "../components/Skeleton";
+import VerifiedBadge from "../components/VerifiedBadge";
 import Popover from "../ui/Popover";
 import { Menu, MenuItem } from "../ui/Menu";
 import { useIsDesktopLayout } from "../lib/platform";
@@ -26,9 +26,9 @@ import {
   CloseIcon,
   ChevronDownIcon,
   LockIcon,
-  LockOpenIcon,
   MicIcon,
   PhoneIcon,
+  ProhibitIcon,
   SendIcon,
   SpinnerIcon,
   StopIcon,
@@ -51,6 +51,7 @@ interface PendingAttachment {
 
 export default function ChatView() {
   const params = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const isDesktop = useIsDesktopLayout();
 
   const chat = () => chatsState.chats.find((c) => c.id === params.id);
@@ -176,13 +177,14 @@ export default function ChatView() {
     }
   };
 
-  const encrypted = () => e2ee.enabledFor(params.id) && !!chat()?.peerUserId;
+  const encrypted = () => e2eeAvailable && !!chat()?.peerUserId;
+  const blocked = () => !!chat()?.blockedByMe || !!chat()?.blockedMe;
 
   const submit = async (e: Event) => {
     e.preventDefault();
     const text = draft().trim();
     const attachment = pendingAttachment();
-    if ((!text && !attachment) || sending()) return;
+    if ((!text && !attachment) || sending() || blocked()) return;
 
     setSending(true);
     setDraft("");
@@ -309,31 +311,41 @@ export default function ChatView() {
         <Show when={chat()}>
           {(c) => (
             <>
-              <Avatar
-                color={c().avatarColor}
-                initial={c().avatarInitial}
-                size={36}
-                online={c().online}
-                userId={c().peerUserId}
-                hasPhoto={c().peerHasAvatar}
-              />
-              <div class="min-w-0 flex-1">
-                <p class="flex items-center gap-1.5 truncate font-semibold leading-tight">
-                  <span class="truncate">{c().name}</span>
-                  <Show when={encrypted()}>
-                    <LockIcon size={13} class="shrink-0 text-accent" />
-                  </Show>
-                </p>
-                <p class="truncate text-xs" classList={{ "text-accent animate-pulse": !!typingSubtitle(), "text-ink-subtle": !typingSubtitle() }}>
-                  {typingSubtitle() ??
-                    (c().kind === "group"
-                      ? `${c().memberCount} members`
-                      : c().online
-                        ? "online"
-                        : "last seen recently")}
-                </p>
-              </div>
-              <Show when={c().kind === "dm"}>
+              <button
+                type="button"
+                onClick={() => c().peerUserId && navigate(`/user/${c().peerUserId}`)}
+                disabled={c().kind !== "dm"}
+                class="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-1 text-left transition-colors duration-150 enabled:hover:bg-surface enabled:active:bg-surface"
+              >
+                <Avatar
+                  color={c().avatarColor}
+                  initial={c().avatarInitial}
+                  size={36}
+                  online={c().online}
+                  userId={c().peerUserId}
+                  hasPhoto={c().peerHasAvatar}
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="flex items-center gap-1.5 truncate font-semibold leading-tight">
+                    <span class="truncate">{c().name}</span>
+                    <Show when={c().peerVerified}>
+                      <VerifiedBadge size={14} name={c().name} />
+                    </Show>
+                    <Show when={encrypted()}>
+                      <LockIcon size={13} class="shrink-0 text-accent" />
+                    </Show>
+                  </p>
+                  <p class="truncate text-xs" classList={{ "text-accent animate-pulse": !!typingSubtitle(), "text-ink-subtle": !typingSubtitle() }}>
+                    {typingSubtitle() ??
+                      (c().kind === "group"
+                        ? `${c().memberCount} members`
+                        : c().online
+                          ? "online"
+                          : "last seen recently")}
+                  </p>
+                </div>
+              </button>
+              <Show when={c().kind === "dm" && !blocked()}>
                 <button
                   type="button"
                   onClick={() => startCall("audio")}
@@ -491,6 +503,15 @@ export default function ChatView() {
           )}
         </Show>
 
+        <Show
+          when={!blocked()}
+          fallback={
+            <div class="flex items-center justify-center gap-2 px-4 pb-[max(var(--safe-bottom),1rem)] pt-3 text-sm text-ink-subtle">
+              <ProhibitIcon size={16} />
+              {chat()?.blockedByMe ? "You've blocked this user." : "You can't message this user."}
+            </div>
+          }
+        >
         <form
           onSubmit={submit}
           class="flex gap-2 px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5"
@@ -561,9 +582,10 @@ export default function ChatView() {
             </button>
           </Show>
         </form>
+        </Show>
       </div>
 
-      {/* Chat menu: mute + E2EE toggle */}
+      {/* Chat menu: mute (encryption is always on for DMs — no toggle) */}
       <Menu open={menuOpen()} onOpenChange={setMenuOpen} anchorRef={() => menuBtn} placement="bottom-end">
         <MenuItem
           onSelect={() => {
@@ -576,26 +598,6 @@ export default function ChatView() {
             <BellIcon size={16} />
           </Show>
         </MenuItem>
-        <Show when={chat()?.kind === "dm"}>
-          <MenuItem
-            disabled={!e2eeAvailable}
-            onSelect={() => {
-              setMenuOpen(false);
-              e2ee.setEnabled(params.id, !e2ee.enabledFor(params.id));
-            }}
-          >
-            <span>
-              {e2eeAvailable
-                ? encrypted()
-                  ? "Disable encryption"
-                  : "Enable encryption"
-                : "Encryption (app only)"}
-            </span>
-            <Show when={encrypted()} fallback={<LockIcon size={16} />}>
-              <LockOpenIcon size={16} />
-            </Show>
-          </MenuItem>
-        </Show>
       </Menu>
 
       {/* Quick emoji reactions */}

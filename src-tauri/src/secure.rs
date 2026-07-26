@@ -20,8 +20,6 @@ use std::sync::Mutex;
 
 use tauri::{AppHandle, Manager};
 
-const SERVICE: &str = "get.ahmed.atlas";
-
 #[derive(Debug, thiserror::Error)]
 pub enum SecureError {
     #[error("storage unavailable: {0}")]
@@ -92,6 +90,8 @@ fn file_delete(app: &AppHandle, key: &str) -> Result<(), SecureError> {
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod backend {
     use super::*;
+
+    const SERVICE: &str = "get.ahmed.atlas";
 
     pub fn get(app: &AppHandle, key: &str) -> Result<Option<String>, SecureError> {
         match keyring::Entry::new(SERVICE, key).and_then(|e| e.get_password()) {

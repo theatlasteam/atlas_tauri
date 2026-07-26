@@ -30,6 +30,11 @@
 
   --color-danger: #c4453a;
 
+  /* Verified checkmark. Deliberately NOT tied to --color-accent: the badge
+     means the same thing on every device, so it stays blue whatever accent
+     the user picked. */
+  --color-verified: #1d9bf0;
+
   /* Wallpaper: gradient tokens so wallpaper picker can swap without touching layout */
   --wallpaper: none;
 
@@ -51,6 +56,9 @@
 
   --color-bubble-received: color-mix(in oklab, var(--color-accent) 10%, #26221d);
   --color-bubble-received-ink: #f2ede2;
+
+  /* Lifted a little so it stays legible on the dark surfaces. */
+  --color-verified: #4aa9f2;
 }
 
 /* Accent presets — the picker sets data-accent on <html>, these define the hue */

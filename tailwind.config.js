@@ -23,6 +23,7 @@ export default {
         "bubble-received": "var(--color-bubble-received)",
         "bubble-received-ink": "var(--color-bubble-received-ink)",
         danger: "var(--color-danger)",
+        verified: "var(--color-verified)",
       },
       fontFamily: {
         sans: "var(--font-sans)",

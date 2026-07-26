@@ -1,7 +1,8 @@
 import { preferences, setPreferences } from "../../store/preferences";
-import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
+import { SettingsSection, SettingsRow, SettingsLinkRow } from "../../components/SettingsSection";
 import BackHeader from "../../components/BackHeader";
 import Switch from "../../ui/Switch";
+import { ProhibitIcon } from "../../icons";
 
 export default function Privacy() {
   return (
@@ -15,6 +16,15 @@ export default function Privacy() {
         <SettingsRow label="Last seen" description="Show others when you were last online">
           <Switch checked={preferences.lastSeenVisible} onChange={(v) => setPreferences("lastSeenVisible", v)} />
         </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title="Blocking">
+        <SettingsLinkRow
+          href="/settings/blocked"
+          label="Blocked users"
+          description="People who can't message you"
+          icon={ProhibitIcon}
+        />
       </SettingsSection>
     </div>
   );

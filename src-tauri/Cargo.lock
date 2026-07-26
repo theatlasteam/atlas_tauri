@@ -243,6 +243,7 @@ dependencies = [
  "aes-gcm",
  "base64 0.22.1",
  "hkdf",
+ "jni",
  "keyring",
  "rand",
  "serde",

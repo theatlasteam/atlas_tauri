@@ -6,4 +6,9 @@ export type UserDto = { id: string, handle: string, name: string, bio: string, s
  * `GET /api/users/{id}/avatar`. avatarColor/avatarInitial remain the
  * fallback (no photo yet, or it failed to load).
  */
-hasAvatar: boolean, lastSeenAt?: string, };
+hasAvatar: boolean, lastSeenAt?: string, 
+/**
+ * Verified badge (checkmark). Granting/revoking is restricted to the
+ * "atlas" account — see routes/users.rs::require_atlas.
+ */
+verified: boolean, };

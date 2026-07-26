@@ -29,6 +29,10 @@ struct ChatListRow {
     peer_avatar_color: Option<String>,
     peer_avatar_initial: Option<String>,
     peer_avatar_attachment_id: Option<Uuid>,
+    /// NULL for groups (the peer LATERAL join doesn't fire).
+    peer_verified: Option<bool>,
+    blocked_by_me: bool,
+    blocked_me: bool,
     lm_id: Option<Uuid>,
     lm_author: Option<Uuid>,
     lm_scheme: Option<String>,
@@ -48,6 +52,9 @@ const CHAT_LIST_SQL: &str = "
         pu.avatar_color AS peer_avatar_color,
         pu.avatar_initial AS peer_avatar_initial,
         pu.avatar_attachment_id AS peer_avatar_attachment_id,
+        pu.verified AS peer_verified,
+        EXISTS(SELECT 1 FROM blocks b WHERE b.blocker_id = cm.user_id AND b.blocked_id = p.user_id) AS blocked_by_me,
+        EXISTS(SELECT 1 FROM blocks b WHERE b.blocker_id = p.user_id AND b.blocked_id = cm.user_id) AS blocked_me,
         lm.id AS lm_id, lm.author_id AS lm_author, lm.scheme AS lm_scheme,
         lm.body AS lm_body, lm.sent_at AS lm_sent_at,
         (SELECT count(*) FROM messages m
@@ -115,6 +122,9 @@ fn row_to_dto(row: ChatListRow, folder_ids: Vec<Uuid>, online: bool) -> ChatDto 
         member_count: row.member_count,
         peer_read_up_to: row.peer_read_up_to,
         peer_has_avatar: is_dm && row.peer_avatar_attachment_id.is_some(),
+        peer_verified: is_dm && row.peer_verified.unwrap_or(false),
+        blocked_by_me: row.blocked_by_me,
+        blocked_me: row.blocked_me,
     }
 }
 
@@ -237,6 +247,23 @@ async fn create_dm(state: &AppState, me: Uuid, peer: Uuid) -> Result<Uuid, AppEr
             .await?;
     if !peer_exists {
         return Err(AppError::NotFound);
+    }
+    // A fresh DM can't be opened while either side has blocked the other —
+    // an existing DM (opened before the block) is left alone here; sending
+    // into it is what actually gets rejected, in persist_and_fanout.
+    let blocked: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM blocks
+            WHERE (blocker_id = $1 AND blocked_id = $2)
+               OR (blocker_id = $2 AND blocked_id = $1)
+         )",
+    )
+    .bind(me)
+    .bind(peer)
+    .fetch_one(&state.db)
+    .await?;
+    if blocked {
+        return Err(AppError::Forbidden);
     }
 
     // Canonical key makes DM creation race-free: two concurrent creates hit

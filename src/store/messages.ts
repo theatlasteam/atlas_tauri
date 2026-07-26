@@ -54,6 +54,7 @@ function createMessagesStore() {
     const otherId = peerUserId ?? "";
     void (async () => {
       const attempts = [0, 800, 2000, 4000];
+      let retriedWithFreshKey = false;
       for (let i = 0; i < attempts.length; i++) {
         if (attempts[i]) await sleep(attempts[i]);
         try {
@@ -63,8 +64,22 @@ function createMessagesStore() {
           patch(chatId, messageId, { text, decrypting: false });
           return;
         } catch {
-          // A key was found but decryption itself failed (e.g. genuine key
-          // mismatch) — retrying with the same key won't help, stop now.
+          // Our cached copy of the peer's key might be stale (e.g. they
+          // reinstalled and rotated it) — bypass the cache once and retry
+          // with whatever the server has on file right now before giving up.
+          if (!retriedWithFreshKey && otherId) {
+            retriedWithFreshKey = true;
+            try {
+              const freshKey = await e2ee.peerKey(otherId, { fresh: true });
+              if (freshKey) {
+                const text = await e2eeOpen(freshKey, body);
+                patch(chatId, messageId, { text, decrypting: false });
+                return;
+              }
+            } catch {
+              // Genuinely undecryptable even with a fresh key — stop.
+            }
+          }
           break;
         }
       }
@@ -179,26 +194,18 @@ function createMessagesStore() {
     const clientTag = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    let scheme = "plain";
-    let body = text;
-    const encrypted = opts?.peerUserId && e2ee.enabledFor(chatId);
-    if (encrypted) {
-      const key = await e2ee.peerKey(opts!.peerUserId!);
-      if (key) {
-        body = await e2eeSeal(key, text);
-        scheme = "x25519-v1";
-      }
-      // Peer without a published key: fall back to plaintext rather than
-      // silently dropping the message; the lock badge reflects per-message
-      // scheme so the sender can see what happened.
-    }
+    // DMs always encrypt when the platform supports it — no opt-out, and no
+    // silent plaintext fallback. If the peer's key isn't published yet, the
+    // send fails (and lands in the "failed" retry state below) rather than
+    // going out as "plain".
+    const mustEncrypt = !!opts?.peerUserId && e2ee.enabledFor(chatId);
 
     const optimistic: Message = {
       id: `pending-${clientTag}`,
       chatId,
       authorId: myId(),
       text,
-      scheme,
+      scheme: mustEncrypt ? "x25519-v1" : "plain",
       sentAt: now,
       mine: true,
       reactions: [],
@@ -209,6 +216,17 @@ function createMessagesStore() {
     setState(chatId, "messages", (m) => [...m, optimistic]);
 
     try {
+      let scheme = "plain";
+      let body = text;
+      if (mustEncrypt) {
+        const key = await e2ee.peerKey(opts!.peerUserId!);
+        if (!key) {
+          throw new Error("Can't send yet: this contact hasn't set up encryption on their device.");
+        }
+        body = await e2eeSeal(key, text);
+        scheme = "x25519-v1";
+      }
+
       const dto = await api.sendMessage(chatId, {
         scheme,
         body,

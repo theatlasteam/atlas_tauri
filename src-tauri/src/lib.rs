@@ -1,6 +1,11 @@
 mod e2ee;
 mod secure;
 
+// JNI shim letting the Android push notification service decrypt a message
+// body without a second copy of the crypto in Kotlin.
+#[cfg(target_os = "android")]
+mod android_push;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
