@@ -2,13 +2,14 @@ mod auth;
 mod config;
 mod error;
 mod models;
+mod push;
 mod routes;
 mod state;
 mod ws;
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::{header, HeaderValue, Method};
-use axum::routing::{delete, get, post, put};
+use axum::routing::{delete, get, patch, post, put};
 use axum::{Json, Router};
 use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -65,6 +66,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/users", get(routes::users::search_users))
         .route("/api/users/{id}", get(routes::users::get_user))
         .route("/api/users/{id}/avatar", get(routes::users::get_avatar))
+        .route("/api/users/{id}/verified", patch(routes::users::set_verified))
+        // Atlas-only: full user list backing the verification screen. Kept off
+        // /api/users so it can't be confused with the public search endpoint.
+        .route("/api/admin/users", get(routes::users::list_all_users))
+        // Push notification device tokens (FCM).
+        .route("/api/devices", post(routes::devices::register_device))
+        .route("/api/devices/{token}", delete(routes::devices::unregister_device))
+        .route("/api/blocks", get(routes::users::list_blocks).post(routes::users::block_user))
+        .route("/api/blocks/{id}", delete(routes::users::unblock_user))
         // chats & messages
         .route("/api/chats", get(routes::chats::list_chats).post(routes::chats::create_chat))
         .route("/api/chats/{id}", get(routes::chats::get_chat))
@@ -75,6 +85,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route("/api/chats/{id}/read", post(routes::messages::mark_read))
         .route("/api/messages/search", get(routes::messages::search_messages))
+        // Single message fetch — the Android push payload carries ids only, so
+        // the notification service pulls the body from here to decrypt it.
+        .route("/api/messages/{id}", get(routes::messages::get_message))
         .route("/api/messages/{id}/reactions", post(routes::messages::add_reaction))
         .route(
             "/api/messages/{id}/reactions/{emoji}",

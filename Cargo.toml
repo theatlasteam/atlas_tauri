@@ -41,6 +41,17 @@ base64 = "0.22"
 # client compiles against the exact wire shapes (no schema drift).
 ts-rs = { version = "11", features = ["uuid-impl", "chrono-impl", "serde-json-impl"] }
 
+# Push notifications (FCM HTTP v1): an RS256 service-account JWT is exchanged
+# for an OAuth2 access token, then messages are POSTed to fcm.googleapis.com.
+# webpki-roots rather than native-roots deliberately — the runtime image
+# (debian-slim, see Dockerfile) ships no CA store, so system-root TLS would
+# fail in production while working fine on a dev machine.
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls-webpki-roots",
+] }
+jsonwebtoken = "9"
+
 # Infrastructure
 tokio-util = { version = "0.7", features = ["io"] }
 dashmap = "6"

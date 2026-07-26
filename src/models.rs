@@ -18,6 +18,7 @@ pub struct UserRow {
     pub avatar_initial: String,
     pub avatar_attachment_id: Option<Uuid>,
     pub last_seen_at: Option<DateTime<Utc>>,
+    pub verified: bool,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -64,6 +65,9 @@ pub struct UserDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub last_seen_at: Option<DateTime<Utc>>,
+    /// Verified badge (checkmark). Granting/revoking is restricted to the
+    /// "atlas" account — see routes/users.rs::require_atlas.
+    pub verified: bool,
 }
 
 impl From<UserRow> for UserDto {
@@ -78,6 +82,7 @@ impl From<UserRow> for UserDto {
             avatar_initial: u.avatar_initial,
             has_avatar: u.avatar_attachment_id.is_some(),
             last_seen_at: u.last_seen_at,
+            verified: u.verified,
         }
     }
 }
@@ -217,6 +222,23 @@ pub struct ChatDto {
     /// For DMs: whether the peer has a photo (fetch via their user avatar
     /// endpoint). Always false for groups — group photos aren't supported yet.
     pub peer_has_avatar: bool,
+    /// For DMs: whether the peer carries the verified checkmark, so the chat
+    /// list and appbar can show it without fetching the full user. Always
+    /// false for groups.
+    pub peer_verified: bool,
+    /// For DMs: whether I've blocked the peer. Always false for groups.
+    pub blocked_by_me: bool,
+    /// For DMs: whether the peer has blocked me. Always false for groups.
+    pub blocked_me: bool,
+}
+
+/// A user I've blocked, as returned by GET /api/blocks.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BlockDto {
+    pub user: UserDto,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
