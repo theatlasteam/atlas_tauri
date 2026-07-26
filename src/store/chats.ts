@@ -27,6 +27,12 @@ interface ChatsState {
    * the plain indicator it rides along with.
    */
   typingPreview: Record<string, Record<string, string>>;
+  /**
+   * Co-presence: chatId -> userIds who have this exact conversation open
+   * right now. Distinct from `online`, which only says the app is running
+   * somewhere.
+   */
+  present: Record<string, string[]>;
 }
 
 const TYPING_TTL_MS = 4000;
@@ -38,6 +44,7 @@ function createChatsStore() {
     loaded: false,
     typing: {},
     typingPreview: {},
+    present: {},
   });
   const typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** The chat currently open in the UI — its incoming messages mark-read live. */
@@ -72,6 +79,13 @@ function createChatsStore() {
 
   const setActiveChat = (chatId: string | null) => {
     activeChatId = chatId;
+    // Tell the other members of the room I've walked in (or out). Best-effort:
+    // if the socket is down there is no co-presence to report anyway, and the
+    // server re-derives it from scratch when the connection comes back.
+    wsSend({ type: "focus", chat_id: chatId ?? undefined });
+    // Co-presence is per-connection server state, so anything we believed
+    // about the chat we just left is now stale.
+    if (!chatId) setState("present", {});
   };
 
   const markRead = async (chatId: string, messageId?: string) => {
@@ -267,6 +281,26 @@ function createChatsStore() {
         }
         break;
       }
+      case "message_updated": {
+        // Edited or unsent. Either way the fix is the same: replace the row we
+        // already hold. No unread/preview bookkeeping unless it was the chat's
+        // latest message, which refresh() below settles.
+        const dto = event.message;
+        messagesStore.ingestDto(dto, { peerUserId: chat(dto.chatId)?.peerUserId });
+        const target = chat(dto.chatId);
+        if (target && target.lastMessageAt === dto.sentAt) {
+          patchChat(dto.chatId, { lastMessage: previewText(toMessage(dto, me)) });
+        }
+        break;
+      }
+      case "focus": {
+        if (event.user_id === me) break;
+        setState("present", event.chat_id, (ids) => {
+          const others = (ids ?? []).filter((id) => id !== event.user_id);
+          return event.present ? [...others, event.user_id] : others;
+        });
+        break;
+      }
       case "chat_created": {
         const mapped = toChat(event.chat, me);
         if (!chat(mapped.id)) {
@@ -334,6 +368,11 @@ function createChatsStore() {
     if (activeChatId) {
       const target = chat(activeChatId);
       void messagesStore.resync(activeChatId, target?.peerUserId);
+      // Focus lives on the connection that reported it, so a new socket has
+      // forgotten we're in this room. Re-announce, and drop what we believed
+      // about everyone else — the server replays the current occupants.
+      setState("present", {});
+      wsSend({ type: "focus", chat_id: activeChatId });
     }
   });
 
@@ -345,6 +384,8 @@ function createChatsStore() {
     setActiveChat,
     sendTyping,
     typingPreview: (chatId: string) => state.typingPreview[chatId] ?? {},
+    /** Users with this exact conversation open right now (never me). */
+    presentIn: (chatId: string) => state.present[chatId] ?? [],
     setMuted,
     createFolder,
     deleteFolder,

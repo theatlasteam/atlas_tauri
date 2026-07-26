@@ -25,6 +25,8 @@ import {
   ChatIcon,
   CloseIcon,
   ChevronDownIcon,
+  CheckIcon,
+  EditIcon,
   EyeIcon,
   HourglassIcon,
   LockIcon,
@@ -100,6 +102,8 @@ export default function ChatView() {
   /** Time capsule armed for the next send (ISO), or null for "send now". */
   const [capsuleAt, setCapsuleAt] = createSignal<string | null>(null);
   const [capsuleOpen, setCapsuleOpen] = createSignal(false);
+  /** The message the composer is currently rewriting, if any. */
+  const [editing, setEditing] = createSignal<Message | null>(null);
   /** Group chats: authorId -> resolved profile (name, fallback avatar, photo flag). */
   const [authors, setAuthors] = createSignal<Record<string, User>>({});
 
@@ -146,6 +150,7 @@ export default function ChatView() {
         setReplyTo(null);
         setDraft("");
         setCapsuleAt(null);
+        setEditing(null);
         lastTypingSent = 0; // the throttle is per-conversation, not per-screen
         clearPendingAttachment();
         void messagesStore.loadInitial(id, chat()?.peerUserId).then(() => {
@@ -246,6 +251,25 @@ export default function ChatView() {
     }
     const text = draft().trim();
     const attachment = pendingAttachment();
+
+    // Saving an edit reuses the composer but is a different operation: no
+    // attachment, no capsule, no new row in the thread.
+    const target = editing();
+    if (target) {
+      if (!text || sending()) return;
+      setSending(true);
+      try {
+        await messagesStore.edit(params.id, target, text, chat()?.peerUserId);
+        setEditing(null);
+        setDraft("");
+      } catch {
+        /* the store rolled the bubble back; the draft stays for another go */
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     if ((!text && !attachment) || sending() || blocked()) return;
 
     setSending(true);
@@ -365,11 +389,36 @@ export default function ChatView() {
     if (message.failed) void messagesStore.retryFailed(params.id, message, chat()?.peerUserId);
   };
 
-  /** Chat-header subtitle for a DM: typing beats presence beats last seen. */
+  const startEdit = (message: Message) => {
+    setEditing(message);
+    setReplyTo(null);
+    clearPendingAttachment();
+    setCapsuleAt(null);
+    setDraft(message.text);
+  };
+
+  const cancelEdit = () => {
+    setEditing(null);
+    setDraft("");
+  };
+
+  const unsend = (message: Message) => void messagesStore.unsend(params.id, message).catch(() => {});
+
+  /**
+   * Chat-header subtitle for a DM: typing beats co-presence beats online
+   * beats last seen — most specific fact first, since each one implies the
+   * ones below it.
+   */
   const peerSubtitle = () => {
     const c = chat();
     if (!c) return "";
-    if (c.kind === "group") return `${c.memberCount} members`;
+    const here = chatsStore.presentIn(params.id);
+    if (c.kind === "group") {
+      return here.length > 0
+        ? `${c.memberCount} members · ${here.length} here now`
+        : `${c.memberCount} members`;
+    }
+    if (c.peerUserId && here.includes(c.peerUserId)) return "in the chat with you";
     if (c.online) return "online";
     // formatLastSeen returns null when the peer hides it — say nothing
     // specific rather than inventing "recently", which the header used to
@@ -510,6 +559,8 @@ export default function ChatView() {
                           isLastInGroup={isLast()}
                           onReply={(m) => setReplyTo(m)}
                           onReactPick={(m, anchor) => setReactFor({ message: m, anchor })}
+                          onEdit={startEdit}
+                          onUnsend={unsend}
                         />
                       </div>
                     );
@@ -587,7 +638,31 @@ export default function ChatView() {
           )}
         </Show>
 
-        <Show when={capsuleAt()}>
+        <Show when={editing()}>
+          {(target) => (
+            <div class="rise-in flex items-center gap-2 px-4 pt-2">
+              <div class="flex min-w-0 flex-1 items-center gap-2 rounded-lg border-l-2 border-accent bg-surface-raised px-2.5 py-1.5">
+                <EditIcon size={15} class="shrink-0 text-accent" />
+                <p class="min-w-0 flex-1 truncate text-xs text-ink-muted">
+                  <span class="font-semibold text-accent">Editing · </span>
+                  {target().text}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={cancelEdit}
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-subtle transition-colors duration-150 hover:bg-surface hover:text-ink active:bg-surface"
+                aria-label="Cancel edit"
+              >
+                <CloseIcon size={16} />
+              </button>
+            </div>
+          )}
+        </Show>
+
+        {/* Ternary rather than `capsuleAt() && !editing()` so Show still
+            narrows the accessor to a string. */}
+        <Show when={editing() ? null : capsuleAt()}>
           {(unlockAt) => (
             <div class="rise-in flex items-center gap-2 px-4 pt-2">
               <div class="flex min-w-0 flex-1 items-center gap-2 rounded-lg border-l-2 border-accent bg-surface-raised px-2.5 py-1.5">
@@ -653,6 +728,8 @@ export default function ChatView() {
               e.currentTarget.value = "";
             }}
           />
+          {/* An edit replaces text only — the attachment stays as it was. */}
+          <Show when={!editing()}>
           <button
             type="button"
             onClick={pickFile}
@@ -664,26 +741,30 @@ export default function ChatView() {
               <AttachIcon size={20} />
             </Show>
           </button>
+          </Show>
           <input
             type="text"
             value={draft()}
             onInput={(e) => onDraftInput(e.currentTarget.value)}
+            onKeyDown={(e) => e.key === "Escape" && editing() && cancelEdit()}
             placeholder={
-              recording()
-                ? "Recording voice message…"
-                : pendingAttachment()
-                  ? "Add a caption…"
-                  : capsuleAt()
-                    ? "Write something for later…"
-                    : encrypted()
-                      ? "Encrypted message"
-                      : "Message"
+              editing()
+                ? "Edit your message…"
+                : recording()
+                  ? "Recording voice message…"
+                  : pendingAttachment()
+                    ? "Add a caption…"
+                    : capsuleAt()
+                      ? "Write something for later…"
+                      : encrypted()
+                        ? "Encrypted message"
+                        : "Message"
             }
             disabled={recording()}
             class="min-w-0 flex-1 rounded-pill border border-border bg-surface px-4 py-2.5 text-ink placeholder-ink-subtle outline-none transition-[border-color,box-shadow] duration-150 focus:border-accent focus:ring-2 focus:ring-accent/15"
           />
           <Show
-            when={draft().trim() || pendingAttachment()}
+            when={draft().trim() || pendingAttachment() || editing()}
             fallback={
               <button
                 type="button"
@@ -703,22 +784,38 @@ export default function ChatView() {
           >
             {/* Tap sends. Hold opens the time-capsule picker — the same
                 press-and-hold that already reveals reactions on a bubble,
-                rather than a third permanent button in the composer. */}
+                rather than a third permanent button in the composer.
+                While editing it is a plain Save: there is nothing to schedule,
+                the message has already been sent once. */}
             <button
               ref={sendBtn}
               type="submit"
-              disabled={sending()}
-              onPointerDown={startHold}
+              disabled={sending() || (!!editing() && !draft().trim())}
+              onPointerDown={() => !editing() && startHold()}
               onPointerUp={cancelHold}
               onPointerLeave={cancelHold}
               onPointerCancel={cancelHold}
               onContextMenu={(e) => e.preventDefault()}
               class="flex h-11 w-11 shrink-0 select-none items-center justify-center rounded-full bg-accent text-accent-ink transition-transform duration-150 hover:brightness-105 disabled:opacity-40 active:scale-95"
-              aria-label={capsuleAt() ? "Seal and send — hold to change when it opens" : "Send message — hold to send later"}
-              title={capsuleAt() ? "Hold to change when it opens" : "Hold to send later"}
+              aria-label={
+                editing()
+                  ? "Save edit"
+                  : capsuleAt()
+                    ? "Seal and send — hold to change when it opens"
+                    : "Send message — hold to send later"
+              }
+              title={
+                editing()
+                  ? "Save"
+                  : capsuleAt()
+                    ? "Hold to change when it opens"
+                    : "Hold to send later"
+              }
             >
-              <Show when={!capsuleAt()} fallback={<HourglassIcon size={18} />}>
-                <SendIcon size={18} />
+              <Show when={!editing()} fallback={<CheckIcon size={19} />}>
+                <Show when={!capsuleAt()} fallback={<HourglassIcon size={18} />}>
+                  <SendIcon size={18} />
+                </Show>
               </Show>
             </button>
           </Show>

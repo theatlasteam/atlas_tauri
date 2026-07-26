@@ -48,6 +48,16 @@ export interface Message {
   unlockAt?: string;
   /** True while the capsule is still shut — the server withheld the body. */
   sealed?: boolean;
+  /** Set when the author has rewritten the body since sending it. */
+  editedAt?: string;
+  /** Unsent by its author: a tombstone with no content. */
+  deleted?: boolean;
+  /**
+   * The plaintext of an outgoing message, kept only on optimistic and failed
+   * rows. `text` may be a placeholder (a sealed capsule shows one), so a retry
+   * has to resend this rather than what the bubble happens to be displaying.
+   */
+  sourceText?: string;
   /** True while an E2EE body is still being decrypted. */
   decrypting?: boolean;
   /** Optimistic-send bookkeeping. */

@@ -18,7 +18,7 @@ client_tag?: string, reply_to_id?: string, attachment_id?: string,
  * Time capsule: withhold the body from everyone but the author until
  * this moment. See models::MessageDto::seal_for.
  */
-unlock_at?: string, } | { "type": "mark_read", chat_id: string, message_id: string, } | { "type": "typing", chat_id: string, preview?: string, scheme?: string, } | { "type": "call_offer", call_id: string, to_user_id: string, sdp: string, 
+unlock_at?: string, } | { "type": "mark_read", chat_id: string, message_id: string, } | { "type": "focus", chat_id?: string, } | { "type": "typing", chat_id: string, preview?: string, scheme?: string, } | { "type": "call_offer", call_id: string, to_user_id: string, sdp: string, 
 /**
  * "audio" | "video" — shown on the ring screen and in call logs.
  */

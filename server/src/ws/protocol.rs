@@ -50,6 +50,19 @@ pub enum ClientMsg {
         unlock_at: Option<DateTime<Utc>>,
     },
     MarkRead { chat_id: Uuid, message_id: Uuid },
+
+    /// "This device is looking at this conversation right now" — `None` when
+    /// the user navigates away. Drives co-presence: knowing someone is in the
+    /// room with you, which is a different and more useful fact than knowing
+    /// they have the app open somewhere.
+    ///
+    /// Focus is per connection, not per user: a laptop and a phone can be in
+    /// different chats, and each one's presence is reported where it actually is.
+    Focus {
+        #[serde(default)]
+        #[ts(optional)]
+        chat_id: Option<Uuid>,
+    },
     /// Typing indicator, optionally carrying the draft itself ("live typing").
     ///
     /// The preview is opaque to the server exactly like a message body: in a
@@ -115,6 +128,10 @@ pub enum ServerEvent {
         client_tag: Option<String>,
         message: MessageDto,
     },
+    /// An existing message changed: edited, or unsent (`deleted` on the DTO).
+    /// One event for both, because the client's handling is the same — replace
+    /// the row it already has by id.
+    MessageUpdated { message: MessageDto },
     Read { chat_id: Uuid, user_id: Uuid, message_id: Uuid },
     Typing {
         chat_id: Uuid,
@@ -136,6 +153,10 @@ pub enum ServerEvent {
         #[ts(optional)]
         last_seen_at: Option<DateTime<Utc>>,
     },
+    /// Someone opened or left this conversation. Sent to the other members of
+    /// the chat, and replayed to a client that has just focused it so it
+    /// learns who was already there.
+    Focus { chat_id: Uuid, user_id: Uuid, present: bool },
     ChatCreated { chat: ChatDto },
 
     CallOffer { call_id: Uuid, from: UserDto, sdp: String, media: String },

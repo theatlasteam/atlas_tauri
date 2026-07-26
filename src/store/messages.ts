@@ -233,9 +233,15 @@ function createMessagesStore() {
       reactions: [],
       attachment: opts?.attachmentPreview,
       unlockAt: opts?.unlockAt,
+      // A capsule is sealed the moment it is sent, from its author too, so the
+      // optimistic row shows the seal rather than flashing the text and then
+      // hiding it. The plaintext rides along in sourceText for retries.
+      sealed: !!opts?.unlockAt,
+      sourceText: text,
       pending: true,
       clientTag,
     };
+    if (opts?.unlockAt) optimistic.text = "⏳ Time capsule";
     setState(chatId, "messages", (m) => [...m, optimistic]);
 
     try {
@@ -280,17 +286,70 @@ function createMessagesStore() {
    * whether the body gets sealed, so a retry used to put a message that the
    * user had been shown as encrypted back on the wire in the clear. The reply
    * link, the attachment and the capsule's unlock time were lost the same way.
+   *
+   * The text comes from `sourceText`, not from what the bubble is showing: a
+   * failed capsule displays a placeholder, and resending that would deliver
+   * the words "⏳ Time capsule".
    */
   const retryFailed = async (chatId: string, message: Message, peerUserId?: string) => {
     if (!message.failed) return;
     setState(chatId, "messages", (m) => m.filter((x) => x.id !== message.id));
-    await send(chatId, message.text, {
+    await send(chatId, message.sourceText ?? message.text, {
       replyToId: message.replyTo?.id,
       peerUserId,
       attachmentId: message.attachment?.id,
       attachmentPreview: message.attachment,
       unlockAt: message.unlockAt,
     });
+  };
+
+  /**
+   * Rewrite a message I sent.
+   *
+   * The new body is sealed the same way the original was — an edit that
+   * downgraded an encrypted message to plaintext would quietly undo the
+   * guarantee the bubble is still advertising with its padlock.
+   */
+  const edit = async (chatId: string, message: Message, text: string, peerUserId?: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || trimmed === message.text) return;
+
+    const previous = message.text;
+    patch(chatId, message.id, { text: trimmed, editedAt: new Date().toISOString() });
+    try {
+      let scheme = "plain";
+      let body = trimmed;
+      if (peerUserId && e2ee.enabledFor(chatId)) {
+        const key = await e2ee.peerKey(peerUserId);
+        if (!key) throw new Error("Can't edit yet: this contact hasn't set up encryption.");
+        body = await e2eeSeal(key, trimmed);
+        scheme = "x25519-v1";
+      }
+      const dto = await api.editMessage(message.id, { scheme, body });
+      // The echoed DTO carries ciphertext we already know the plaintext of.
+      const updated = toMessage(dto, myId());
+      if (updated.decrypting) {
+        updated.text = trimmed;
+        updated.decrypting = false;
+      }
+      upsert(chatId, updated);
+    } catch (e) {
+      patch(chatId, message.id, { text: previous, editedAt: message.editedAt });
+      throw e;
+    }
+  };
+
+  /** Unsend for everyone. Optimistic: the tombstone is what the server will
+   *  send back anyway, and rolling it back on failure keeps that honest. */
+  const unsend = async (chatId: string, message: Message) => {
+    const before = { text: message.text, deleted: message.deleted, attachment: message.attachment };
+    patch(chatId, message.id, { text: "Message deleted", deleted: true, attachment: undefined });
+    try {
+      await api.deleteMessage(message.id);
+    } catch (e) {
+      patch(chatId, message.id, before);
+      throw e;
+    }
   };
 
   const applyReaction = (chatId: string, messageId: string, userId: string, emoji: string, added: boolean) => {
@@ -336,6 +395,8 @@ function createMessagesStore() {
     send,
     retryFailed,
     refresh,
+    edit,
+    unsend,
     ingestDto,
     applyReaction,
     toggleReaction,

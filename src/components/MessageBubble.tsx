@@ -13,19 +13,24 @@ import {
 } from "../lib/time";
 import { session } from "../store/session";
 import { messagesStore } from "../store/messages";
+import { Menu, MenuItem } from "../ui/Menu";
 import {
   CheckIcon,
   ChecksIcon,
+  DotsIcon,
   DownloadIcon,
+  EditIcon,
   HourglassIcon,
   LockIcon,
   PauseIcon,
   PhoneIcon,
   PhoneSlashIcon,
   PlayIcon,
+  ProhibitIcon,
   ReplyIcon,
   SmileyIcon,
   SpinnerIcon,
+  TrashIcon,
   VideoIcon,
 } from "../icons";
 
@@ -257,6 +262,8 @@ export default function MessageBubble(props: {
   isLastInGroup?: boolean;
   onReply: (message: Message) => void;
   onReactPick: (message: Message, anchor: HTMLElement) => void;
+  onEdit: (message: Message) => void;
+  onUnsend: (message: Message) => void;
 }) {
   const isFirst = () => props.isFirstInGroup ?? true;
   const isLast = () => props.isLastInGroup ?? true;
@@ -282,25 +289,17 @@ export default function MessageBubble(props: {
   const cancelPress = () => pressTimer && clearTimeout(pressTimer);
   onCleanup(cancelPress);
 
-  const isE2ee = () => m().scheme !== "plain" && m().scheme !== "call-log";
+  // A tombstone keeps the scheme of what it replaced; showing its padlock
+  // would advertise the confidentiality of a message that no longer exists.
+  const isE2ee = () => !m().deleted && m().scheme !== "plain" && m().scheme !== "call-log";
   const hasReactions = () => m().reactions.length > 0;
-  /** A capsule whose body the server withheld from this viewer. */
-  const sealed = () => !!m().sealed;
-
   /**
-   * The author's view of a capsule that hasn't opened yet: they wrote it, so
-   * they can read it back — but the bubble still has to say when the other
-   * side will be able to, or scheduling something is a fire-and-forget with no
-   * way to check what you sent or when it lands.
-   *
-   * Ordered so `now()` is only read for a message that actually has an unlock
-   * time; reading it unconditionally would subscribe every bubble in the
-   * thread to the 1s clock.
+   * A capsule whose body is still withheld. The server seals capsules from
+   * everyone including their author, so this is one flag rather than a
+   * per-viewer judgement — and no bubble needs to consult the clock to decide
+   * what it is allowed to show.
    */
-  const awaitingUnlock = () => {
-    const unlockAt = m().unlockAt;
-    return !sealed() && !!unlockAt && new Date(unlockAt).getTime() > now();
-  };
+  const sealed = () => !!m().sealed;
 
   return (
     <div
@@ -314,7 +313,13 @@ export default function MessageBubble(props: {
       <div class="group flex w-full items-end gap-1" classList={{ "justify-end": mine(), "justify-start": !mine() }}>
         {/* Hover affordances (desktop) */}
         <Show when={mine()}>
-          <BubbleActions message={m()} onReply={props.onReply} onReactPick={props.onReactPick} />
+          <BubbleActions
+            message={m()}
+            onReply={props.onReply}
+            onReactPick={props.onReactPick}
+            onEdit={props.onEdit}
+            onUnsend={props.onUnsend}
+          />
         </Show>
 
         {/* Avatar slot for received group messages — only drawn on the last
@@ -350,9 +355,11 @@ export default function MessageBubble(props: {
               "rounded-bl-md": !mine() && !isLast(),
               "opacity-60": !!m().pending,
               "outline outline-1 outline-danger/50": !!m().failed,
-              // A capsule reads as a different kind of object: dashed edge,
-              // whether you're waiting on it or waiting for it to land.
-              "outline outline-1 outline-dashed outline-current/40": sealed() || awaitingUnlock(),
+              // A sealed capsule reads as a different kind of object: dashed
+              // edge, so it's obviously not an ordinary message you can read.
+              "outline outline-1 outline-dashed outline-current/40": sealed(),
+              // A tombstone is not a message; drop the colour with it.
+              "!bg-transparent outline outline-1 outline-border": !!m().deleted,
             }}
           >
             <Show when={!mine() && isGroupChat() && props.author && isFirst()}>
@@ -372,15 +379,14 @@ export default function MessageBubble(props: {
               )}
             </Show>
 
-            <Show when={!sealed()} fallback={<SealedCapsule message={m()} peerUserId={props.chat?.peerUserId} />}>
-              <Show when={awaitingUnlock()}>
-                <p class="mb-1 flex items-center gap-1.5 text-xs font-semibold opacity-75">
-                  <HourglassIcon size={12} />
-                  <span class="tabular-nums">Opens in {formatCountdown(m().unlockAt!)}</span>
-                </p>
-              </Show>
-              <Show when={m().callLog} fallback={<MessageBody message={m()} />}>
-                <CallLogBubble message={m()} />
+            <Show when={!m().deleted} fallback={<DeletedBubble mine={mine()} />}>
+              <Show
+                when={!sealed()}
+                fallback={<SealedCapsule message={m()} peerUserId={props.chat?.peerUserId} />}
+              >
+                <Show when={m().callLog} fallback={<MessageBody message={m()} />}>
+                  <CallLogBubble message={m()} />
+                </Show>
               </Show>
             </Show>
           </div>
@@ -411,7 +417,13 @@ export default function MessageBubble(props: {
         </div>
 
         <Show when={!mine()}>
-          <BubbleActions message={m()} onReply={props.onReply} onReactPick={props.onReactPick} />
+          <BubbleActions
+            message={m()}
+            onReply={props.onReply}
+            onReactPick={props.onReactPick}
+            onEdit={props.onEdit}
+            onUnsend={props.onUnsend}
+          />
         </Show>
       </div>
 
@@ -432,6 +444,9 @@ export default function MessageBubble(props: {
             <HourglassIcon size={11} />
           </Show>
           <span>{formatClockTime(m().sentAt)}</span>
+          <Show when={m().editedAt && !m().deleted}>
+            <span title={`Edited ${formatClockTime(m().editedAt!)}`}>· edited</span>
+          </Show>
           <Show when={receipt() === "pending"}>
             <SpinnerIcon size={11} class="animate-spin" />
           </Show>
@@ -444,6 +459,16 @@ export default function MessageBubble(props: {
         </p>
       </Show>
     </div>
+  );
+}
+
+/** What's left of a message its author took back. */
+function DeletedBubble(props: { mine: boolean }) {
+  return (
+    <p class="flex items-center gap-1.5 text-[0.95em] italic leading-snug text-ink-subtle">
+      <ProhibitIcon size={13} />
+      {props.mine ? "You unsent this" : "Message deleted"}
+    </p>
   );
 }
 
@@ -482,34 +507,86 @@ function BubbleActions(props: {
   message: Message;
   onReply: (message: Message) => void;
   onReactPick: (message: Message, anchor: HTMLElement) => void;
+  onEdit: (message: Message) => void;
+  onUnsend: (message: Message) => void;
 }) {
   let reactBtn: HTMLButtonElement | undefined;
+  let moreBtn: HTMLButtonElement | undefined;
+  const [moreOpen, setMoreOpen] = createSignal(false);
   const action =
     "flex h-7 w-7 items-center justify-center rounded-full text-ink-subtle transition-[background-color,transform] duration-150 hover:bg-surface active:scale-90";
+
+  const m = () => props.message;
+  /** A tombstone has nothing to react to, quote, or change. */
+  const inert = () => !!m().deleted;
+  /** Editing a capsule mid-countdown would make "sealed" mean "provisional",
+   *  so the server refuses it — don't offer it either. */
+  const editable = () =>
+    m().mine && !inert() && !m().callLog && !m().pending && !m().failed && !m().sealed;
+  const removable = () => m().mine && !inert() && !m().pending && !m().failed;
+
   return (
     <div class="mb-1 hidden shrink-0 items-center gap-0.5 self-end opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
       {/* Phosphor icons, not literal "😊"/"↩" glyphs: those rendered at a
           different size and weight on every platform, and the app already had
           matching icons exported but unused. */}
-      <button
-        ref={reactBtn}
-        type="button"
-        onClick={() => props.onReactPick(props.message, reactBtn!)}
-        class={action}
-        aria-label="React"
-        title="React"
-      >
-        <SmileyIcon size={16} />
-      </button>
-      <button
-        type="button"
-        onClick={() => props.onReply(props.message)}
-        class={action}
-        aria-label="Reply"
-        title="Reply"
-      >
-        <ReplyIcon size={16} />
-      </button>
+      <Show when={!inert()}>
+        <button
+          ref={reactBtn}
+          type="button"
+          onClick={() => props.onReactPick(m(), reactBtn!)}
+          class={action}
+          aria-label="React"
+          title="React"
+        >
+          <SmileyIcon size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={() => props.onReply(m())}
+          class={action}
+          aria-label="Reply"
+          title="Reply"
+        >
+          <ReplyIcon size={16} />
+        </button>
+      </Show>
+      <Show when={editable() || removable()}>
+        <button
+          ref={moreBtn}
+          type="button"
+          onClick={() => setMoreOpen(true)}
+          class={action}
+          aria-label="More actions"
+          title="More"
+        >
+          <DotsIcon size={16} />
+        </button>
+        <Menu open={moreOpen()} onOpenChange={setMoreOpen} anchorRef={() => moreBtn} placement="top-end">
+          <Show when={editable()}>
+            <MenuItem
+              onSelect={() => {
+                setMoreOpen(false);
+                props.onEdit(m());
+              }}
+            >
+              <span>Edit</span>
+              <EditIcon size={16} />
+            </MenuItem>
+          </Show>
+          <Show when={removable()}>
+            <MenuItem
+              onSelect={() => {
+                setMoreOpen(false);
+                props.onUnsend(m());
+              }}
+            >
+              <span class="text-danger">Unsend</span>
+              <TrashIcon size={16} class="text-danger" />
+            </MenuItem>
+          </Show>
+        </Menu>
+      </Show>
     </div>
   );
 }
