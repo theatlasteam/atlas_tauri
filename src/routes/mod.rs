@@ -1,4 +1,5 @@
 pub mod attachments;
+pub mod calls;
 pub mod chats;
 pub mod devices;
 pub mod folders;
