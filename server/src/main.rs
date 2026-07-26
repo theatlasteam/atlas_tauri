@@ -49,6 +49,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bind_addr = cfg.bind_addr.clone();
     let state = AppState::new(db, cfg);
 
+    // Collects call state that no socket can clean up (see the doc comment) —
+    // without it a leaked entry makes a user permanently "busy".
+    ws::calls::spawn_stale_call_reaper(state.clone());
+
     let app = Router::new()
         .route("/api/health", get(health))
         // auth & sessions
@@ -73,6 +77,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Push notification device tokens (FCM).
         .route("/api/devices", post(routes::devices::register_device))
         .route("/api/devices/{token}", delete(routes::devices::unregister_device))
+        // Declining from the Android call notification, which has no socket.
+        .route("/api/calls/{id}/decline", post(routes::calls::decline_call))
         .route("/api/blocks", get(routes::users::list_blocks).post(routes::users::block_user))
         .route("/api/blocks/{id}", delete(routes::users::unblock_user))
         // chats & messages

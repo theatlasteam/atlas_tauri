@@ -280,28 +280,38 @@ async fn push_to_absent_members(
         return;
     }
 
-    // Display name only — the body is deliberately absent. E2EE bodies are
-    // opaque here, and a plaintext one can exceed FCM's 4KB payload limit, so
-    // the client fetches and decrypts the message itself.
-    let sender_name: String =
-        match sqlx::query_scalar("SELECT name FROM users WHERE id = $1").bind(author_id).fetch_one(&state.db).await {
-            Ok(name) => name,
-            Err(e) => {
-                tracing::warn!(error = %e, "could not load sender name for push");
-                return;
-            }
-        };
+    // Identity for the notification, never the body. E2EE bodies are opaque
+    // here, and a plaintext one can exceed FCM's 4KB payload limit, so the
+    // client fetches and decrypts the message itself. The avatar fields let it
+    // render the sender's picture without a second round trip for their profile.
+    let sender: (String, String, String, bool) = match sqlx::query_as(
+        "SELECT name, avatar_color, avatar_initial, avatar_attachment_id IS NOT NULL
+         FROM users WHERE id = $1",
+    )
+    .bind(author_id)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(row) => row,
+        Err(e) => {
+            tracing::warn!(error = %e, "could not load sender profile for push");
+            return;
+        }
+    };
 
     crate::push::notify_detached(
         state.push.clone(),
         state.db.clone(),
         offline,
-        crate::push::PushMessage {
+        crate::push::PushPayload::Message(crate::push::PushMessage {
             chat_id,
             message_id: dto.id,
             sender_id: author_id,
-            sender_name,
-        },
+            sender_name: sender.0,
+            sender_avatar_color: sender.1,
+            sender_avatar_initial: sender.2,
+            sender_has_avatar: sender.3,
+        }),
     );
 }
 

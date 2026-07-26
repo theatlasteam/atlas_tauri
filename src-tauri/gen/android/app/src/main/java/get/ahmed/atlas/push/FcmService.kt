@@ -59,7 +59,20 @@ class FcmService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         // Runs on a Firebase worker thread, so blocking IO here is fine.
         val data = message.data
-        if (data["kind"] != "message") return
+        val kind = data["kind"] ?: return
+
+        // A call that ended while we were ringing (cancelled, timed out, or
+        // declined on another device). Handled before the signed-out guard so a
+        // stale ringing notification is always cleared.
+        if (kind == "callEnded") {
+            CallNotifier.dismiss(applicationContext)
+            // Also close the full-screen ring screen if it's showing.
+            sendBroadcast(
+                Intent(IncomingCallActivity.ACTION_CALL_ENDED)
+                    .setPackage(packageName),
+            )
+            return
+        }
 
         // Signed out: drop it silently. The server may still hold this device's
         // token (sign-out can't unregister it — the web layer has no way to read
@@ -70,12 +83,61 @@ class FcmService : FirebaseMessagingService() {
             return
         }
 
+        if (kind == "call") {
+            val callId = data["callId"] ?: return
+            val face = avatar(
+                data["callerId"],
+                hasPhoto = data["callerHasAvatar"] == "true",
+                initial = data["callerAvatarInitial"] ?: "",
+                colorHex = data["callerAvatarColor"] ?: "",
+            )
+            CallNotifier.showIncoming(
+                context = applicationContext,
+                callId = callId,
+                callerName = data["callerName"]?.takeIf { it.isNotEmpty() } ?: "Incoming call",
+                media = data["media"] ?: "audio",
+                avatar = face,
+                avatarPng = face?.let { Avatars.toPng(it) },
+            )
+            return
+        }
+
+        if (kind != "message") return
+
         val chatId = data["chatId"] ?: return
         val messageId = data["messageId"] ?: return
         val senderId = data["senderId"]
         val senderName = data["senderName"]?.takeIf { it.isNotEmpty() } ?: "New message"
 
-        notify(senderName, preview(messageId, senderId), chatId, messageId)
+        notify(
+            senderName,
+            preview(messageId, senderId),
+            chatId,
+            messageId,
+            avatar(
+                senderId,
+                hasPhoto = data["senderHasAvatar"] == "true",
+                initial = data["senderAvatarInitial"] ?: "",
+                colorHex = data["senderAvatarColor"] ?: "",
+            ),
+        )
+    }
+
+    /**
+     * The other person's picture, for the notification's large icon. Null only
+     * when they can't be identified at all, in which case the notification shows
+     * no avatar rather than falling back to the app logo.
+     */
+    private fun avatar(
+        userId: String?,
+        hasPhoto: Boolean,
+        initial: String,
+        colorHex: String,
+    ): android.graphics.Bitmap? {
+        val id = userId ?: return null
+        val base = Secrets.serverUrl(applicationContext) ?: return null
+        val auth = Secrets.authToken(applicationContext) ?: return null
+        return Avatars.forSender(base, auth, id, hasPhoto, initial, colorHex)
     }
 
     /**
@@ -103,7 +165,13 @@ class FcmService : FirebaseMessagingService() {
         return NativeCrypto.decrypt(dir, peerKey, body)
     }
 
-    private fun notify(title: String, text: String?, chatId: String, messageId: String) {
+    private fun notify(
+        title: String,
+        text: String?,
+        chatId: String,
+        messageId: String,
+        avatar: android.graphics.Bitmap?,
+    ) {
         // Android 13+ silently drops notifications without this permission.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -133,12 +201,17 @@ class FcmService : FirebaseMessagingService() {
         )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            // Monochrome glyph for the status bar; the person's face goes in the
+            // large icon, where colour actually survives.
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentIntent(pending)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .apply { if (text != null) setContentText(text) }
+            .apply {
+                if (text != null) setContentText(text)
+                if (avatar != null) setLargeIcon(avatar)
+            }
             .build()
 
         // Keyed on the message so a redelivered push replaces rather than stacks.

@@ -1,12 +1,12 @@
 name: Release
 
-# Manual only — running this deletes and recreates the "a1" release/tag with
-# fresh build artifacts for Android, Windows, and Linux.
+# Manual only — running this deletes and recreates the release/tag named below
+# with fresh build artifacts for Android, Windows, and Linux.
 on:
   workflow_dispatch:
 
 env:
-  RELEASE_TAG: a1
+  RELEASE_TAG: a2
 
 jobs:
   build-linux:

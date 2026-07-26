@@ -100,11 +100,84 @@ pub struct Push {
 }
 
 /// What the Android client needs to build a notification after it decrypts.
+///
+/// The avatar fields ride along so the device can render the sender's picture
+/// without first fetching their profile: `has_avatar` tells it whether to pull
+/// the photo, and colour/initial are the fallback it draws otherwise — the same
+/// two-tier scheme the web Avatar component uses.
 pub struct PushMessage {
     pub chat_id: Uuid,
     pub message_id: Uuid,
     pub sender_id: Uuid,
     pub sender_name: String,
+    pub sender_avatar_color: String,
+    pub sender_avatar_initial: String,
+    pub sender_has_avatar: bool,
+}
+
+/// An incoming call for a device with no live socket. Carries no SDP — the
+/// woken app receives the retained offer over the WebSocket once it connects
+/// (see ws::calls::replay_pending).
+pub struct PushCall {
+    pub call_id: Uuid,
+    pub caller_id: Uuid,
+    pub caller_name: String,
+    pub caller_avatar_color: String,
+    pub caller_avatar_initial: String,
+    pub caller_has_avatar: bool,
+    /// "audio" | "video"
+    pub media: String,
+}
+
+pub enum PushPayload {
+    Message(PushMessage),
+    Call(PushCall),
+    /// The ringing call is over (cancelled, declined elsewhere, or timed out)
+    /// so the device should dismiss its call notification. Without this a phone
+    /// woken for a call nobody answered would ring on screen indefinitely.
+    CallEnded { call_id: Uuid },
+}
+
+impl PushPayload {
+    fn data(&self) -> serde_json::Value {
+        // Every FCM data value must be a string.
+        match self {
+            PushPayload::Message(m) => serde_json::json!({
+                "kind": "message",
+                "chatId": m.chat_id.to_string(),
+                "messageId": m.message_id.to_string(),
+                "senderId": m.sender_id.to_string(),
+                "senderName": m.sender_name,
+                "senderAvatarColor": m.sender_avatar_color,
+                "senderAvatarInitial": m.sender_avatar_initial,
+                "senderHasAvatar": m.sender_has_avatar.to_string(),
+            }),
+            PushPayload::Call(c) => serde_json::json!({
+                "kind": "call",
+                "callId": c.call_id.to_string(),
+                "callerId": c.caller_id.to_string(),
+                "callerName": c.caller_name,
+                "callerAvatarColor": c.caller_avatar_color,
+                "callerAvatarInitial": c.caller_avatar_initial,
+                "callerHasAvatar": c.caller_has_avatar.to_string(),
+                "media": c.media,
+            }),
+            PushPayload::CallEnded { call_id } => serde_json::json!({
+                "kind": "callEnded",
+                "callId": call_id.to_string(),
+            }),
+        }
+    }
+
+    /// Call-related pushes are worthless once the ring window has passed — a
+    /// late one would make the phone ring for a call that is already over. Ties
+    /// to RING_TIMEOUT in ws::calls. Messages keep FCM's default (4 weeks).
+    fn ttl(&self) -> Option<&'static str> {
+        match self {
+            PushPayload::Message(_) => None,
+            PushPayload::Call(_) | PushPayload::CallEnded { .. } => Some("60s"),
+        }
+    }
 }
 
 impl Push {
@@ -183,24 +256,21 @@ impl Push {
         account: &ServiceAccount,
         access_token: &str,
         device_token: &str,
-        msg: &PushMessage,
+        payload: &PushPayload,
     ) -> SendOutcome {
-        // All FCM data values must be strings, and there is deliberately no
-        // `notification` block: a data-only message wakes the client so it can
-        // decrypt and post the notification itself. HIGH priority is required
-        // for a data-only push to be delivered promptly while the app is
-        // backgrounded or the device is dozing.
+        // Deliberately no `notification` block: a data-only message wakes the
+        // client so it can decrypt and post the notification itself. HIGH
+        // priority is required for a data-only push to be delivered promptly
+        // while the app is backgrounded or the device is dozing.
+        let mut android = serde_json::json!({ "priority": "HIGH" });
+        if let Some(ttl) = payload.ttl() {
+            android["ttl"] = serde_json::Value::String(ttl.to_string());
+        }
         let body = serde_json::json!({
             "message": {
                 "token": device_token,
-                "data": {
-                    "kind": "message",
-                    "chatId": msg.chat_id.to_string(),
-                    "messageId": msg.message_id.to_string(),
-                    "senderId": msg.sender_id.to_string(),
-                    "senderName": msg.sender_name,
-                },
-                "android": { "priority": "HIGH" },
+                "data": payload.data(),
+                "android": android,
             }
         });
 
@@ -233,7 +303,7 @@ impl Push {
     /// Push to every registered device of `user_ids`, pruning dead tokens.
     /// Errors are logged rather than returned: a failed notification must
     /// never fail the message send that triggered it.
-    pub async fn notify_users(&self, db: &sqlx::PgPool, user_ids: &[Uuid], msg: PushMessage) {
+    pub async fn notify_users(&self, db: &sqlx::PgPool, user_ids: &[Uuid], payload: PushPayload) {
         let Some(account) = &self.account else { return };
         if user_ids.is_empty() {
             return;
@@ -265,7 +335,7 @@ impl Push {
 
         let mut dead: Vec<String> = Vec::new();
         for token in &tokens {
-            match self.send_one(account, &access_token, token, &msg).await {
+            match self.send_one(account, &access_token, token, &payload).await {
                 SendOutcome::Delivered => {}
                 SendOutcome::Unregistered => dead.push(token.clone()),
                 SendOutcome::Failed(e) => tracing::warn!(error = %e, "push send failed"),
@@ -291,12 +361,12 @@ pub fn notify_detached(
     push: Arc<Push>,
     db: sqlx::PgPool,
     user_ids: Vec<Uuid>,
-    msg: PushMessage,
+    payload: PushPayload,
 ) {
     if !push.enabled() || user_ids.is_empty() {
         return;
     }
     tokio::spawn(async move {
-        push.notify_users(&db, &user_ids, msg).await;
+        push.notify_users(&db, &user_ids, payload).await;
     });
 }

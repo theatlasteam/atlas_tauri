@@ -12,6 +12,10 @@
          granted at runtime — see MainActivity. Without it FCM messages still
          arrive but notifications are silently dropped. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Full-screen incoming-call UI on a locked device. On API 34+ this is
+         only auto-granted to apps registered as calling apps, so the call
+         notification treats it as best-effort and degrades to heads-up. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -68,6 +72,25 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- Full-screen ring screen. showWhenLocked/turnScreenOn are what let it
+             appear over the keyguard; without them the activity launches but
+             stays hidden behind the lock screen. excludeFromRecents keeps a
+             dismissed call out of the recents list. -->
+        <activity
+            android:name=".push.IncomingCallActivity"
+            android:theme="@style/Theme.atlas"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:exported="false" />
+
+        <!-- Decline on the incoming-call notification: posts to the server
+             directly, so it works with the app not running. -->
+        <receiver
+            android:name=".push.CallActionReceiver"
+            android:exported="false" />
 
         <provider
           android:name="androidx.core.content.FileProvider"

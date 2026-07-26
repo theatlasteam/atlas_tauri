@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-screen incoming-call screen, shown over the lock screen. Plain Views
+     rather than the webview: this has to appear instantly from a cold start,
+     which a WebView cannot do.
+
+     The drifting mesh gradient sits behind the caller's details at the top and
+     fades into the background, so the header reads as one surface. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#131110">
+
+    <get.ahmed.atlas.push.MeshGradientView
+        android:id="@+id/call_mesh"
+        android:layout_width="match_parent"
+        android:layout_height="420dp"
+        android:layout_gravity="top" />
+
+    <!-- Sits between the mesh and the text: the blobs drift right under the
+         label, and without this scrim it's unreadable whenever a bright one
+         passes behind it. -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="420dp"
+        android:layout_gravity="top"
+        android:background="@drawable/scrim_call_header" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingTop="88dp"
+        android:paddingBottom="80dp">
+
+        <TextView
+            android:id="@+id/call_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Incoming voice call"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:letterSpacing="0.08"
+            android:textAllCaps="true"
+            android:shadowColor="#B3000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="10" />
+
+        <ImageView
+            android:id="@+id/call_avatar"
+            android:layout_width="128dp"
+            android:layout_height="128dp"
+            android:layout_marginTop="36dp"
+            android:contentDescription="Caller" />
+
+        <TextView
+            android:id="@+id/call_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:paddingHorizontal="28dp"
+            android:gravity="center"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:text=""
+            android:textColor="#FFFFFF"
+            android:textSize="32sp"
+            android:textStyle="bold"
+            android:shadowColor="#66000000"
+            android:shadowDx="0"
+            android:shadowDy="2"
+            android:shadowRadius="12" />
+
+        <!-- Pushes the actions to the bottom. -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- Decline and answer share one row: tap to refuse, drag to accept.
+             ImageButton, not Button — a MaterialComponents Button ignores
+             android:background in favour of its own tint, which is why these
+             came out as theme-purple rectangles. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp">
+
+            <!-- padding + fitCenter pins the glyph to exactly 30dp (72 - 2*21),
+                 matching SlideToAnswerView.ICON_DP so both icons are the same
+                 size. scaleType="center" would instead draw at the drawable's
+                 intrinsic size, which drifts whenever that changes. -->
+            <ImageButton
+                android:id="@+id/call_decline"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:padding="21dp"
+                android:background="@drawable/bg_call_decline"
+                android:src="@drawable/ic_call_decline"
+                android:scaleType="fitCenter"
+                android:contentDescription="Decline" />
+
+            <get.ahmed.atlas.push.SlideToAnswerView
+                android:id="@+id/call_slider"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:layout_marginStart="16dp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

@@ -60,6 +60,9 @@ async fn session(mut socket: WebSocket, state: AppState) {
     if came_online {
         broadcast_presence(&state, user_id, true).await;
     }
+    // A push may have woken this app for a call that started before the socket
+    // existed — hand this device the offer it missed.
+    calls::replay_pending(&state, user_id, conn_id).await;
 
     // Writer task: owns the sink, drains the hub queue, emits keepalive pings.
     // The hub holds the only Sender, so when the hub drops this connection

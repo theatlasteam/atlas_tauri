@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar icon. Android draws small icons as a silhouette from the alpha
+     channel and tints them, so this is deliberately a flat white glyph on
+     transparent rather than the launcher icon (which comes out as a white blob).
+     Matches the app's chat-bubble mark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,3C7.03,3 3,6.58 3,11c0,2.44 1.23,4.62 3.17,6.09L5.5,20.5l3.72,-1.86C10.11,18.87 11.04,19 12,19c4.97,0 9,-3.58 9,-8s-4.03,-8 -9,-8z" />
+</vector>

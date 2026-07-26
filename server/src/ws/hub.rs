@@ -40,6 +40,14 @@ pub struct CallState {
     /// "audio" | "video" — echoed to the ring screen and call logs.
     pub media: String,
     pub answered_at: Option<std::time::Instant>,
+    /// When the call was placed. Used by the stale-call reaper to avoid
+    /// collecting a call that was only created moments ago.
+    pub created_at: std::time::Instant,
+    /// The caller's SDP offer, retained for the duration of the ring so a
+    /// device woken by a push notification can be handed the pending call when
+    /// its socket connects (ws::calls::replay_pending). Without this, a phone
+    /// whose app had been killed would have nothing to answer.
+    pub offer_sdp: String,
 }
 
 #[derive(Default)]

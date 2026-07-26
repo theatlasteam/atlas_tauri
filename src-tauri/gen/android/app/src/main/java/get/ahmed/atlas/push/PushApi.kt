@@ -59,6 +59,14 @@ internal object PushApi {
     fun unregisterDevice(base: String, token: String, fcmToken: String): Boolean =
         request(base, "/api/devices/$fcmToken", token, "DELETE") != null
 
+    /**
+     * Decline a ringing call without a WebSocket. Returns false when the call is
+     * already gone (cancelled, or answered on another device), which is not an
+     * error worth surfacing — the notification is dismissed either way.
+     */
+    fun declineCall(base: String, token: String, callId: String): Boolean =
+        request(base, "/api/calls/$callId/decline", token, "POST", JSONObject()) != null
+
     /** The message a push refers to: `scheme` plus an opaque or plaintext `body`. */
     fun getMessage(base: String, token: String, messageId: String): JSONObject? =
         request(base, "/api/messages/$messageId", token)?.let {
