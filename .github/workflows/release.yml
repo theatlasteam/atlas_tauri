@@ -131,9 +131,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Collected with find, not `**` globs: bash leaves globstar off, so
+          # `artifacts/android-apk/**/*.apk` silently degraded to a single
+          # directory level and matched nothing (the APK nests one deeper as
+          # <abi>/<buildType>/*.apk), failing the publish after all three
+          # builds had succeeded. find is depth-agnostic.
+          mapfile -t assets < <(find artifacts -type f \
+            \( -name '*.deb' -o -name '*.AppImage' -o -name '*.msi' \
+               -o -name '*.exe' -o -name '*.apk' \) | sort)
+
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "::error::no release assets found under artifacts/"
+            find artifacts -type f | head -50
+            exit 1
+          fi
+          printf 'attaching: %s\n' "${assets[@]}"
+
           gh release create "$RELEASE_TAG" \
             --title "Atlas ($RELEASE_TAG)" \
             --notes "Automated build from commit $GITHUB_SHA. Android APK is debug-signed (testing only)." \
-            artifacts/linux-bundles/**/* \
-            artifacts/windows-bundles/**/* \
-            artifacts/android-apk/**/*.apk
+            "${assets[@]}"
