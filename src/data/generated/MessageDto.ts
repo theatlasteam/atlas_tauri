@@ -11,4 +11,19 @@ scheme: string,
 /**
  * UTF-8 text for text schemes, base64 ciphertext otherwise.
  */
-body: string, sentAt: string, replyTo: ReplyPreviewDto | null, attachment: AttachmentDto | null, reactions: Array<ReactionDto>, };
+body: string, sentAt: string, replyTo: ReplyPreviewDto | null, attachment: AttachmentDto | null, reactions: Array<ReactionDto>, 
+/**
+ * Time capsule: when this message's body becomes readable. Absent for
+ * ordinary messages, and set (past or future) for capsules.
+ *
+ * Omitted rather than sent as null, because `#[ts(optional)]` generates
+ * `unlockAt?: string` — a type that promises the key can be missing, so
+ * the wire has to actually honour that.
+ */
+unlockAt?: string, 
+/**
+ * True when `body`/`attachment` were withheld from *this* viewer because
+ * the capsule has not opened yet. The client renders the countdown from
+ * `unlock_at` and refetches the message when it reaches zero.
+ */
+sealed: boolean, };

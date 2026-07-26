@@ -6,24 +6,9 @@
  */
 
 import { api } from "./api";
+import { toUser } from "./mapping";
 import { NOTIFICATION_SOUNDS, WALLPAPERS } from "./staticData";
 import type { NotificationSound, User, Wallpaper } from "./types";
-import type { UserDto } from "./generated";
-
-function toUser(dto: UserDto): User {
-  return {
-    id: dto.id,
-    name: dto.name,
-    handle: `@${dto.handle}`,
-    status: dto.status,
-    bio: dto.bio,
-    avatarColor: dto.avatarColor,
-    avatarInitial: dto.avatarInitial,
-    hasAvatar: dto.hasAvatar,
-    lastSeenAt: dto.lastSeenAt,
-    verified: dto.verified,
-  };
-}
 
 export const repository = {
   async getUser(userId: string): Promise<User> {

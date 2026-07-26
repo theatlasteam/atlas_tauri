@@ -2,12 +2,16 @@
 // resynced from scratch on every socket (re)connect. Also owns typing state
 // and routes message/reaction events into the messages store.
 
-import { createRoot } from "solid-js";
+import { createEffect, createRoot } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { api } from "../data/api";
 import { previewText, toChat, toMessage } from "../data/mapping";
 import { onResync, onServerEvent, wsSend } from "../data/socket";
 import type { Chat, Folder } from "../data/types";
+import { e2eeAvailable, e2eeOpen, e2eeSeal } from "../lib/tauri";
+import { notifyIncoming } from "../lib/notify";
+import { preferences } from "./preferences";
+import { e2ee } from "./e2ee";
 import { messagesStore } from "./messages";
 import { session } from "./session";
 
@@ -17,6 +21,12 @@ interface ChatsState {
   loaded: boolean;
   /** chatId -> userIds currently typing (with expiry timers). */
   typing: Record<string, string[]>;
+  /**
+   * Live typing: chatId -> userId -> the draft as it stands right now.
+   * Never persisted and dropped the instant the typist stops, exactly like
+   * the plain indicator it rides along with.
+   */
+  typingPreview: Record<string, Record<string, string>>;
 }
 
 const TYPING_TTL_MS = 4000;
@@ -27,6 +37,7 @@ function createChatsStore() {
     folders: [],
     loaded: false,
     typing: {},
+    typingPreview: {},
   });
   const typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** The chat currently open in the UI — its incoming messages mark-read live. */
@@ -71,8 +82,41 @@ function createChatsStore() {
     await api.markRead(chatId, messageId).catch(() => {});
   };
 
-  const sendTyping = (chatId: string) => {
-    wsSend({ type: "typing", chat_id: chatId });
+  /**
+   * Announce that I'm typing, optionally carrying the draft itself.
+   *
+   * In a DM the preview is sealed with the peer's key before it leaves the
+   * device — live typing must not be the one feature that quietly hands the
+   * server a plaintext stream of everything you write. Group chats aren't
+   * end-to-end encrypted in the first place, so their previews travel as
+   * "plain" and say so on the wire.
+   */
+  const sendTyping = async (chatId: string, draft?: string) => {
+    if (draft === undefined) {
+      wsSend({ type: "typing", chat_id: chatId });
+      return;
+    }
+    const peerUserId = chat(chatId)?.peerUserId;
+    if (!peerUserId) {
+      wsSend({ type: "typing", chat_id: chatId, preview: draft, scheme: "plain" });
+      return;
+    }
+    if (!e2eeAvailable) {
+      wsSend({ type: "typing", chat_id: chatId }); // indicator only, never a plaintext draft
+      return;
+    }
+    try {
+      const key = await e2ee.peerKey(peerUserId);
+      if (!key) return; // no key published yet — nothing safe to send
+      wsSend({
+        type: "typing",
+        chat_id: chatId,
+        preview: await e2eeSeal(key, draft),
+        scheme: "x25519-v1",
+      });
+    } catch {
+      // Sealing failed: send nothing rather than falling back to plaintext.
+    }
   };
 
   const setMuted = async (chatId: string, muted: boolean) => {
@@ -116,6 +160,15 @@ function createChatsStore() {
     return mapped;
   };
 
+  const setPreview = (chatId: string, userId: string, text: string | undefined) => {
+    setState("typingPreview", chatId, (previews) => {
+      const next = { ...(previews ?? {}) };
+      if (text === undefined || text === "") delete next[userId];
+      else next[userId] = text;
+      return next;
+    });
+  };
+
   const bumpTyping = (chatId: string, userId: string) => {
     const key = `${chatId}:${userId}`;
     const existing = typingTimers.get(key);
@@ -128,8 +181,42 @@ function createChatsStore() {
       setTimeout(() => {
         typingTimers.delete(key);
         setState("typing", chatId, (ids) => (ids ?? []).filter((id) => id !== userId));
+        setPreview(chatId, userId, undefined);
       }, TYPING_TTL_MS),
     );
+  };
+
+  /**
+   * Take in a live-typing preview.
+   *
+   * Live typing is reciprocal: a client that doesn't share its own drafts
+   * doesn't render anyone else's. That's enforced here rather than only in the
+   * composer so the rule holds however the preference is flipped mid-session —
+   * turning it off blanks whatever is currently on screen.
+   */
+  const ingestPreview = async (
+    chatId: string,
+    userId: string,
+    preview: string,
+    scheme: string | undefined,
+  ) => {
+    if (!preferences.liveTyping) return;
+    if (scheme === "plain" || scheme === undefined) {
+      setPreview(chatId, userId, preview);
+      return;
+    }
+    if (!e2eeAvailable || scheme !== "x25519-v1") return;
+    try {
+      const key = await e2ee.peerKey(userId);
+      if (!key) return;
+      const text = await e2eeOpen(key, preview);
+      // A slow decrypt can land after the typist already stopped; don't
+      // resurrect a preview whose indicator has already expired.
+      if (state.typing[chatId]?.includes(userId)) setPreview(chatId, userId, text);
+    } catch {
+      // An undecryptable draft is not worth surfacing — the plain "typing…"
+      // indicator is already showing.
+    }
   };
 
   const clearTyping = (chatId: string, userId: string) => {
@@ -138,6 +225,7 @@ function createChatsStore() {
     if (timer) clearTimeout(timer);
     typingTimers.delete(key);
     setState("typing", chatId, (ids) => (ids ?? []).filter((id) => id !== userId));
+    setPreview(chatId, userId, undefined);
   };
 
   // ---- server event routing ----
@@ -153,17 +241,26 @@ function createChatsStore() {
         clearTyping(dto.chatId, dto.authorId);
 
         if (target) {
-          const isActive = activeChatId === dto.chatId && event.type === "message" && !message.mine;
+          // Nothing is unread if I wrote it, or if I'm looking at the chat
+          // right now — in which case it also gets marked read immediately.
+          const inOpenChat = activeChatId === dto.chatId;
+          const countsAsUnread = !message.mine && !inOpenChat;
           patchChat(dto.chatId, {
             lastMessage: previewText(message),
             lastMessageAt: message.sentAt,
-            unreadCount:
-              message.mine || isActive || activeChatId === dto.chatId
-                ? target.unreadCount
-                : target.unreadCount + 1,
+            unreadCount: countsAsUnread ? target.unreadCount + 1 : target.unreadCount,
           });
           sortChats();
-          if (isActive) void markRead(dto.chatId, dto.id);
+          if (inOpenChat && !message.mine && event.type === "message") {
+            void markRead(dto.chatId, dto.id);
+          }
+          if (countsAsUnread && !target.muted) {
+            notifyIncoming({
+              title: target.name,
+              body: previewText(message),
+              tag: dto.chatId,
+            });
+          }
         } else {
           // Message for a chat we don't know yet (created elsewhere): refetch.
           void refresh();
@@ -179,16 +276,23 @@ function createChatsStore() {
         break;
       }
       case "presence": {
-        setState(
-          "chats",
-          (c) => c.peerUserId === event.user_id,
-          "online",
-          event.online,
-        );
+        setState("chats", (c) => c.peerUserId === event.user_id, (c) => ({
+          ...c,
+          online: event.online,
+          // Absent when the peer hides their last seen — keep the previous
+          // value rather than blanking a header that was already correct.
+          peerLastSeenAt: event.last_seen_at ?? c.peerLastSeenAt,
+        }));
         break;
       }
       case "typing": {
-        if (event.user_id !== me) bumpTyping(event.chat_id, event.user_id);
+        if (event.user_id === me) break;
+        bumpTyping(event.chat_id, event.user_id);
+        if (event.preview) {
+          void ingestPreview(event.chat_id, event.user_id, event.preview, event.scheme);
+        } else {
+          setPreview(event.chat_id, event.user_id, undefined);
+        }
         break;
       }
       case "read": {
@@ -216,6 +320,13 @@ function createChatsStore() {
     }
   });
 
+  // Turning live typing off has to take effect on what's already on screen,
+  // not just on the next keystroke — otherwise a draft stays frozen mid-word
+  // in the thread until its owner stops typing.
+  createEffect(() => {
+    if (!preferences.liveTyping) setState("typingPreview", {});
+  });
+
   // Full resync every time the socket comes (back) up: the chat list is one
   // query, and the open chat backfills anything missed while offline.
   onResync(() => {
@@ -233,6 +344,7 @@ function createChatsStore() {
     markRead,
     setActiveChat,
     sendTyping,
+    typingPreview: (chatId: string) => state.typingPreview[chatId] ?? {},
     setMuted,
     createFolder,
     deleteFolder,
@@ -243,6 +355,24 @@ function createChatsStore() {
 }
 
 export const chatsStore = createRoot(createChatsStore);
+
+/**
+ * "typing…" / "Ana, Rue typing…" — one implementation for the chat list and
+ * the chat header, which previously disagreed: the list said a flat "typing…"
+ * even in a twelve-person group where the header named everyone.
+ *
+ * `resolveName` is optional because the chat list has no reason to have loaded
+ * member profiles; unnamed typists fall back to a count.
+ */
+export function typingLabel(chatId: string, resolveName?: (userId: string) => string | undefined) {
+  const ids = chatsStore.state.typing[chatId];
+  if (!ids || ids.length === 0) return null;
+  const chat = chatsStore.chat(chatId);
+  if (chat?.kind !== "group") return "typing…";
+  const names = ids.map((id) => resolveName?.(id)).filter((name): name is string => !!name);
+  if (names.length === ids.length) return `${names.join(", ")} typing…`;
+  return ids.length === 1 ? "someone is typing…" : `${ids.length} people are typing…`;
+}
 
 // Legacy-style named exports so existing screens keep working.
 export const chatsState = chatsStore.state;

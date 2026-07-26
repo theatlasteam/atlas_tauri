@@ -11,10 +11,22 @@
 
 ## Features
 
+- **Live typing** — opt in and the other side watches your message form as you write it, instead of a
+  flat "typing…". Drafts are sealed with the same X25519 key as your messages, so the server relays
+  ciphertext it can't read, and nothing is ever stored. Reciprocal: the app doesn't render anyone
+  else's draft while yours are private. (This half is the client's own rule — unlike read receipts
+  below, the preference is device-local, so the server can't enforce it.)
+- **Time capsules** — send a message now that can't be read until a moment you choose. The recipient
+  gets a sealed bubble with a live countdown from the second you send it, and the body stays in the
+  database until it opens: the server refuses to hand it over, so an early peek would take database
+  access, not a patched client.
 - **Direct messages & groups** — folders, mute, typing indicators, read receipts
 - **End-to-end encryption** for DMs (X25519 + HKDF-SHA256, private keys never leave the device)
 - **Voice & video calls** over WebRTC, with TURN relay support
 - **Rich messages** — replies, reactions, attachments (images, voice notes, files)
+- **Privacy switches that bind** — read receipts and last-seen are account settings enforced on the
+  server, not local toggles. Read receipts are reciprocal in both directions: turn yours off and you
+  stop receiving other people's.
 - **Runtime-themeable UI** — light/dark, accent color, font, wallpaper, all switchable without a rebuild
 - Cross-platform: Windows, Linux, and Android from a single Tauri app
 

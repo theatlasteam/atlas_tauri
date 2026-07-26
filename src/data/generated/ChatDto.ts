@@ -23,6 +23,12 @@ peerHasAvatar: boolean,
  */
 peerVerified: boolean, 
 /**
+ * For DMs: when the peer was last online, so the chat header can say so
+ * instead of guessing. NULL for groups, for a peer who has never been
+ * seen, and for one who turned "Last seen" off.
+ */
+peerLastSeenAt?: string, 
+/**
  * For DMs: whether I've blocked the peer. Always false for groups.
  */
 blockedByMe: boolean, 

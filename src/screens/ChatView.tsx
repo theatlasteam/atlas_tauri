@@ -1,6 +1,6 @@
 import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
-import { chatsState, chatsStore } from "../store/chats";
+import { chatsState, chatsStore, typingLabel } from "../store/chats";
 import { messagesStore } from "../store/messages";
 import { calls } from "../store/calls";
 import { session } from "../store/session";
@@ -25,6 +25,8 @@ import {
   ChatIcon,
   CloseIcon,
   ChevronDownIcon,
+  EyeIcon,
+  HourglassIcon,
   LockIcon,
   MicIcon,
   PhoneIcon,
@@ -36,9 +38,27 @@ import {
 } from "../icons";
 import type { Message, User } from "../data/types";
 import { repository } from "../data/repository";
-import { formatBytes } from "../lib/time";
+import { formatBytes, formatLastSeen, formatUnlockAt } from "../lib/time";
 
 const QUICK_EMOJI = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+
+/**
+ * How often a draft goes out while live typing is on.
+ *
+ * Each one is an X25519 seal plus a frame, so this is a real cost, not just
+ * bandwidth. 300ms is below the threshold where the other end notices lag and
+ * comfortably above per-keystroke.
+ */
+const LIVE_TYPING_INTERVAL_MS = 300;
+
+/** Preset offsets for the time-capsule picker, relative to "now". */
+const CAPSULE_PRESETS: Array<{ label: string; hint: string; offsetMs: number }> = [
+  { label: "In an hour", hint: "", offsetMs: 60 * 60_000 },
+  { label: "Tonight", hint: "8 hours from now", offsetMs: 8 * 60 * 60_000 },
+  { label: "Tomorrow", hint: "24 hours from now", offsetMs: 24 * 60 * 60_000 },
+  { label: "Next week", hint: "7 days from now", offsetMs: 7 * 24 * 60 * 60_000 },
+  { label: "In a year", hint: "365 days from now", offsetMs: 365 * 24 * 60 * 60_000 - 60_000 },
+];
 
 interface PendingAttachment {
   file: File;
@@ -72,12 +92,15 @@ export default function ChatView() {
   const [pendingAttachment, setPendingAttachment] = createSignal<PendingAttachment | null>(null);
   const [recording, setRecording] = createSignal(false);
   const [loadingOlder, setLoadingOlder] = createSignal(false);
-  /** Group chats: authorId -> display name (lazy). */
+  /** Time capsule armed for the next send (ISO), or null for "send now". */
+  const [capsuleAt, setCapsuleAt] = createSignal<string | null>(null);
+  const [capsuleOpen, setCapsuleOpen] = createSignal(false);
   /** Group chats: authorId -> resolved profile (name, fallback avatar, photo flag). */
   const [authors, setAuthors] = createSignal<Record<string, User>>({});
 
   let recorder: MediaRecorder | null = null;
   let recordStart = 0;
+  let capsuleBtn: HTMLButtonElement | undefined;
   let lastTypingSent = 0;
 
   const scrollToBottom = (smooth = true) => {
@@ -99,6 +122,8 @@ export default function ChatView() {
         chatsStore.setActiveChat(id);
         setReplyTo(null);
         setDraft("");
+        setCapsuleAt(null);
+        lastTypingSent = 0; // the throttle is per-conversation, not per-screen
         clearPendingAttachment();
         void messagesStore.loadInitial(id, chat()?.peerUserId).then(() => {
           queueMicrotask(() => scrollToBottom(false));
@@ -158,22 +183,29 @@ export default function ChatView() {
     }
   };
 
-  const typingSubtitle = () => {
-    const ids = chatsState.typing[params.id];
-    if (!ids || ids.length === 0) return null;
-    if (chat()?.kind === "group") {
-      const names = ids.map((id) => authors()[id]?.name ?? "Someone").join(", ");
-      return `${names} typing…`;
-    }
-    return "typing…";
-  };
+  const typingSubtitle = () => typingLabel(params.id, (id) => authors()[id]?.name);
+
+  /**
+   * Live typing: the drafts other people are writing in this chat, right now.
+   * Only ever populated when this device shares its own — the store enforces
+   * the reciprocity, this just reads the result.
+   */
+  const liveDrafts = () =>
+    Object.entries(chatsStore.typingPreview(params.id)).filter(([, text]) => text.trim().length > 0);
 
   const onDraftInput = (value: string) => {
     setDraft(value);
-    const now = Date.now();
-    if (value.trim() && now - lastTypingSent > 2500) {
-      lastTypingSent = now;
-      chatsStore.sendTyping(params.id);
+    const at = Date.now();
+    // Live typing needs a much shorter interval than the plain indicator: the
+    // point is watching a sentence form, and a 2.5s-stale draft isn't that.
+    const interval = preferences.liveTyping ? LIVE_TYPING_INTERVAL_MS : 2500;
+    if (at - lastTypingSent <= interval) return;
+    if (preferences.liveTyping) {
+      lastTypingSent = at;
+      void chatsStore.sendTyping(params.id, value);
+    } else if (value.trim()) {
+      lastTypingSent = at;
+      void chatsStore.sendTyping(params.id);
     }
   };
 
@@ -190,6 +222,8 @@ export default function ChatView() {
     setDraft("");
     const reply = replyTo();
     setReplyTo(null);
+    const unlockAt = capsuleAt() ?? undefined;
+    setCapsuleAt(null);
     if (attachment) setUploading(true);
 
     try {
@@ -212,6 +246,7 @@ export default function ChatView() {
         peerUserId: chat()?.peerUserId,
         attachmentId,
         attachmentPreview,
+        unlockAt,
       });
     } catch {
       /* the failed row in the thread offers retry */
@@ -297,7 +332,19 @@ export default function ChatView() {
   };
 
   const bubbleRetry = (message: Message) => {
-    if (message.failed) void messagesStore.retryFailed(params.id, message);
+    if (message.failed) void messagesStore.retryFailed(params.id, message, chat()?.peerUserId);
+  };
+
+  /** Chat-header subtitle for a DM: typing beats presence beats last seen. */
+  const peerSubtitle = () => {
+    const c = chat();
+    if (!c) return "";
+    if (c.kind === "group") return `${c.memberCount} members`;
+    if (c.online) return "online";
+    // formatLastSeen returns null when the peer hides it — say nothing
+    // specific rather than inventing "recently", which the header used to
+    // claim regardless of what the server actually knew.
+    return formatLastSeen(c.peerLastSeenAt) ?? "offline";
   };
 
   return (
@@ -334,14 +381,14 @@ export default function ChatView() {
                     <Show when={encrypted()}>
                       <LockIcon size={13} class="shrink-0 text-accent" />
                     </Show>
+                    {/* Live typing is a two-way mirror: this marks that your
+                        own drafts are visible to the other side too. */}
+                    <Show when={preferences.liveTyping}>
+                      <EyeIcon size={13} class="shrink-0 text-accent" />
+                    </Show>
                   </p>
                   <p class="truncate text-xs" classList={{ "text-accent animate-pulse": !!typingSubtitle(), "text-ink-subtle": !typingSubtitle() }}>
-                    {typingSubtitle() ??
-                      (c().kind === "group"
-                        ? `${c().memberCount} members`
-                        : c().online
-                          ? "online"
-                          : "last seen recently")}
+                    {typingSubtitle() ?? peerSubtitle()}
                   </p>
                 </div>
               </button>
@@ -414,9 +461,16 @@ export default function ChatView() {
                     const isFirst = () => !groupable(prev()) || prev()!.authorId !== message.authorId;
                     const isLast = () => !groupable(next()) || next()!.authorId !== message.authorId;
                     return (
+                      // Spacing between bubbles lives here and only here.
+                      // MessageBubble used to apply its own mt-3/mt-0.5 on top
+                      // of this, so every gap in the thread was the sum of two
+                      // rules that disagreed with each other.
                       <div
                         onClick={() => bubbleRetry(message)}
-                        classList={{ "mt-2.5": isFirst() || !!message.callLog, "mt-0.5": !isFirst() && !message.callLog }}
+                        classList={{
+                          "mt-2.5": isFirst() || !!message.callLog,
+                          "mt-0.5": !isFirst() && !message.callLog,
+                        }}
                       >
                         <MessageBubble
                           message={message}
@@ -434,6 +488,27 @@ export default function ChatView() {
               </div>
             </Show>
           </Show>
+
+          {/* Live typing: the other side's draft, forming in place. Rendered
+              outside the message list because it is not a message — it has no
+              id, no timestamp, and it can vanish mid-word. */}
+          <For each={liveDrafts()}>
+            {([userId, text]) => (
+              <div class="mt-2.5 flex justify-start">
+                <div class="max-w-[75%] rounded-[1.1rem] rounded-bl-md border border-dashed border-accent/40 bg-bubble-received/60 px-3.5 py-2 text-bubble-received-ink sm:max-w-[65%]">
+                  <Show when={chat()?.kind === "group"}>
+                    <p class="mb-0.5 truncate text-xs font-semibold text-accent">
+                      {authors()[userId]?.name ?? "Someone"}
+                    </p>
+                  </Show>
+                  <p class="whitespace-pre-wrap break-words text-[0.95em] leading-snug opacity-70">
+                    {text}
+                    <span class="ml-0.5 inline-block animate-pulse font-semibold text-accent">▍</span>
+                  </p>
+                </div>
+              </div>
+            )}
+          </For>
         </div>
 
         <Show when={!atBottom()}>
@@ -475,6 +550,28 @@ export default function ChatView() {
                 onClick={clearPendingAttachment}
                 class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-subtle transition-colors duration-150 hover:bg-surface hover:text-ink active:bg-surface"
                 aria-label="Remove attachment"
+              >
+                <CloseIcon size={16} />
+              </button>
+            </div>
+          )}
+        </Show>
+
+        <Show when={capsuleAt()}>
+          {(unlockAt) => (
+            <div class="rise-in flex items-center gap-2 px-4 pt-2">
+              <div class="flex min-w-0 flex-1 items-center gap-2 rounded-lg border-l-2 border-accent bg-surface-raised px-2.5 py-1.5">
+                <HourglassIcon size={15} class="shrink-0 text-accent" />
+                <p class="min-w-0 flex-1 truncate text-xs text-ink-muted">
+                  <span class="font-semibold text-accent">Sealed until </span>
+                  {formatUnlockAt(unlockAt())}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCapsuleAt(null)}
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-subtle transition-colors duration-150 hover:bg-surface hover:text-ink active:bg-surface"
+                aria-label="Send now instead"
               >
                 <CloseIcon size={16} />
               </button>
@@ -537,6 +634,19 @@ export default function ChatView() {
               <AttachIcon size={20} />
             </Show>
           </button>
+          <button
+            ref={capsuleBtn}
+            type="button"
+            onClick={() => setCapsuleOpen(true)}
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 hover:bg-surface active:scale-95"
+            classList={{
+              "text-accent bg-accent-soft": !!capsuleAt(),
+              "text-ink-muted hover:text-ink": !capsuleAt(),
+            }}
+            aria-label={capsuleAt() ? "Change when this opens" : "Send as a time capsule"}
+          >
+            <HourglassIcon size={19} />
+          </button>
           <input
             type="text"
             value={draft()}
@@ -546,9 +656,11 @@ export default function ChatView() {
                 ? "Recording voice message…"
                 : pendingAttachment()
                   ? "Add a caption…"
-                  : encrypted()
-                    ? "Encrypted message"
-                    : "Message"
+                  : capsuleAt()
+                    ? "Write something for later…"
+                    : encrypted()
+                      ? "Encrypted message"
+                      : "Message"
             }
             disabled={recording()}
             class="min-w-0 flex-1 rounded-pill border border-border bg-surface px-4 py-2.5 text-ink placeholder-ink-subtle outline-none transition-[border-color,box-shadow] duration-150 focus:border-accent focus:ring-2 focus:ring-accent/15"
@@ -576,9 +688,11 @@ export default function ChatView() {
               type="submit"
               disabled={sending()}
               class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink transition-transform duration-150 hover:brightness-105 disabled:opacity-40 active:scale-95"
-              aria-label="Send message"
+              aria-label={capsuleAt() ? "Seal and send" : "Send message"}
             >
-              <SendIcon size={18} />
+              <Show when={!capsuleAt()} fallback={<HourglassIcon size={18} />}>
+                <SendIcon size={18} />
+              </Show>
             </button>
           </Show>
         </form>
@@ -598,6 +712,39 @@ export default function ChatView() {
             <BellIcon size={16} />
           </Show>
         </MenuItem>
+      </Menu>
+
+      {/* Time capsule: when should the other side be able to read this? */}
+      <Menu open={capsuleOpen()} onOpenChange={setCapsuleOpen} anchorRef={() => capsuleBtn} placement="top-start">
+        <For each={CAPSULE_PRESETS}>
+          {(preset) => (
+            <MenuItem
+              onSelect={() => {
+                setCapsuleOpen(false);
+                setCapsuleAt(new Date(Date.now() + preset.offsetMs).toISOString());
+              }}
+            >
+              <span class="flex flex-col items-start">
+                <span>{preset.label}</span>
+                <Show when={preset.hint}>
+                  <span class="text-xs text-ink-subtle">{preset.hint}</span>
+                </Show>
+              </span>
+              <HourglassIcon size={16} />
+            </MenuItem>
+          )}
+        </For>
+        <Show when={capsuleAt()}>
+          <MenuItem
+            onSelect={() => {
+              setCapsuleOpen(false);
+              setCapsuleAt(null);
+            }}
+          >
+            <span>Send now instead</span>
+            <SendIcon size={16} />
+          </MenuItem>
+        </Show>
       </Menu>
 
       {/* Quick emoji reactions */}

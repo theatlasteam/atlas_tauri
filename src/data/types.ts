@@ -18,6 +18,9 @@ export interface User {
   hasAvatar: boolean;
   lastSeenAt?: string;
   verified: boolean;
+  /** Privacy switches, enforced server-side (see Privacy settings). */
+  readReceipts: boolean;
+  lastSeenVisible: boolean;
 }
 
 /** Parsed body of a "call-log" message. */
@@ -41,6 +44,10 @@ export interface Message {
   attachment?: AttachmentDto;
   reactions: ReactionDto[];
   callLog?: CallLog;
+  /** Time capsule: when this message becomes readable (ISO timestamp). */
+  unlockAt?: string;
+  /** True while the capsule is still shut — the server withheld the body. */
+  sealed?: boolean;
   /** True while an E2EE body is still being decrypted. */
   decrypting?: boolean;
   /** Optimistic-send bookkeeping. */
@@ -69,6 +76,8 @@ export interface Chat {
   peerHasAvatar?: boolean;
   /** DM only: does the peer carry the verified checkmark. */
   peerVerified?: boolean;
+  /** DM only: when the peer was last online — absent if they hide it. */
+  peerLastSeenAt?: string;
   /** DM only: have I blocked the peer. */
   blockedByMe?: boolean;
   /** DM only: has the peer blocked me. */

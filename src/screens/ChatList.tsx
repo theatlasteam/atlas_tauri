@@ -1,6 +1,6 @@
 import { createSignal, For, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
-import { chatsState } from "../store/chats";
+import { chatsState, typingLabel } from "../store/chats";
 import Avatar from "../components/Avatar";
 import AnimatedList from "../ui/AnimatedList";
 import EmptyState from "../components/EmptyState";
@@ -30,10 +30,9 @@ export default function ChatList() {
     return chatsState.chats.filter((c) => c.folderIds.includes(folder));
   };
 
-  const typingLine = (chatId: string) => {
-    const ids = chatsState.typing[chatId];
-    return ids && ids.length > 0 ? "typing…" : null;
-  };
+  // Shared with the chat header, which used to be the only place that named
+  // who was typing in a group — the list flatly said "typing…" whoever it was.
+  const typingLine = (chatId: string) => typingLabel(chatId);
 
   const headerBtn =
     "flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface";

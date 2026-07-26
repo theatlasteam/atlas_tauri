@@ -47,6 +47,8 @@ import {
   Fingerprint,
   Prohibit,
   SealCheck,
+  HourglassMedium,
+  Eye,
 } from "phosphor-solid-js";
 import type { JSX } from "solid-js";
 
@@ -111,3 +113,7 @@ export const BroomIcon = wrap(Broom);
 export const FingerprintIcon = wrap(Fingerprint);
 export const ProhibitIcon = wrap(Prohibit);
 export const VerifiedIcon = wrap(SealCheck, "fill");
+/** Time capsules: a sealed message counting down to when it opens. */
+export const HourglassIcon = wrap(HourglassMedium);
+/** Live typing. */
+export const EyeIcon = wrap(Eye);

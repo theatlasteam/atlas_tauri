@@ -7,4 +7,10 @@ import type { JsonValue } from "./serde_json/JsonValue";
 /**
  * Server -> client frames.
  */
-export type ServerEvent = { "type": "ready", user_id: string, } | { "type": "message", message: MessageDto, } | { "type": "message_ack", client_tag?: string, message: MessageDto, } | { "type": "read", chat_id: string, user_id: string, message_id: string, } | { "type": "typing", chat_id: string, user_id: string, } | { "type": "reaction", chat_id: string, message_id: string, user_id: string, emoji: string, added: boolean, } | { "type": "presence", user_id: string, online: boolean, last_seen_at?: string, } | { "type": "chat_created", chat: ChatDto, } | { "type": "call_offer", call_id: string, from: UserDto, sdp: string, media: string, } | { "type": "call_answer", call_id: string, sdp: string, } | { "type": "call_ice", call_id: string, candidate: JsonValue, } | { "type": "call_end", call_id: string, reason: string, } | { "type": "call_unavailable", call_id: string, reason: string, } | { "type": "pong" } | { "type": "error", code: string, message: string, };
+export type ServerEvent = { "type": "ready", user_id: string, } | { "type": "message", message: MessageDto, } | { "type": "message_ack", client_tag?: string, message: MessageDto, } | { "type": "read", chat_id: string, user_id: string, message_id: string, } | { "type": "typing", chat_id: string, user_id: string, 
+/**
+ * Present only when the sender opted into live typing. Same encoding
+ * rules as a message body: base64 ciphertext unless `scheme` is
+ * "plain".
+ */
+preview?: string, scheme?: string, } | { "type": "reaction", chat_id: string, message_id: string, user_id: string, emoji: string, added: boolean, } | { "type": "presence", user_id: string, online: boolean, last_seen_at?: string, } | { "type": "chat_created", chat: ChatDto, } | { "type": "call_offer", call_id: string, from: UserDto, sdp: string, media: string, } | { "type": "call_answer", call_id: string, sdp: string, } | { "type": "call_ice", call_id: string, candidate: JsonValue, } | { "type": "call_end", call_id: string, reason: string, } | { "type": "call_unavailable", call_id: string, reason: string, } | { "type": "pong" } | { "type": "error", code: string, message: string, };

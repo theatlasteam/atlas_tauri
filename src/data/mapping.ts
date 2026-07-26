@@ -1,7 +1,33 @@
 // DTO -> view-model conversion shared by the stores.
 
-import type { ChatDto, MessageDto } from "./generated";
-import type { CallLog, Chat, Message } from "./types";
+import type { ChatDto, MessageDto, ReplyPreviewDto, UserDto } from "./generated";
+import type { CallLog, Chat, Message, User } from "./types";
+
+/**
+ * The one UserDto -> User conversion.
+ *
+ * There used to be two, in session.ts and repository.ts, and they disagreed:
+ * one stored `handle` verbatim, the other prefixed it with "@". Since screens
+ * render "@{user.handle}" and compare `handle === "atlas"`, which mapper a
+ * given User came from silently changed what both did. `handle` is the bare
+ * handle the server sent; the "@" is presentation and belongs in the markup.
+ */
+export function toUser(dto: UserDto): User {
+  return {
+    id: dto.id,
+    name: dto.name,
+    handle: dto.handle,
+    status: dto.status,
+    bio: dto.bio,
+    avatarColor: dto.avatarColor,
+    avatarInitial: dto.avatarInitial,
+    hasAvatar: dto.hasAvatar,
+    lastSeenAt: dto.lastSeenAt,
+    verified: dto.verified,
+    readReceipts: dto.readReceipts,
+    lastSeenVisible: dto.lastSeenVisible,
+  };
+}
 
 export function parseCallLog(body: string): CallLog | undefined {
   try {
@@ -17,6 +43,9 @@ export function parseCallLog(body: string): CallLog | undefined {
 
 /** Text shown before/without decryption. */
 export function initialText(dto: MessageDto): string {
+  // A sealed capsule has no body to show yet — the bubble renders a countdown
+  // instead, so this text only ever surfaces in list previews.
+  if (dto.sealed) return "⏳ Time capsule";
   if (dto.scheme === "plain") return dto.body;
   if (dto.scheme === "call-log") {
     const log = parseCallLog(dto.body);
@@ -42,8 +71,23 @@ export function formatDuration(totalSecs: number): string {
   return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 }
 
+/** Quoted preview of the message a reply points at. */
+function toReplyPreview(dto: ReplyPreviewDto): Message["replyTo"] {
+  const text =
+    dto.scheme === "plain"
+      ? dto.body
+      : // The server blanks a quote of a capsule that hasn't opened yet, so
+        // the quote can't be used as a peephole into it.
+        dto.scheme === "sealed"
+        ? "⏳ Time capsule"
+        : "🔒 Encrypted message";
+  return { id: dto.id, authorId: dto.authorId, text };
+}
+
 export function toMessage(dto: MessageDto, myUserId: string): Message {
-  const isE2ee = dto.scheme !== "plain" && dto.scheme !== "call-log";
+  // A sealed capsule carries no ciphertext to work on, so there is nothing to
+  // decrypt until it opens and the client refetches it.
+  const isE2ee = !dto.sealed && dto.scheme !== "plain" && dto.scheme !== "call-log";
   return {
     id: dto.id,
     chatId: dto.chatId,
@@ -52,22 +96,19 @@ export function toMessage(dto: MessageDto, myUserId: string): Message {
     scheme: dto.scheme,
     sentAt: dto.sentAt,
     mine: dto.authorId === myUserId,
-    replyTo: dto.replyTo
-      ? {
-          id: dto.replyTo.id,
-          authorId: dto.replyTo.authorId,
-          text: dto.replyTo.scheme === "plain" ? dto.replyTo.body : "🔒 Encrypted message",
-        }
-      : undefined,
+    replyTo: dto.replyTo ? toReplyPreview(dto.replyTo) : undefined,
     attachment: dto.attachment ?? undefined,
     reactions: dto.reactions,
     callLog: dto.scheme === "call-log" ? parseCallLog(dto.body) : undefined,
+    unlockAt: dto.unlockAt ?? undefined,
+    sealed: dto.sealed,
     decrypting: isE2ee,
   };
 }
 
 /** Chat-list preview line for a message. */
 export function previewText(message: Message): string {
+  if (message.sealed) return "⏳ Time capsule";
   if (message.attachment) {
     switch (message.attachment.kind) {
       case "image":
@@ -100,6 +141,7 @@ export function toChat(dto: ChatDto, myUserId: string): Chat {
     peerReadUpTo: dto.peerReadUpTo ?? undefined,
     peerHasAvatar: dto.peerHasAvatar,
     peerVerified: dto.peerVerified,
+    peerLastSeenAt: dto.peerLastSeenAt ?? undefined,
     blockedByMe: dto.blockedByMe,
     blockedMe: dto.blockedMe,
   };

@@ -148,11 +148,26 @@ function createMessagesStore() {
     const message = toMessage(dto, myId());
     upsert(dto.chatId, message);
     if (message.decrypting) {
-      // For DMs the counterparty key is the peer; for groups the author's key.
-      const other = message.mine ? opts?.peerUserId : message.authorId;
-      decrypt(dto.chatId, dto.id, dto.scheme, dto.body, message.mine ? opts?.peerUserId : other);
+      // Sealing is symmetric, so the key to open a body with is always the
+      // *other* end of the conversation: the DM peer for something we sent,
+      // the author for something we received.
+      const counterparty = message.mine ? opts?.peerUserId : message.authorId;
+      decrypt(dto.chatId, dto.id, dto.scheme, dto.body, counterparty);
     }
     return message;
+  };
+
+  /**
+   * Refetch one message. A time capsule arrives hollow — the server withholds
+   * the body until `unlockAt` — so the bubble asks for it again the moment its
+   * countdown runs out, and the reply lands with the real contents.
+   */
+  const refresh = async (messageId: string, peerUserId?: string) => {
+    try {
+      ingestDto(await api.getMessage(messageId), { peerUserId });
+    } catch {
+      // Transient; the countdown component retries on its next tick.
+    }
   };
 
   const loadInitial = async (chatId: string, peerUserId?: string) => {
@@ -188,7 +203,14 @@ function createMessagesStore() {
   const send = async (
     chatId: string,
     text: string,
-    opts?: { replyToId?: string; attachmentId?: string; peerUserId?: string; attachmentPreview?: Message["attachment"] },
+    opts?: {
+      replyToId?: string;
+      attachmentId?: string;
+      peerUserId?: string;
+      attachmentPreview?: Message["attachment"];
+      /** Time capsule: ISO instant before which the recipient can't read it. */
+      unlockAt?: string;
+    },
   ): Promise<void> => {
     ensure(chatId);
     const clientTag = crypto.randomUUID();
@@ -210,6 +232,7 @@ function createMessagesStore() {
       mine: true,
       reactions: [],
       attachment: opts?.attachmentPreview,
+      unlockAt: opts?.unlockAt,
       pending: true,
       clientTag,
     };
@@ -233,6 +256,7 @@ function createMessagesStore() {
         clientTag,
         replyToId: opts?.replyToId,
         attachmentId: opts?.attachmentId,
+        unlockAt: opts?.unlockAt,
       });
       const message = toMessage(dto, myId());
       message.clientTag = clientTag;
@@ -248,10 +272,25 @@ function createMessagesStore() {
     }
   };
 
-  const retryFailed = async (chatId: string, message: Message) => {
+  /**
+   * Resend a message that failed to go out.
+   *
+   * Every option the original send carried has to be carried again. Dropping
+   * `peerUserId` in particular was not merely lossy: it is what decides
+   * whether the body gets sealed, so a retry used to put a message that the
+   * user had been shown as encrypted back on the wire in the clear. The reply
+   * link, the attachment and the capsule's unlock time were lost the same way.
+   */
+  const retryFailed = async (chatId: string, message: Message, peerUserId?: string) => {
     if (!message.failed) return;
     setState(chatId, "messages", (m) => m.filter((x) => x.id !== message.id));
-    await send(chatId, message.text, { replyToId: message.replyTo?.id });
+    await send(chatId, message.text, {
+      replyToId: message.replyTo?.id,
+      peerUserId,
+      attachmentId: message.attachment?.id,
+      attachmentPreview: message.attachment,
+      unlockAt: message.unlockAt,
+    });
   };
 
   const applyReaction = (chatId: string, messageId: string, userId: string, emoji: string, added: boolean) => {
@@ -296,6 +335,7 @@ function createMessagesStore() {
     resync,
     send,
     retryFailed,
+    refresh,
     ingestDto,
     applyReaction,
     toggleReaction,
