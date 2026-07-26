@@ -43,9 +43,28 @@ pub enum ClientMsg {
         #[serde(default)]
         #[ts(optional)]
         attachment_id: Option<Uuid>,
+        /// Time capsule: withhold the body from everyone but the author until
+        /// this moment. See models::MessageDto::seal_for.
+        #[serde(default)]
+        #[ts(optional)]
+        unlock_at: Option<DateTime<Utc>>,
     },
     MarkRead { chat_id: Uuid, message_id: Uuid },
-    Typing { chat_id: Uuid },
+    /// Typing indicator, optionally carrying the draft itself ("live typing").
+    ///
+    /// The preview is opaque to the server exactly like a message body: in a
+    /// DM it arrives sealed under the same X25519 scheme, so enabling live
+    /// typing does not hand the server a plaintext feed of everything you
+    /// write. It is relayed, never stored.
+    Typing {
+        chat_id: Uuid,
+        #[serde(default)]
+        #[ts(optional)]
+        preview: Option<String>,
+        #[serde(default)]
+        #[ts(optional)]
+        scheme: Option<String>,
+    },
 
     // --- WebRTC signaling (opaque SDP/ICE relay; server validates routing,
     // never parses SDP) ---
@@ -97,7 +116,19 @@ pub enum ServerEvent {
         message: MessageDto,
     },
     Read { chat_id: Uuid, user_id: Uuid, message_id: Uuid },
-    Typing { chat_id: Uuid, user_id: Uuid },
+    Typing {
+        chat_id: Uuid,
+        user_id: Uuid,
+        /// Present only when the sender opted into live typing. Same encoding
+        /// rules as a message body: base64 ciphertext unless `scheme` is
+        /// "plain".
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        preview: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        scheme: Option<String>,
+    },
     Reaction { chat_id: Uuid, message_id: Uuid, user_id: Uuid, emoji: String, added: bool },
     Presence {
         user_id: Uuid,

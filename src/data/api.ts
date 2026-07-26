@@ -102,8 +102,20 @@ export const api = {
 
   // users
   me: () => request<UserDto>("GET", "/api/me"),
-  updateMe: (patch: Partial<Pick<UserDto, "name" | "bio" | "status" | "avatarColor" | "avatarInitial">>) =>
-    request<UserDto>("PATCH", "/api/me", patch),
+  updateMe: (
+    patch: Partial<
+      Pick<
+        UserDto,
+        | "name"
+        | "bio"
+        | "status"
+        | "avatarColor"
+        | "avatarInitial"
+        | "readReceipts"
+        | "lastSeenVisible"
+      >
+    >,
+  ) => request<UserDto>("PATCH", "/api/me", patch),
   getUser: (id: string) => request<UserDto>("GET", `/api/users/${id}`),
   searchUsers: (q: string) => request<UserDto[]>("GET", `/api/users?q=${encodeURIComponent(q)}`),
   /** Grant/revoke the verified checkmark — server restricts this to the "atlas" account. */
@@ -138,8 +150,18 @@ export const api = {
   },
   sendMessage: (
     chatId: string,
-    msg: { scheme?: string; body: string; clientTag?: string; replyToId?: string; attachmentId?: string },
+    msg: {
+      scheme?: string;
+      body: string;
+      clientTag?: string;
+      replyToId?: string;
+      attachmentId?: string;
+      /** Time capsule: ISO timestamp before which nobody but the author may read it. */
+      unlockAt?: string;
+    },
   ) => request<MessageDto>("POST", `/api/chats/${chatId}/messages`, msg),
+  /** One message by id — used to pick a capsule up the moment it opens. */
+  getMessage: (id: string) => request<MessageDto>("GET", `/api/messages/${id}`),
   markRead: (chatId: string, messageId?: string) =>
     request<{ ok: boolean }>("POST", `/api/chats/${chatId}/read`, { messageId }),
   searchMessages: (q: string, limit = 30) =>

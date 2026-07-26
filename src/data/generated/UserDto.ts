@@ -11,4 +11,11 @@ hasAvatar: boolean, lastSeenAt?: string,
  * Verified badge (checkmark). Granting/revoking is restricted to the
  * "atlas" account — see routes/users.rs::require_atlas.
  */
-verified: boolean, };
+verified: boolean, 
+/**
+ * Privacy switches, owned by the user they describe. They are not secrets
+ * (both are inferable from behaviour anyway), and shipping them on every
+ * user lets a viewer explain the absence of a receipt or a last-seen
+ * instead of rendering a silent blank.
+ */
+readReceipts: boolean, lastSeenVisible: boolean, };

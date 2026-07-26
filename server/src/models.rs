@@ -19,6 +19,8 @@ pub struct UserRow {
     pub avatar_attachment_id: Option<Uuid>,
     pub last_seen_at: Option<DateTime<Utc>>,
     pub verified: bool,
+    pub read_receipts: bool,
+    pub last_seen_visible: bool,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -31,6 +33,9 @@ pub struct MessageRow {
     pub sent_at: DateTime<Utc>,
     pub reply_to_id: Option<Uuid>,
     pub attachment_id: Option<Uuid>,
+    /// Time capsule: NULL for ordinary messages, otherwise the moment the body
+    /// becomes readable by anyone other than its author.
+    pub unlock_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -68,6 +73,12 @@ pub struct UserDto {
     /// Verified badge (checkmark). Granting/revoking is restricted to the
     /// "atlas" account — see routes/users.rs::require_atlas.
     pub verified: bool,
+    /// Privacy switches, owned by the user they describe. They are not secrets
+    /// (both are inferable from behaviour anyway), and shipping them on every
+    /// user lets a viewer explain the absence of a receipt or a last-seen
+    /// instead of rendering a silent blank.
+    pub read_receipts: bool,
+    pub last_seen_visible: bool,
 }
 
 impl From<UserRow> for UserDto {
@@ -81,8 +92,13 @@ impl From<UserRow> for UserDto {
             avatar_color: u.avatar_color,
             avatar_initial: u.avatar_initial,
             has_avatar: u.avatar_attachment_id.is_some(),
-            last_seen_at: u.last_seen_at,
+            // The single choke point for "Last seen": stripping it during the
+            // row -> DTO conversion means no route can leak it by forgetting
+            // to check, however the user was loaded.
+            last_seen_at: u.last_seen_at.filter(|_| u.last_seen_visible),
             verified: u.verified,
+            read_receipts: u.read_receipts,
+            last_seen_visible: u.last_seen_visible,
         }
     }
 }
@@ -154,6 +170,19 @@ pub struct MessageDto {
     pub reply_to: Option<ReplyPreviewDto>,
     pub attachment: Option<AttachmentDto>,
     pub reactions: Vec<ReactionDto>,
+    /// Time capsule: when this message's body becomes readable. Absent for
+    /// ordinary messages, and set (past or future) for capsules.
+    ///
+    /// Omitted rather than sent as null, because `#[ts(optional)]` generates
+    /// `unlockAt?: string` — a type that promises the key can be missing, so
+    /// the wire has to actually honour that.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub unlock_at: Option<DateTime<Utc>>,
+    /// True when `body`/`attachment` were withheld from *this* viewer because
+    /// the capsule has not opened yet. The client renders the countdown from
+    /// `unlock_at` and refetches the message when it reaches zero.
+    pub sealed: bool,
 }
 
 impl From<MessageRow> for MessageDto {
@@ -169,7 +198,31 @@ impl From<MessageRow> for MessageDto {
             reply_to: None,   // hydrated separately where needed
             attachment: None, // hydrated separately where needed
             reactions: Vec::new(),
+            unlock_at: m.unlock_at,
+            sealed: false, // decided per viewer, in seal_for
         }
+    }
+}
+
+impl MessageDto {
+    /// Withhold a still-shut time capsule's contents from one viewer.
+    ///
+    /// This is what makes a capsule more than a client-side animation: the
+    /// bytes never leave the database until `unlock_at`, so an early peek
+    /// would need database access, not a patched client. It has to be applied
+    /// per recipient rather than once per message, because the author is
+    /// always allowed to see what they scheduled.
+    ///
+    /// The quoted reply preview and the reaction tally stay visible — neither
+    /// is part of the sealed content, and hiding them would make the bubble
+    /// jump around when it opens.
+    pub fn seal_for(mut self, viewer_id: Uuid, now: DateTime<Utc>) -> Self {
+        if self.author_id != viewer_id && self.unlock_at.is_some_and(|at| at > now) {
+            self.body = String::new();
+            self.attachment = None;
+            self.sealed = true;
+        }
+        self
     }
 }
 
@@ -226,6 +279,12 @@ pub struct ChatDto {
     /// list and appbar can show it without fetching the full user. Always
     /// false for groups.
     pub peer_verified: bool,
+    /// For DMs: when the peer was last online, so the chat header can say so
+    /// instead of guessing. NULL for groups, for a peer who has never been
+    /// seen, and for one who turned "Last seen" off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub peer_last_seen_at: Option<DateTime<Utc>>,
     /// For DMs: whether I've blocked the peer. Always false for groups.
     pub blocked_by_me: bool,
     /// For DMs: whether the peer has blocked me. Always false for groups.
@@ -259,4 +318,6 @@ pub struct UpdateMePayload {
     pub status: Option<String>,
     pub avatar_color: Option<String>,
     pub avatar_initial: Option<String>,
+    pub read_receipts: Option<bool>,
+    pub last_seen_visible: Option<bool>,
 }

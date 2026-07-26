@@ -1,7 +1,8 @@
-import { createResource, For } from "solid-js";
+import { createResource, For, Show } from "solid-js";
 import { repository } from "../../data/repository";
 import { chatsState, setMuted } from "../../store/chats";
 import { preferences, setPreferences } from "../../store/preferences";
+import { playNotificationSound, requestNotificationPermission } from "../../lib/notify";
 import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
 import BackHeader from "../../components/BackHeader";
 import Picker from "../../ui/Picker";
@@ -11,6 +12,10 @@ import Avatar from "../../components/Avatar";
 
 export default function Notifications() {
   const [sounds] = createResource(() => repository.listNotificationSounds());
+  const blockedByBrowser = () =>
+    preferences.notificationsEnabled &&
+    typeof Notification !== "undefined" &&
+    Notification.permission === "denied";
 
   return (
     <div class="h-full overflow-y-auto pb-28">
@@ -20,17 +25,31 @@ export default function Notifications() {
         <SettingsRow label="Notifications" description="Show alerts for new messages">
           <Switch
             checked={preferences.notificationsEnabled}
-            onChange={(v) => setPreferences("notificationsEnabled", v)}
+            onChange={(v) => {
+              setPreferences("notificationsEnabled", v);
+              // Ask here, where the user just said they want alerts, rather
+              // than ambushing them with a permission prompt at sign-in.
+              if (v) requestNotificationPermission();
+            }}
           />
         </SettingsRow>
-        <SettingsRow label="Sound">
+        <SettingsRow label="Sound" description="Played when a message arrives while the app is in the background">
           <Picker
             value={preferences.notificationSound}
-            onChange={(v) => setPreferences("notificationSound", v)}
+            onChange={(v) => {
+              setPreferences("notificationSound", v);
+              playNotificationSound(v); // pick a sound, hear the sound
+            }}
             options={(sounds() ?? []).map((s) => ({ value: s.id, label: s.name }))}
           />
         </SettingsRow>
       </SettingsSection>
+
+      <Show when={blockedByBrowser()}>
+        <p class="-mt-4 px-6 pb-6 text-xs text-ink-subtle">
+          Alerts are blocked for this app in your system settings, so only the sound will play.
+        </p>
+      </Show>
 
       <SettingsSection title="Per-chat">
         <AnimatedList>

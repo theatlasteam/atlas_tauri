@@ -148,7 +148,7 @@ export default function NewChat() {
                           <VerifiedBadge size={14} name={user.name} />
                         </Show>
                       </span>
-                      <span class="block truncate text-xs text-ink-subtle">{user.handle}</span>
+                      <span class="block truncate text-xs text-ink-subtle">@{user.handle}</span>
                     </span>
                     <Show when={groupMode() && isSelected(user)}>
                       <CheckIcon size={18} class="text-accent" />

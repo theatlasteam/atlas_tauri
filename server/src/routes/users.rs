@@ -44,7 +44,9 @@ pub async fn update_me(
             bio = COALESCE($3, bio),
             status = COALESCE($4, status),
             avatar_color = COALESCE($5, avatar_color),
-            avatar_initial = COALESCE($6, avatar_initial)
+            avatar_initial = COALESCE($6, avatar_initial),
+            read_receipts = COALESCE($7, read_receipts),
+            last_seen_visible = COALESCE($8, last_seen_visible)
          WHERE id = $1
          RETURNING {USER_COLUMNS}"
     ))
@@ -54,6 +56,8 @@ pub async fn update_me(
     .bind(patch.status)
     .bind(patch.avatar_color)
     .bind(patch.avatar_initial)
+    .bind(patch.read_receipts)
+    .bind(patch.last_seen_visible)
     .fetch_one(&state.db)
     .await?;
     Ok(Json(user.into()))

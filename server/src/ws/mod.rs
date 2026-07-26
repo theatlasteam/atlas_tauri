@@ -23,6 +23,10 @@ const AUTH_TIMEOUT: Duration = Duration::from_secs(10);
 /// link always has traffic well inside the window.
 const IDLE_TIMEOUT: Duration = Duration::from_secs(75);
 const PING_INTERVAL: Duration = Duration::from_secs(30);
+/// Ceiling on a live-typing preview, matching the message body limit. A draft
+/// arrives as ciphertext, which is ~4/3 the plaintext size, so this is roomier
+/// than it looks.
+const MAX_TYPING_PREVIEW_BYTES: usize = 64 * 1024;
 
 pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
     ws.on_upgrade(move |socket| session(socket, state))
@@ -136,13 +140,22 @@ async fn handle_client_msg(state: &AppState, user_id: Uuid, conn_id: u64, msg: C
     match msg {
         ClientMsg::Auth { .. } => {} // already authed; ignore
 
-        ClientMsg::SendMessage { chat_id, scheme, body, client_tag, reply_to_id, attachment_id } => {
+        ClientMsg::SendMessage {
+            chat_id,
+            scheme,
+            body,
+            client_tag,
+            reply_to_id,
+            attachment_id,
+            unlock_at,
+        } => {
             let new = NewMessage {
                 scheme: &scheme,
                 body: &body,
                 client_tag: client_tag.clone(),
                 reply_to_id,
                 attachment_id,
+                unlock_at,
             };
             match persist_and_fanout(state, user_id, chat_id, new).await {
                 Ok(message) => state.hub.send_to_conn(
@@ -164,10 +177,16 @@ async fn handle_client_msg(state: &AppState, user_id: Uuid, conn_id: u64, msg: C
             }
         }
 
-        ClientMsg::Typing { chat_id } => {
+        ClientMsg::Typing { chat_id, preview, scheme } => {
+            // A live-typing preview is a message body in every respect that
+            // matters here, so it gets the same ceiling. Anything larger is a
+            // client bug or an attempt to use the typing channel as unmetered
+            // transport, and is dropped rather than relayed.
+            let preview = preview.filter(|p| p.len() <= MAX_TYPING_PREVIEW_BYTES);
+            let scheme = preview.as_ref().and(scheme);
             if let Ok(members) = chat_member_ids(state, chat_id).await {
                 if members.contains(&user_id) {
-                    let event = ServerEvent::Typing { chat_id, user_id };
+                    let event = ServerEvent::Typing { chat_id, user_id, preview, scheme };
                     for member in members.into_iter().filter(|m| *m != user_id) {
                         state.hub.send_to_user(member, &event);
                     }
@@ -221,17 +240,27 @@ async fn mark_read(
     .execute(&state.db)
     .await?;
     if updated.rows_affected() > 0 {
-        let event = ServerEvent::Read { chat_id, user_id, message_id };
-        for member in chat_member_ids(state, chat_id).await? {
-            state.hub.send_to_user(member, &event);
-        }
+        crate::routes::messages::fanout_read_receipt(state, chat_id, user_id, message_id).await?;
     }
     Ok(())
 }
 
 /// Tell everyone who shares a chat with this user that they went on/offline.
+///
+/// `online` itself is always broadcast — calls depend on knowing whether the
+/// other end can ring — but the precise `last_seen_at` stamp is withheld from
+/// users who turned "Last seen" off, matching what UserDto exposes over REST.
 async fn broadcast_presence(state: &AppState, user_id: Uuid, online: bool) {
-    let last_seen_at = if online { None } else { Some(chrono::Utc::now()) };
+    let shares_last_seen: bool =
+        sqlx::query_scalar("SELECT last_seen_visible FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or(false);
+    let last_seen_at =
+        if online || !shares_last_seen { None } else { Some(chrono::Utc::now()) };
     let related: Vec<Uuid> = match sqlx::query_scalar(
         "SELECT DISTINCT b.user_id FROM chat_members a
          JOIN chat_members b ON a.chat_id = b.chat_id
