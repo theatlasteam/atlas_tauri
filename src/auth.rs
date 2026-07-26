@@ -19,7 +19,7 @@ use crate::models::{UserDto, UserRow};
 use crate::state::AppState;
 
 pub const USER_COLUMNS: &str =
-    "id, handle, name, bio, status, avatar_color, avatar_initial, avatar_attachment_id, last_seen_at, verified";
+    "id, handle, name, bio, status, avatar_color, avatar_initial, avatar_attachment_id, last_seen_at, verified, read_receipts, last_seen_visible";
 
 // ---------- password hashing ----------
 //

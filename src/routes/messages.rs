@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use axum::extract::{Path, Query, State};
 use axum::Json;
+use chrono::{DateTime, Duration, Utc};
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -16,8 +17,13 @@ use crate::ws::chat_member_ids;
 use crate::ws::protocol::ServerEvent;
 
 const MAX_BODY_BYTES: usize = 64 * 1024;
+/// How far ahead a time capsule may be scheduled. A year is generous for the
+/// intended uses (birthdays, anniversaries, "read this when you land") and
+/// still bounds how long the server is on the hook for storing a body nobody
+/// can read.
+const MAX_CAPSULE_AHEAD_DAYS: i64 = 365;
 pub const MESSAGE_COLUMNS: &str =
-    "id, chat_id, author_id, scheme, body, sent_at, reply_to_id, attachment_id";
+    "id, chat_id, author_id, scheme, body, sent_at, reply_to_id, attachment_id, unlock_at";
 
 fn valid_scheme(scheme: &str) -> bool {
     !scheme.is_empty()
@@ -79,14 +85,21 @@ pub async fn hydrate(state: &AppState, rows: Vec<MessageRow>) -> Result<Vec<Mess
         .bind(&reply_ids)
         .fetch_all(&state.db)
         .await?;
+        let now = Utc::now();
         for p in parents {
+            // Quoting a still-sealed capsule must not print its contents in
+            // the quote. Blanked for everyone, author included: this runs
+            // before the per-viewer seal and has no viewer to check against,
+            // and an author who wants to reread their own capsule can look at
+            // the capsule itself.
+            let still_sealed = p.unlock_at.is_some_and(|at| at > now);
             replies.insert(
                 p.id,
                 ReplyPreviewDto {
                     id: p.id,
                     author_id: p.author_id,
-                    body: encode_body(&p.scheme, &p.body),
-                    scheme: p.scheme,
+                    body: if still_sealed { String::new() } else { encode_body(&p.scheme, &p.body) },
+                    scheme: if still_sealed { "sealed".into() } else { p.scheme },
                 },
             );
         }
@@ -143,6 +156,8 @@ pub struct NewMessage<'a> {
     pub client_tag: Option<String>,
     pub reply_to_id: Option<Uuid>,
     pub attachment_id: Option<Uuid>,
+    /// Send it now, let them read it then. See MessageDto::seal_for.
+    pub unlock_at: Option<DateTime<Utc>>,
 }
 
 /// The single write path for messages (WS + REST + server-generated call
@@ -164,6 +179,20 @@ pub async fn persist_and_fanout(
     if let Some(tag) = &new.client_tag {
         if tag.len() > 64 {
             return Err(AppError::BadRequest("client_tag too long".into()));
+        }
+    }
+    let now = Utc::now();
+    if let Some(unlock_at) = new.unlock_at {
+        // A capsule that opens in the past is just a message; rejecting it
+        // keeps "sealed" from ever meaning "sealed for zero seconds", which
+        // would flicker a countdown on the recipient for one frame.
+        if unlock_at <= now {
+            return Err(AppError::BadRequest("unlockAt must be in the future".into()));
+        }
+        if unlock_at > now + Duration::days(MAX_CAPSULE_AHEAD_DAYS) {
+            return Err(AppError::BadRequest(format!(
+                "unlockAt must be within {MAX_CAPSULE_AHEAD_DAYS} days"
+            )));
         }
     }
 
@@ -203,8 +232,8 @@ pub async fn persist_and_fanout(
     }
 
     let inserted: Option<MessageRow> = sqlx::query_as(&format!(
-        "INSERT INTO messages (id, chat_id, author_id, scheme, body, client_tag, reply_to_id, attachment_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        "INSERT INTO messages (id, chat_id, author_id, scheme, body, client_tag, reply_to_id, attachment_id, unlock_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (author_id, client_tag) WHERE client_tag IS NOT NULL DO NOTHING
          RETURNING {MESSAGE_COLUMNS}"
     ))
@@ -216,6 +245,7 @@ pub async fn persist_and_fanout(
     .bind(&new.client_tag)
     .bind(new.reply_to_id)
     .bind(new.attachment_id)
+    .bind(new.unlock_at)
     .fetch_optional(&state.db)
     .await?;
 
@@ -238,8 +268,11 @@ pub async fn persist_and_fanout(
         // Fan out to every member — including the author, whose *other*
         // devices need it too. The originating device may see both this and
         // its MessageAck; both carry the same message id, so dedupe is trivial.
-        let event = ServerEvent::Message { message: dto.clone() };
+        //
+        // The event is built per member rather than once: a sealed capsule
+        // reaches its recipients hollow, and its author whole.
         for member in chat_member_ids(state, chat_id).await? {
+            let event = ServerEvent::Message { message: dto.clone().seal_for(member, now) };
             state.hub.send_to_user(member, &event);
         }
         push_to_absent_members(state, author_id, chat_id, &dto).await;
@@ -332,7 +365,11 @@ pub async fn get_message(
     .await?;
     let row = row.ok_or(AppError::NotFound)?;
     require_membership(&state, row.chat_id, auth.user_id).await?;
-    hydrate(&state, vec![row]).await?.pop().map(Json).ok_or(AppError::NotFound)
+    hydrate(&state, vec![row])
+        .await?
+        .pop()
+        .map(|dto| Json(dto.seal_for(auth.user_id, Utc::now())))
+        .ok_or(AppError::NotFound)
 }
 
 #[derive(Deserialize)]
@@ -391,7 +428,13 @@ pub async fn list_messages(
             rows
         }
     };
-    Ok(Json(hydrate(&state, rows).await?))
+    let now = Utc::now();
+    let dtos = hydrate(&state, rows)
+        .await?
+        .into_iter()
+        .map(|dto| dto.seal_for(auth.user_id, now))
+        .collect();
+    Ok(Json(dtos))
 }
 
 #[derive(Deserialize)]
@@ -404,6 +447,7 @@ pub struct SendPayload {
     client_tag: Option<String>,
     reply_to_id: Option<Uuid>,
     attachment_id: Option<Uuid>,
+    unlock_at: Option<DateTime<Utc>>,
 }
 
 fn default_scheme() -> String {
@@ -426,10 +470,46 @@ pub async fn send_message(
             client_tag: payload.client_tag,
             reply_to_id: payload.reply_to_id,
             attachment_id: payload.attachment_id,
+            unlock_at: payload.unlock_at,
         },
     )
     .await?;
     Ok(Json(dto))
+}
+
+/// Deliver a Read event, honouring the reciprocal "Read receipts" switch.
+///
+/// Reciprocity is the whole point of the setting: if you don't tell people
+/// when you've read their messages, you don't get told either. Both halves are
+/// enforced here rather than in the UI, so a modified client cannot keep
+/// collecting receipts while withholding its own.
+///
+/// The reader's *own* devices always get the event — it is what clears the
+/// unread badge on their other phone, and it tells them nothing about anyone
+/// else.
+pub async fn fanout_read_receipt(
+    state: &AppState,
+    chat_id: Uuid,
+    reader_id: Uuid,
+    message_id: Uuid,
+) -> sqlx::Result<()> {
+    let members: Vec<(Uuid, bool)> = sqlx::query_as(
+        "SELECT cm.user_id, u.read_receipts
+         FROM chat_members cm JOIN users u ON u.id = cm.user_id
+         WHERE cm.chat_id = $1",
+    )
+    .bind(chat_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let reader_shares = members.iter().any(|(id, shares)| *id == reader_id && *shares);
+    let event = ServerEvent::Read { chat_id, user_id: reader_id, message_id };
+    for (member, member_shares) in members {
+        if member == reader_id || (reader_shares && member_shares) {
+            state.hub.send_to_user(member, &event);
+        }
+    }
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -470,10 +550,7 @@ pub async fn mark_read(
     .await?;
 
     if updated.rows_affected() > 0 {
-        let event = ServerEvent::Read { chat_id, user_id: auth.user_id, message_id };
-        for member in chat_member_ids(&state, chat_id).await? {
-            state.hub.send_to_user(member, &event);
-        }
+        fanout_read_receipt(&state, chat_id, auth.user_id, message_id).await?;
     }
     Ok(Json(json!({ "ok": true })))
 }
@@ -493,8 +570,31 @@ async fn message_chat(state: &AppState, message_id: Uuid) -> Result<Uuid, AppErr
         .ok_or(AppError::NotFound)
 }
 
+/// A reaction must be a short emoji, not a chat message wearing a costume.
+///
+/// "Contains no ASCII at all" was too blunt: keycap emoji are ASCII digits
+/// glued to modifiers (1️⃣ is `1 U+FE0F U+20E3`, #️⃣ likewise), so the whole
+/// keycap row was rejected. What actually needs excluding is ASCII that can
+/// carry meaning on its own — letters, punctuation, whitespace, controls — so
+/// digits and `#`/`*` are allowed through only as part of a longer sequence
+/// that also contains a combining mark.
 fn valid_emoji(emoji: &str) -> bool {
-    !emoji.is_empty() && emoji.len() <= 28 && !emoji.chars().any(|c| c.is_ascii())
+    if emoji.is_empty() || emoji.len() > 28 {
+        return false;
+    }
+    let mut has_non_ascii = false;
+    for c in emoji.chars() {
+        if c.is_ascii() {
+            // Only the keycap bases; everything else ASCII is text.
+            if !(c.is_ascii_digit() || c == '#' || c == '*') {
+                return false;
+            }
+        } else {
+            has_non_ascii = true;
+        }
+    }
+    // Rules out a bare "42" or "#" while keeping 1️⃣ and #️⃣.
+    has_non_ascii
 }
 
 pub async fn add_reaction(
@@ -590,6 +690,9 @@ pub async fn search_messages(
         "SELECT {MESSAGE_COLUMNS} FROM messages m
          WHERE m.chat_id IN (SELECT chat_id FROM chat_members WHERE user_id = $1)
            AND m.scheme = 'plain'
+           -- A sealed capsule must not be searchable before it opens, or the
+           -- search box becomes the way to read one early.
+           AND (m.unlock_at IS NULL OR m.unlock_at <= now() OR m.author_id = $1)
            AND convert_from(m.body, 'UTF8') ILIKE $2
          ORDER BY m.id DESC LIMIT $3"
     ))
