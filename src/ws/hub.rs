@@ -20,6 +20,10 @@ const CONN_QUEUE: usize = 256;
 pub struct Conn {
     pub conn_id: u64,
     pub session_id: Uuid,
+    /// Chat this device currently has open, for co-presence. Per connection
+    /// rather than per user: a phone and a laptop can be in different chats,
+    /// and each is reported where it actually is.
+    pub focus: Option<Uuid>,
     tx: mpsc::Sender<ServerEvent>,
 }
 
@@ -69,8 +73,29 @@ impl Hub {
         let conn_id = self.next_conn_id.fetch_add(1, Ordering::Relaxed);
         let mut entry = self.conns.entry(user_id).or_default();
         let came_online = entry.is_empty();
-        entry.push(Conn { conn_id, session_id, tx });
+        entry.push(Conn { conn_id, session_id, focus: None, tx });
         (conn_id, came_online)
+    }
+
+    /// Point a connection at a chat (or nowhere). Returns the chat it was
+    /// looking at before, so the caller can announce the departure.
+    pub fn set_focus(&self, user_id: Uuid, conn_id: u64, chat_id: Option<Uuid>) -> Option<Uuid> {
+        let mut previous = None;
+        if let Some(mut conns) = self.conns.get_mut(&user_id) {
+            if let Some(conn) = conns.iter_mut().find(|c| c.conn_id == conn_id) {
+                previous = conn.focus;
+                conn.focus = chat_id;
+            }
+        }
+        previous
+    }
+
+    /// Is any of this user's devices looking at this chat right now?
+    pub fn is_focused_on(&self, user_id: Uuid, chat_id: Uuid) -> bool {
+        self.conns
+            .get(&user_id)
+            .map(|conns| conns.iter().any(|c| c.focus == Some(chat_id)))
+            .unwrap_or(false)
     }
 
     /// Remove a connection. Returns true if the user is now fully offline.

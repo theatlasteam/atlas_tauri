@@ -41,6 +41,8 @@ struct ChatListRow {
     lm_body: Option<Vec<u8>>,
     lm_sent_at: Option<DateTime<Utc>>,
     lm_unlock_at: Option<DateTime<Utc>>,
+    lm_edited_at: Option<DateTime<Utc>>,
+    lm_deleted_at: Option<DateTime<Utc>>,
 }
 
 /// One round-trip for the whole chat list: DM peer resolution and the latest
@@ -62,6 +64,7 @@ const CHAT_LIST_SQL: &str = "
         EXISTS(SELECT 1 FROM blocks b WHERE b.blocker_id = p.user_id AND b.blocked_id = cm.user_id) AS blocked_me,
         lm.id AS lm_id, lm.author_id AS lm_author, lm.scheme AS lm_scheme,
         lm.body AS lm_body, lm.sent_at AS lm_sent_at, lm.unlock_at AS lm_unlock_at,
+        lm.edited_at AS lm_edited_at, lm.deleted_at AS lm_deleted_at,
         (SELECT count(*) FROM messages m
           WHERE m.chat_id = c.id
             AND m.author_id <> cm.user_id
@@ -76,13 +79,14 @@ const CHAT_LIST_SQL: &str = "
     ) p ON c.kind = 'dm'
     LEFT JOIN users pu ON pu.id = p.user_id
     LEFT JOIN LATERAL (
-        SELECT m.id, m.author_id, m.scheme, m.body, m.sent_at, m.unlock_at FROM messages m
+        SELECT m.id, m.author_id, m.scheme, m.body, m.sent_at, m.unlock_at,
+               m.edited_at, m.deleted_at FROM messages m
         WHERE m.chat_id = c.id ORDER BY m.id DESC LIMIT 1
     ) lm ON TRUE
     WHERE cm.user_id = $1
 ";
 
-fn row_to_dto(row: ChatListRow, viewer_id: Uuid, folder_ids: Vec<Uuid>, online: bool) -> ChatDto {
+fn row_to_dto(row: ChatListRow, folder_ids: Vec<Uuid>, online: bool) -> ChatDto {
     let last_message = match (row.lm_id, row.lm_author, row.lm_scheme, row.lm_body, row.lm_sent_at)
     {
         (Some(id), Some(author_id), Some(scheme), Some(body), Some(sent_at)) => {
@@ -99,8 +103,10 @@ fn row_to_dto(row: ChatListRow, viewer_id: Uuid, folder_ids: Vec<Uuid>, online: 
                     reply_to_id: None,   // previews don't render reply/attachment
                     attachment_id: None, // detail; hydrating here would be N chats
                     unlock_at: row.lm_unlock_at,
+                    edited_at: row.lm_edited_at,
+                    deleted_at: row.lm_deleted_at,
                 })
-                .seal_for(viewer_id, Utc::now()),
+                .seal(Utc::now()),
             )
         }
         _ => None,
@@ -172,7 +178,7 @@ pub async fn list_chats(
         .map(|row| {
             let online = row.peer_id.map(|p| state.hub.is_online(p)).unwrap_or(false);
             let folder_ids = folders.remove(&row.id).unwrap_or_default();
-            row_to_dto(row, auth.user_id, folder_ids, online)
+            row_to_dto(row, folder_ids, online)
         })
         .collect();
     chats.sort_by(|a, b| {
@@ -206,7 +212,7 @@ pub async fn chat_dto_for(
     .fetch_all(&state.db)
     .await?;
     let online = row.peer_id.map(|p| state.hub.is_online(p)).unwrap_or(false);
-    Ok(row_to_dto(row, user_id, folder_ids, online))
+    Ok(row_to_dto(row, folder_ids, online))
 }
 
 pub async fn get_chat(

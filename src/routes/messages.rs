@@ -22,8 +22,8 @@ const MAX_BODY_BYTES: usize = 64 * 1024;
 /// still bounds how long the server is on the hook for storing a body nobody
 /// can read.
 const MAX_CAPSULE_AHEAD_DAYS: i64 = 365;
-pub const MESSAGE_COLUMNS: &str =
-    "id, chat_id, author_id, scheme, body, sent_at, reply_to_id, attachment_id, unlock_at";
+pub const MESSAGE_COLUMNS: &str = "id, chat_id, author_id, scheme, body, sent_at, reply_to_id, \
+     attachment_id, unlock_at, edited_at, deleted_at";
 
 fn valid_scheme(scheme: &str) -> bool {
     !scheme.is_empty()
@@ -87,19 +87,27 @@ pub async fn hydrate(state: &AppState, rows: Vec<MessageRow>) -> Result<Vec<Mess
         .await?;
         let now = Utc::now();
         for p in parents {
-            // Quoting a still-sealed capsule must not print its contents in
-            // the quote. Blanked for everyone, author included: this runs
-            // before the per-viewer seal and has no viewer to check against,
-            // and an author who wants to reread their own capsule can look at
-            // the capsule itself.
-            let still_sealed = p.unlock_at.is_some_and(|at| at > now);
+            // A quote must never become a peephole. Quoting a capsule that
+            // hasn't opened shows the seal, and quoting an unsent message
+            // shows the tombstone — in both cases the same thing the bubble
+            // itself would show.
+            let placeholder = if p.deleted_at.is_some() {
+                Some("deleted")
+            } else if p.unlock_at.is_some_and(|at| at > now) {
+                Some("sealed")
+            } else {
+                None
+            };
             replies.insert(
                 p.id,
                 ReplyPreviewDto {
                     id: p.id,
                     author_id: p.author_id,
-                    body: if still_sealed { String::new() } else { encode_body(&p.scheme, &p.body) },
-                    scheme: if still_sealed { "sealed".into() } else { p.scheme },
+                    body: match placeholder {
+                        Some(_) => String::new(),
+                        None => encode_body(&p.scheme, &p.body),
+                    },
+                    scheme: placeholder.map(str::to_string).unwrap_or(p.scheme),
                 },
             );
         }
@@ -156,7 +164,7 @@ pub struct NewMessage<'a> {
     pub client_tag: Option<String>,
     pub reply_to_id: Option<Uuid>,
     pub attachment_id: Option<Uuid>,
-    /// Send it now, let them read it then. See MessageDto::seal_for.
+    /// Send it now, let it be read then. See MessageDto::seal.
     pub unlock_at: Option<DateTime<Utc>>,
 }
 
@@ -263,16 +271,16 @@ pub async fn persist_and_fanout(
         }
     };
 
-    let dto = hydrate(state, vec![row]).await?.pop().ok_or(AppError::NotFound)?;
+    // Sealed once, here, so every consumer below — fan-out, the REST reply to
+    // the sender, the WS ack — is handed the same withheld body. A capsule
+    // that the author could still read would not be sealed, just polite.
+    let dto = hydrate(state, vec![row]).await?.pop().ok_or(AppError::NotFound)?.seal(now);
     if fresh {
         // Fan out to every member — including the author, whose *other*
         // devices need it too. The originating device may see both this and
         // its MessageAck; both carry the same message id, so dedupe is trivial.
-        //
-        // The event is built per member rather than once: a sealed capsule
-        // reaches its recipients hollow, and its author whole.
+        let event = ServerEvent::Message { message: dto.clone() };
         for member in chat_member_ids(state, chat_id).await? {
-            let event = ServerEvent::Message { message: dto.clone().seal_for(member, now) };
             state.hub.send_to_user(member, &event);
         }
         push_to_absent_members(state, author_id, chat_id, &dto).await;
@@ -368,7 +376,7 @@ pub async fn get_message(
     hydrate(&state, vec![row])
         .await?
         .pop()
-        .map(|dto| Json(dto.seal_for(auth.user_id, Utc::now())))
+        .map(|dto| Json(dto.seal(Utc::now())))
         .ok_or(AppError::NotFound)
 }
 
@@ -432,7 +440,7 @@ pub async fn list_messages(
     let dtos = hydrate(&state, rows)
         .await?
         .into_iter()
-        .map(|dto| dto.seal_for(auth.user_id, now))
+        .map(|dto| dto.seal(now))
         .collect();
     Ok(Json(dtos))
 }
@@ -510,6 +518,118 @@ pub async fn fanout_read_receipt(
         }
     }
     Ok(())
+}
+
+// ---------- editing and unsending ----------
+
+/// Load a message the caller is allowed to change, i.e. one they wrote.
+///
+/// Authorship is the only permission that matters here: a group admin who
+/// could rewrite someone else's words would make every message in the app
+/// deniable, which is a worse property than not being able to moderate.
+async fn own_message(state: &AppState, message_id: Uuid, user_id: Uuid) -> Result<MessageRow, AppError> {
+    let row: Option<MessageRow> =
+        sqlx::query_as(&format!("SELECT {MESSAGE_COLUMNS} FROM messages WHERE id = $1"))
+            .bind(message_id)
+            .fetch_optional(&state.db)
+            .await?;
+    let row = row.ok_or(AppError::NotFound)?;
+    if row.author_id != user_id {
+        // NotFound rather than Forbidden: whether a message id exists is not
+        // something a non-author needs confirmed.
+        return Err(AppError::NotFound);
+    }
+    if row.deleted_at.is_some() {
+        return Err(AppError::BadRequest("message was unsent".into()));
+    }
+    Ok(row)
+}
+
+/// Re-hydrate a changed message and tell the chat about it.
+async fn fanout_update(state: &AppState, row: MessageRow) -> Result<MessageDto, AppError> {
+    let chat_id = row.chat_id;
+    let dto = hydrate(state, vec![row]).await?.pop().ok_or(AppError::NotFound)?.seal(Utc::now());
+    let event = ServerEvent::MessageUpdated { message: dto.clone() };
+    for member in chat_member_ids(state, chat_id).await? {
+        state.hub.send_to_user(member, &event);
+    }
+    Ok(dto)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditPayload {
+    #[serde(default = "default_scheme")]
+    scheme: String,
+    body: String,
+}
+
+/// Rewrite a message's body. The previous text is not retained anywhere —
+/// see migrations/0008 for why.
+pub async fn edit_message(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(message_id): Path<Uuid>,
+    Json(payload): Json<EditPayload>,
+) -> ApiResult<Json<MessageDto>> {
+    let row = own_message(&state, message_id, auth.user_id).await?;
+    require_not_blocked(&state, row.chat_id, auth.user_id).await?;
+
+    if row.scheme == "call-log" {
+        return Err(AppError::BadRequest("call logs cannot be edited".into()));
+    }
+    // A capsule that its author could rewrite while it counts down is not
+    // sealed — it is a draft with a delivery date.
+    if row.unlock_at.is_some_and(|at| at > Utc::now()) {
+        return Err(AppError::BadRequest("a sealed time capsule cannot be edited".into()));
+    }
+    if !valid_scheme(&payload.scheme) {
+        return Err(AppError::BadRequest("invalid scheme".into()));
+    }
+    let raw = decode_body(&payload.scheme, &payload.body).map_err(AppError::BadRequest)?;
+    // An edit may not empty a message: that is what unsend is for, and an
+    // empty body would render as a bubble with nothing in it.
+    if raw.is_empty() || raw.len() > MAX_BODY_BYTES {
+        return Err(AppError::BadRequest("body must be 1..=65536 bytes".into()));
+    }
+
+    let updated: MessageRow = sqlx::query_as(&format!(
+        "UPDATE messages SET scheme = $2, body = $3, edited_at = now()
+         WHERE id = $1 RETURNING {MESSAGE_COLUMNS}"
+    ))
+    .bind(message_id)
+    .bind(&payload.scheme)
+    .bind(&raw)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(fanout_update(&state, updated).await?))
+}
+
+/// Unsend: wipe the body, keep the row. See migrations/0008.
+pub async fn delete_message(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(message_id): Path<Uuid>,
+) -> ApiResult<Json<MessageDto>> {
+    // Authorization, and the guard against unsending twice. The row it returns
+    // is not needed — the UPDATE below returns the version that matters.
+    // Deliberately no restriction on unsending a sealed capsule: "actually,
+    // never mind" has to stay available right up until it opens.
+    own_message(&state, message_id, auth.user_id).await?;
+
+    // The bytes go in the same statement that marks the tombstone, so there is
+    // no window in which a message reads as deleted while its body is still
+    // recoverable from the row.
+    let updated: MessageRow = sqlx::query_as(&format!(
+        "UPDATE messages SET deleted_at = now(), body = ''::bytea, attachment_id = NULL
+         WHERE id = $1 RETURNING {MESSAGE_COLUMNS}"
+    ))
+    .bind(message_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(fanout_update(&state, updated).await?))
 }
 
 #[derive(Deserialize)]
@@ -691,8 +811,10 @@ pub async fn search_messages(
          WHERE m.chat_id IN (SELECT chat_id FROM chat_members WHERE user_id = $1)
            AND m.scheme = 'plain'
            -- A sealed capsule must not be searchable before it opens, or the
-           -- search box becomes the way to read one early.
-           AND (m.unlock_at IS NULL OR m.unlock_at <= now() OR m.author_id = $1)
+           -- search box becomes the way to read one early — including by the
+           -- author, who is sealed out of their own capsules too.
+           AND (m.unlock_at IS NULL OR m.unlock_at <= now())
+           AND m.deleted_at IS NULL
            AND convert_from(m.body, 'UTF8') ILIKE $2
          ORDER BY m.id DESC LIMIT $3"
     ))

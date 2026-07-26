@@ -93,7 +93,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/messages/search", get(routes::messages::search_messages))
         // Single message fetch — the Android push payload carries ids only, so
         // the notification service pulls the body from here to decrypt it.
-        .route("/api/messages/{id}", get(routes::messages::get_message))
+        .route(
+            "/api/messages/{id}",
+            get(routes::messages::get_message)
+                .patch(routes::messages::edit_message)
+                .delete(routes::messages::delete_message),
+        )
         .route("/api/messages/{id}/reactions", post(routes::messages::add_reaction))
         .route(
             "/api/messages/{id}/reactions/{emoji}",
