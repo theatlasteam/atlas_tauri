@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "phosphor-solid-js": "^2.0.0",
-    "solid-js": "^1.9.3"
+    "solid-js": "^1.9.3",
+    "solid-transition-group": "^0.3.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

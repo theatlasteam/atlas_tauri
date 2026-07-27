@@ -15,3 +15,10 @@ export async function joinWaitlist(email: string): Promise<{ alreadyJoined: bool
   }
   return res.json();
 }
+
+export async function getWaitlistCount(): Promise<number> {
+  const res = await fetch(`${API_BASE}/api/waitlist/count`);
+  if (!res.ok) throw new Error("Couldn't load waitlist count");
+  const body = await res.json();
+  return body.count;
+}

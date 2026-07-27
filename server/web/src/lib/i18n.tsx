@@ -21,6 +21,7 @@ const dict = {
     "hero.downloadFor": "Download for {platform}",
     "hero.seeAll": "See all downloads",
     "hero.github": "View on GitHub",
+    "hero.waitlistCount": "{count} people already on the list",
     "features.title": "What's inside",
     "features.e2ee.title": "End-to-end encrypted",
     "features.e2ee.body":
@@ -50,6 +51,8 @@ const dict = {
     "waitlist.joining": "Joining…",
     "waitlist.doneTitle": "You're on the list",
     "waitlist.doneBody": "We'll email you when there's something new to try.",
+    "waitlist.consentPrefix": "I agree to the processing of my email address as described in the",
+    "waitlist.consentLink": "Privacy Policy",
     "source.title": "Build it yourself",
     "source.needBun": "You need",
     "source.and": "and",
@@ -57,6 +60,7 @@ const dict = {
     "footer.license": "Atlas — MIT licensed.",
     "footer.source": "Source on GitHub",
     "footer.built": "Built with Tauri, Solid.js and Rust.",
+    "footer.privacy": "Privacy Policy",
   },
   ru: {
     "nav.features": "Возможности",
@@ -74,6 +78,7 @@ const dict = {
     "hero.downloadFor": "Скачать для {platform}",
     "hero.seeAll": "Все версии для скачивания",
     "hero.github": "Открыть на GitHub",
+    "hero.waitlistCount": "{count} человек уже в списке ожидания",
     "features.title": "Что внутри",
     "features.e2ee.title": "Сквозное шифрование",
     "features.e2ee.body":
@@ -95,14 +100,16 @@ const dict = {
     "downloads.note":
       "Android APK подписан debug-ключом и предназначен для тестирования — система предупредит об установке не из Play Store.",
     "downloads.download": "Скачать",
-    "waitlist.cta": "Записаться в лист ожидания",
-    "waitlist.title": "Лист ожидания",
+    "waitlist.cta": "Записаться в список ожидания",
+    "waitlist.title": "Список ожидания",
     "waitlist.body": "Мы напишем вам, когда выйдут новые сборки и функции.",
     "waitlist.placeholder": "you@example.com",
     "waitlist.join": "Записаться",
     "waitlist.joining": "Записываем…",
     "waitlist.doneTitle": "Вы в списке",
     "waitlist.doneBody": "Напишем на почту, когда появится что-то новое.",
+    "waitlist.consentPrefix": "Я согласен на обработку моего адреса электронной почты в соответствии с",
+    "waitlist.consentLink": "Политикой конфиденциальности",
     "source.title": "Собрать самостоятельно",
     "source.needBun": "Понадобятся",
     "source.and": "и",
@@ -110,6 +117,7 @@ const dict = {
     "footer.license": "Atlas — лицензия MIT.",
     "footer.source": "Исходный код на GitHub",
     "footer.built": "Сделано на Tauri, Solid.js и Rust.",
+    "footer.privacy": "Политика конфиденциальности",
   },
 } as const;
 

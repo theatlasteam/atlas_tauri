@@ -2,6 +2,14 @@
 @config "../tailwind.config.js";
 
 :root {
+  /* Referenced by the fixed header's padding-top (App.tsx) so it clears a
+     phone's notch/status bar. Browsers support env(safe-area-inset-*)
+     outside a native shell too — this isn't Tauri-only. Needs its own
+     fallback: an undefined custom property inside max() makes the whole
+     declaration invalid, silently dropping the padding rather than just
+     using 0. */
+  --safe-top: env(safe-area-inset-top, 0px);
+
   --color-accent: #c9772e;
   --color-accent-soft: #f2decb;
   --color-accent-ink: #fffaf3;
@@ -165,6 +173,69 @@ body {
   75% { transform: translate(-1%, -1%); }
   100% { transform: translate(0, 0); }
 }
+/*
+  Transition classes for solid-transition-group, used by WaitlistModal (backdrop
+  fade + panel pop) — same shape and timings as the Tauri app's Dialog/Menu, so
+  this feels like the same product.
+*/
+.fade-enter,
+.fade-exit-to {
+  opacity: 0;
+}
+.fade-enter-active,
+.fade-exit-active {
+  transition: opacity 150ms ease;
+}
+.fade-enter-to,
+.fade-exit {
+  opacity: 1;
+}
+
+.pop-enter,
+.pop-exit-to {
+  opacity: 0;
+  transform: scale(0.96) translateY(-2px);
+}
+.pop-enter-active,
+.pop-exit-active {
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.pop-enter-to,
+.pop-exit {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+/* Basic legal-document typography — headings/lists/links for pages like
+   PrivacyPolicy.tsx that are prose, not the marketing page's custom layout. */
+.prose-policy h2 {
+  margin-top: 2rem;
+  margin-bottom: 0.6rem;
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.prose-policy p {
+  margin-bottom: 0.85rem;
+  color: var(--color-ink-muted);
+  line-height: 1.65;
+}
+.prose-policy ul {
+  margin: 0 0 0.85rem 1.1rem;
+  list-style: disc;
+  color: var(--color-ink-muted);
+  line-height: 1.65;
+}
+.prose-policy li {
+  margin-bottom: 0.35rem;
+}
+.prose-policy code {
+  background: var(--color-surface);
+  border-radius: 0.3rem;
+  padding: 0.1em 0.4em;
+  font-size: 0.9em;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .grain-overlay {
     animation: none;

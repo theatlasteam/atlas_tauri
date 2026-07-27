@@ -1,4 +1,4 @@
-import { createResource, createSignal, For, Match, Switch } from "solid-js";
+import { createResource, createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import {
   AndroidLogo,
   CalendarBlank,
@@ -9,6 +9,7 @@ import {
   LinuxLogo,
   Lock,
   Moon,
+  Newspaper,
   PaintBrush,
   Paperclip,
   Phone,
@@ -24,6 +25,7 @@ import HeroShader from "./components/HeroShader";
 import LanguageSwitcher from "./components/LanguageSwitcher";
 import Reveal from "./components/Reveal";
 import WaitlistModal from "./components/WaitlistModal";
+import { getWaitlistCount } from "./lib/api";
 import { t, type TranslationKey } from "./lib/i18n";
 import { GITHUB_REPO, GITHUB_REPO_URL } from "./lib/repo";
 import {
@@ -72,6 +74,18 @@ export default function App() {
   const [release] = createResource(fetchLatestRelease);
   const platform = detectPlatform();
   const [waitlistOpen, setWaitlistOpen] = createSignal(false);
+  const [waitlistCount, { refetch: refetchWaitlistCount }] = createResource(getWaitlistCount);
+
+  // Compact pill once scrolled even slightly — the header floats over every
+  // section below the hero, not just the dark one it starts flush against,
+  // so it needs its own background as soon as it's not sitting at the top.
+  const [scrolled, setScrolled] = createSignal(false);
+  const onScroll = () => setScrolled(window.scrollY > 8);
+  onMount(() => {
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onCleanup(() => window.removeEventListener("scroll", onScroll));
+  });
 
   function toggleTheme() {
     const next = theme() === "dark" ? "light" : "dark";
@@ -93,42 +107,62 @@ export default function App() {
         <HeroShader />
         <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0e0c0a] via-transparent to-[#0e0c0a]/40" />
 
-        <header class="relative z-10 flex items-center justify-between px-6 py-6 sm:px-10">
-          <a href="#top" class="flex items-center gap-2 font-heading text-lg font-semibold">
-            <img src={logo} alt="" width="26" height="19" />
-            Atlas
-          </a>
-          <nav class="hidden items-center gap-6 text-sm text-[#f2ede2]/75 sm:flex">
-            <a href="#features" class="hover:text-[#f2ede2]">
-              {t("nav.features")}
+        <header
+          class="fixed inset-x-0 top-0 z-40 px-3 transition-[padding-top] duration-300 ease-out sm:px-6"
+          classList={{
+            "pt-[max(var(--safe-top),0.75rem)]": !scrolled(),
+            "pt-[max(var(--safe-top),1.25rem)]": scrolled(),
+          }}
+        >
+          <div
+            class="mx-auto flex w-full items-center justify-between rounded-pill shadow-lg transition-[max-width,padding,background-color,border-color,box-shadow] duration-300 ease-out"
+            classList={{
+              // `none` (default max-width, no shadow) can't be interpolated
+              // to/from — the browser just snaps at some point mid-transition
+              // instead of tweening, which (since this bar is laid out with
+              // justify-between) reads as the logo/buttons jumping into
+              // place. Real values on both ends — a max-width way past any
+              // real viewport, and a same-shaped shadow at zero alpha —
+              // fixes that.
+              "max-w-[160rem] border border-transparent bg-transparent px-1 py-3 shadow-black/0 sm:px-4": !scrolled(),
+              "max-w-3xl border border-white/10 bg-[#14110d]/80 px-4 py-2 shadow-black/20 backdrop-blur-md sm:px-5": scrolled(),
+            }}
+          >
+            <a href="#top" class="flex items-center gap-2 font-heading text-lg font-semibold">
+              <img src={logo} alt="" width="26" height="19" />
+              Atlas
             </a>
-            <a href="#download" class="hover:text-[#f2ede2]">
-              {t("nav.download")}
-            </a>
-            <a href="#source" class="hover:text-[#f2ede2]">
-              {t("nav.source")}
-            </a>
-            <a href={GITHUB_REPO_URL} class="flex items-center gap-1.5 hover:text-[#f2ede2]">
-              <GithubLogo size={16} weight="bold" /> {t("nav.github")}
-            </a>
-          </nav>
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setWaitlistOpen(true)}
-              class="hidden rounded-pill border border-white/15 bg-white/5 px-4 py-1.5 text-sm text-[#f2ede2]/90 backdrop-blur transition hover:bg-white/10 sm:inline-flex"
-            >
-              {t("waitlist.cta")}
-            </button>
-            <LanguageSwitcher />
-            <button
-              type="button"
-              onClick={toggleTheme}
-              class="grid h-9 w-9 place-items-center rounded-pill border border-white/15 text-[#f2ede2]/75 transition hover:text-[#f2ede2]"
-              aria-label="Toggle dark mode"
-            >
-              {theme() === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
+            <nav class="hidden items-center gap-6 text-sm text-[#f2ede2]/75 sm:flex">
+              <a href="#features" class="hover:text-[#f2ede2]">
+                {t("nav.features")}
+              </a>
+              <a href="#download" class="hover:text-[#f2ede2]">
+                {t("nav.download")}
+              </a>
+              <a href="#source" class="hover:text-[#f2ede2]">
+                {t("nav.source")}
+              </a>
+            </nav>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setWaitlistOpen(true)}
+                aria-label={t("waitlist.cta")}
+                title={t("waitlist.cta")}
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-pill border border-white/15 bg-white/5 text-[#f2ede2]/90 backdrop-blur transition hover:bg-white/10"
+              >
+                <Newspaper size={16} />
+              </button>
+              <LanguageSwitcher compact={scrolled()} />
+              <button
+                type="button"
+                onClick={toggleTheme}
+                class="grid h-9 w-9 shrink-0 place-items-center rounded-pill border border-white/15 text-[#f2ede2]/75 transition hover:text-[#f2ede2]"
+                aria-label="Toggle dark mode"
+              >
+                {theme() === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+            </div>
           </div>
         </header>
 
@@ -169,33 +203,43 @@ export default function App() {
                     : t("hero.seeAll")
               }
             />
-            <AnimatedButton href={GITHUB_REPO_URL} icon={GithubLogo} variant="ghost" label={() => t("hero.github")} />
-            <button
-              type="button"
+            <AnimatedButton
+              href="#"
+              icon={Newspaper}
+              variant="ghost"
+              label={() => t("waitlist.cta")}
               onClick={() => setWaitlistOpen(true)}
-              class="rounded-pill border border-white/15 px-4 py-2 text-sm text-[#f2ede2]/90 transition hover:bg-white/10 sm:hidden"
-            >
-              {t("waitlist.cta")}
-            </button>
+            />
           </div>
+
+          <Show when={waitlistCount() !== undefined}>
+            <p class="text-sm text-[#f2ede2]/60">
+              {t("hero.waitlistCount", { count: String(waitlistCount()!) })}
+            </p>
+          </Show>
         </div>
       </section>
 
       <main>
-        <section id="features" class="mx-auto max-w-5xl px-6 py-16">
+        <section id="features" class="mx-auto max-w-4xl scroll-mt-24 px-6 py-24">
           <Reveal>
-            <h2 class="mb-8 text-center font-heading text-3xl font-semibold">{t("features.title")}</h2>
+            <h2 class="mb-12 font-heading text-3xl font-semibold">{t("features.title")}</h2>
           </Reveal>
-          <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="divide-y divide-border border-y border-border">
             <For each={FEATURES}>
               {(feature, i) => (
-                <Reveal delay={i() * 60}>
-                  <article class="group h-full rounded-2xl border border-border bg-surface p-6 transition duration-300 hover:-translate-y-1 hover:border-accent/40 hover:shadow-floating">
-                    <div class="mb-3 grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent transition-transform duration-300 group-hover:scale-110">
-                      <feature.icon size={20} weight="bold" />
+                <Reveal delay={i() * 50}>
+                  <article class="flex items-baseline gap-5 py-6 sm:gap-8">
+                    <span class="w-6 shrink-0 font-heading text-sm text-ink-subtle sm:w-8">
+                      {String(i() + 1).padStart(2, "0")}
+                    </span>
+                    <div class="min-w-0">
+                      <h3 class="mb-1 flex items-center gap-2 font-heading text-base font-semibold">
+                        <feature.icon size={16} class="shrink-0 text-accent" weight="bold" />
+                        {t(feature.titleKey)}
+                      </h3>
+                      <p class="text-sm leading-relaxed text-ink-muted">{t(feature.bodyKey)}</p>
                     </div>
-                    <h3 class="mb-1 font-heading font-semibold">{t(feature.titleKey)}</h3>
-                    <p class="text-sm text-ink-muted">{t(feature.bodyKey)}</p>
                   </article>
                 </Reveal>
               )}
@@ -203,22 +247,33 @@ export default function App() {
           </div>
         </section>
 
-        <section id="download" class="mx-auto max-w-5xl px-6 py-16">
+        <section id="download" class="mx-auto max-w-4xl scroll-mt-24 px-6 py-24">
           <Reveal>
-            <h2 class="mb-2 text-center font-heading text-3xl font-semibold">{t("downloads.title")}</h2>
-            <p class="mb-10 text-center text-ink-muted">{t("downloads.sub")}</p>
+            <div class="mb-10 flex flex-wrap items-baseline justify-between gap-3">
+              <h2 class="font-heading text-3xl font-semibold">{t("downloads.title")}</h2>
+              <Show when={release()}>
+                <div class="flex items-center gap-4 text-sm text-ink-subtle">
+                  <span class="flex items-center gap-1.5">
+                    <Tag size={14} /> {release()!.tag_name}
+                  </span>
+                  <span class="flex items-center gap-1.5">
+                    <CalendarBlank size={14} /> {formatDate(release()!.published_at)}
+                  </span>
+                </div>
+              </Show>
+            </div>
+            <p class="mb-10 text-ink-muted">{t("downloads.sub")}</p>
           </Reveal>
 
           <Switch>
             <Match when={release.loading}>
-              <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              <div class="divide-y divide-border border-y border-border">
                 <For each={[0, 1, 2, 3]}>
                   {() => (
-                    <div class="animate-pulse rounded-2xl border border-border bg-surface p-6">
-                      <div class="mb-5 h-11 w-11 rounded-xl bg-accent-soft" />
-                      <div class="mb-2 h-4 w-2/3 rounded bg-border" />
-                      <div class="mb-6 h-3 w-1/2 rounded bg-border" />
-                      <div class="h-10 rounded-pill bg-border" />
+                    <div class="flex animate-pulse items-center gap-4 py-4">
+                      <div class="h-4 w-4 rounded bg-border" />
+                      <div class="h-3.5 w-24 rounded bg-border" />
+                      <div class="ml-auto h-3.5 w-16 rounded bg-border" />
                     </div>
                   )}
                 </For>
@@ -226,8 +281,8 @@ export default function App() {
             </Match>
 
             <Match when={release.error}>
-              <div class="mx-auto flex max-w-md flex-col items-center gap-3 rounded-2xl border border-border bg-surface px-8 py-12 text-center">
-                <WarningCircle size={28} class="text-ink-subtle" />
+              <div class="flex flex-col items-start gap-3 border-y border-border py-10">
+                <WarningCircle size={22} class="text-ink-subtle" />
                 <p class="text-ink-muted">{t("downloads.error")}</p>
                 <a
                   href={`${GITHUB_REPO_URL}/releases`}
@@ -239,37 +294,28 @@ export default function App() {
             </Match>
 
             <Match when={release()}>
-              <div class="mb-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-ink-subtle">
-                <span class="flex items-center gap-1.5">
-                  <Tag size={15} /> {release()!.tag_name}
-                </span>
-                <span class="flex items-center gap-1.5">
-                  <CalendarBlank size={15} /> {formatDate(release()!.published_at)}
-                </span>
-              </div>
-
-              <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              <div class="divide-y divide-border border-y border-border">
                 <For each={assetsByPlatform(release()!)}>
                   {({ platform: p, asset }, i) => {
                     const Icon = PLATFORM_ICONS[p];
                     return (
-                      <Reveal delay={i() * 60}>
-                        <div class="group flex h-full flex-col rounded-2xl border border-border bg-surface p-6 transition duration-300 hover:-translate-y-1 hover:border-accent/40 hover:shadow-floating">
-                          <div class="mb-5 grid h-11 w-11 place-items-center rounded-xl bg-accent-soft text-accent transition-transform duration-300 group-hover:scale-110">
-                            <Icon size={22} weight="bold" />
-                          </div>
-                          <h3 class="font-heading text-lg font-semibold">{PLATFORM_NAMES[p]}</h3>
-                          <p class="mb-6 text-sm text-ink-subtle">
-                            {PLATFORM_DETAILS[p]} · {formatBytes(asset.size)}
-                          </p>
-                          <AnimatedButton
-                            href={asset.browser_download_url}
-                            icon={DownloadSimple}
-                            size="sm"
-                            class="mt-auto w-full justify-center"
-                            label={() => t("downloads.download")}
-                          />
-                        </div>
+                      <Reveal delay={i() * 50}>
+                        <a
+                          href={asset.browser_download_url}
+                          class="group flex items-center gap-4 py-4 transition-colors duration-150 hover:text-accent"
+                        >
+                          <Icon size={20} class="shrink-0 text-ink-subtle transition-colors duration-150 group-hover:text-accent" />
+                          <span class="min-w-0">
+                            <span class="block font-heading text-sm font-semibold">{PLATFORM_NAMES[p]}</span>
+                            <span class="block text-xs text-ink-subtle">
+                              {PLATFORM_DETAILS[p]} · {formatBytes(asset.size)}
+                            </span>
+                          </span>
+                          <span class="ml-auto flex shrink-0 items-center gap-1.5 text-sm font-medium">
+                            {t("downloads.download")}
+                            <DownloadSimple size={15} />
+                          </span>
+                        </a>
                       </Reveal>
                     );
                   }}
@@ -278,9 +324,9 @@ export default function App() {
             </Match>
           </Switch>
 
-          <p class="mt-8 text-center text-xs text-ink-subtle">{t("downloads.note")}</p>
+          <p class="mt-6 text-xs text-ink-subtle">{t("downloads.note")}</p>
 
-          <div class="mt-6 flex justify-center">
+          <div class="mt-8">
             <button
               type="button"
               onClick={() => setWaitlistOpen(true)}
@@ -291,7 +337,7 @@ export default function App() {
           </div>
         </section>
 
-        <section id="source" class="relative overflow-hidden bg-[#0e0c0a] py-20 text-[#f2ede2]">
+        <section id="source" class="relative scroll-mt-24 overflow-hidden bg-[#0e0c0a] py-20 text-[#f2ede2]">
           <EmberShader />
           <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0e0c0a] via-transparent to-[#0e0c0a]" />
 
@@ -333,9 +379,20 @@ export default function App() {
           .
         </p>
         <p class="mt-1 text-xs text-ink-subtle/70">{t("footer.built")}</p>
+        <p class="mt-3 text-xs">
+          <a href="/privacy" class="text-ink-subtle underline underline-offset-4 hover:text-ink">
+            {t("footer.privacy")}
+          </a>
+        </p>
       </footer>
 
-      <WaitlistModal open={waitlistOpen()} onClose={() => setWaitlistOpen(false)} />
+      <WaitlistModal
+        open={waitlistOpen()}
+        onClose={() => {
+          setWaitlistOpen(false);
+          void refetchWaitlistCount();
+        }}
+      />
     </div>
   );
 }
