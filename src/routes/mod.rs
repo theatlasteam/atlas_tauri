@@ -7,3 +7,4 @@ pub mod keys;
 pub mod messages;
 pub mod turn;
 pub mod users;
+pub mod waitlist;

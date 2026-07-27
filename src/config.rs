@@ -19,6 +19,14 @@ pub struct Config {
     /// Firebase service account used to send Android pushes. `None` => push is
     /// disabled and every notification is a no-op (see push.rs).
     pub fcm_service_account: Option<crate::push::ServiceAccount>,
+    /// Directory containing the built `web/` site (Vite `dist`). `None` =>
+    /// static file serving is disabled, e.g. when the frontend is run
+    /// separately in dev via `vite`.
+    pub static_dir: Option<String>,
+    /// Bearer token gating the waitlist admin endpoints (`GET /api/waitlist`
+    /// and the live SSE stream). Waitlist emails are sensitive enough that
+    /// these can't be left open like the rest of the CORS-permissive API.
+    pub waitlist_admin_token: Option<String>,
 }
 
 fn var(key: &str) -> Option<String> {
@@ -70,6 +78,10 @@ impl Config {
                 ),
                 None => None,
             },
+            static_dir: var("STATIC_DIR").or_else(|| {
+                std::path::Path::new("./web-dist").is_dir().then(|| "./web-dist".to_string())
+            }),
+            waitlist_admin_token: var("WAITLIST_ADMIN_TOKEN"),
         })
     }
 }

@@ -13,6 +13,7 @@ use axum::routing::{delete, get, patch, post, put};
 use axum::{Json, Router};
 use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 
 use config::Config;
@@ -131,12 +132,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/keys/packages/{user_id}/claim", post(routes::keys::claim_package))
         // calls
         .route("/api/calls/ice-servers", get(routes::turn::ice_servers))
+        // waitlist (marketing site signup + live admin view)
+        .route("/api/waitlist", get(routes::waitlist::list).post(routes::waitlist::join))
+        .route("/api/waitlist/count", get(routes::waitlist::count))
+        .route("/api/waitlist/stream", get(routes::waitlist::stream))
         // realtime
         .route("/ws", get(ws::ws_handler))
         .layer(DefaultBodyLimit::max(512 * 1024))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
-        .with_state(state);
+        .with_state(state.clone());
+
+    // Serves the built web/ site (Vite `dist`) for everything the API
+    // router didn't match, with unknown paths falling back to index.html —
+    // the site is a client-routed SPA, so e.g. a deep link needs the same
+    // document as `/`. Layered outside `with_state` since ServeDir/ServeFile
+    // are plain tower services, not part of the Axum-state-typed router.
+    let app = match &state.cfg.static_dir {
+        Some(dir) => {
+            let index = ServeFile::new(format!("{dir}/index.html"));
+            let serve_dir = ServeDir::new(dir).fallback(index);
+            app.fallback_service(serve_dir)
+        }
+        None => app,
+    };
 
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
     tracing::info!(addr = %bind_addr, "atlas-server listening");
