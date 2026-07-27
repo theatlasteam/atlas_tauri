@@ -609,6 +609,7 @@ fn log_call(state: &AppState, call: CallState, outcome: &str) {
                 reply_to_id: None,
                 attachment_id: None,
                 unlock_at: None,
+                mentions_compass: false,
             },
         )
         .await

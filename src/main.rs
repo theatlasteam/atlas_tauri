@@ -1,4 +1,5 @@
 mod auth;
+mod compass;
 mod config;
 mod error;
 mod models;
@@ -41,6 +42,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sqlx::migrate!("./migrations").run(&db).await?;
     tracing::info!("database ready, migrations applied");
 
+    let compass_user_id = compass::ensure_user(&db).await?;
+
     let allow_origin = match &cfg.cors_origins {
         Some(origins) => AllowOrigin::list(origins.iter().filter_map(|o| o.parse::<HeaderValue>().ok())),
         None => AllowOrigin::any(),
@@ -51,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
 
     let bind_addr = cfg.bind_addr.clone();
-    let state = AppState::new(db, cfg);
+    let state = AppState::new(db, cfg, compass_user_id);
 
     // Collects call state that no socket can clean up (see the doc comment) —
     // without it a leaked entry makes a user permanently "busy".
@@ -94,6 +97,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(routes::messages::list_messages).post(routes::messages::send_message),
         )
         .route("/api/chats/{id}/read", post(routes::messages::mark_read))
+        .route("/api/chats/{id}/compass-reply", post(routes::messages::compass_reply))
+        .route("/api/compass/complete", post(compass::complete_route))
+        .route("/api/compass/info", get(compass::info_route))
         .route("/api/messages/search", get(routes::messages::search_messages))
         // Single message fetch — the Android push payload carries ids only, so
         // the notification service pulls the body from here to decrypt it.

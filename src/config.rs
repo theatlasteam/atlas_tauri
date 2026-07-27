@@ -45,6 +45,16 @@ pub struct Config {
     /// and `/ws` routes are unaffected either way; this only changes what
     /// happens on paths nothing else matched.
     pub api_only_hostname: Option<String>,
+    /// Base URL for the Compass (@compass) AI assistant's inference gateway.
+    /// The server never hardcodes the real upstream provider — it always
+    /// calls whatever's configured here, so the actual provider (and even
+    /// whether one is even reachable) stays swappable without a code change.
+    pub compass_api_base: String,
+    /// Sent as `X-Auth-Header` to the inference gateway. `None` => Compass
+    /// replies are disabled (mentioning it does nothing) rather than the
+    /// server making unauthenticated requests that will just fail.
+    pub compass_api_key: Option<String>,
+    pub compass_model: String,
 }
 
 fn var(key: &str) -> Option<String> {
@@ -103,6 +113,10 @@ impl Config {
             }),
             waitlist_admin_token: var("WAITLIST_ADMIN_TOKEN"),
             api_only_hostname: var("API_ONLY_HOSTNAME").map(|h| h.to_lowercase()),
+            compass_api_base: var("COMPASS_API_BASE")
+                .unwrap_or_else(|| "https://ai.atlasmsg.app".into()),
+            compass_api_key: var("COMPASS_API_KEY"),
+            compass_model: var("COMPASS_MODEL").unwrap_or_else(|| "gpt-5".into()),
         })
     }
 }

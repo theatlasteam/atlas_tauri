@@ -1,0 +1,14 @@
+-- Compass (@compass) is a real user (seeded at server startup, see
+-- compass.rs), not a special-cased author id — it can be a chat member,
+-- author messages, and be searched/DM'd like anyone else.
+--
+-- compass_mentioned is written by the *client* at send time, from plaintext
+-- it already has before encryption — the server can never parse an E2EE
+-- DM's body itself. It's metadata ("this message mentions @compass"), not
+-- content, same trust tier as `scheme` already is. What happens with it
+-- differs by scheme: a 'plain' (group) message the server can already read,
+-- so the server auto-generates and posts Compass's reply itself; an
+-- encrypted DM it can't, so the flag is there for the sending client (which
+-- already has the plaintext) to act on instead — see
+-- routes::messages::compass_reply.
+ALTER TABLE messages ADD COLUMN compass_mentioned BOOLEAN NOT NULL DEFAULT FALSE;
