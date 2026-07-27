@@ -212,6 +212,9 @@ export const api = {
     request<{ ok: boolean }>("POST", "/api/keys/identity", { identityKey }),
   getIdentity: (userId: string) =>
     request<{ userId: string; identityKey: string | null }>("GET", `/api/keys/identity/${userId}`),
+  /** Clears the published identity key so a mismatched device (reinstall,
+   * factory reset) can publish its real one instead of 409ing forever. */
+  resetIdentity: () => request<{ ok: boolean }>("POST", "/api/keys/identity/reset"),
 
   // calls
   iceServers: () => request<{ iceServers: IceServer[]; ttl: number }>("GET", "/api/calls/ice-servers"),

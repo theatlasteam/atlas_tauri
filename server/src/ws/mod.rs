@@ -139,7 +139,46 @@ async fn session(mut socket: WebSocket, state: AppState) {
     tracing::info!(%user_id, conn_id, "ws disconnected");
 }
 
+/// "Who invoked what" for the WebSocket half of the protocol — REST commands
+/// are logged in auth.rs's `AuthUser` extractor, but calls and messages
+/// mostly ride this socket instead, so that alone doesn't show the whole
+/// picture (e.g. a `call_offer` that never shows up here at all means it
+/// never left the client, not a server-side problem).
+fn log_ws_command(user_id: Uuid, conn_id: u64, msg: &ClientMsg) {
+    match msg {
+        ClientMsg::Auth { .. } | ClientMsg::Ping => {} // logged elsewhere / too frequent to be useful
+        ClientMsg::SendMessage { chat_id, scheme, .. } => {
+            tracing::info!(%user_id, conn_id, %chat_id, scheme, "ws command: send_message");
+        }
+        ClientMsg::MarkRead { chat_id, message_id } => {
+            tracing::info!(%user_id, conn_id, %chat_id, %message_id, "ws command: mark_read");
+        }
+        ClientMsg::Typing { chat_id, .. } => {
+            tracing::info!(%user_id, conn_id, %chat_id, "ws command: typing");
+        }
+        ClientMsg::Focus { chat_id } => {
+            tracing::info!(%user_id, conn_id, ?chat_id, "ws command: focus");
+        }
+        ClientMsg::CallOffer { call_id, to_user_id, media, .. } => {
+            tracing::info!(%user_id, conn_id, %call_id, %to_user_id, media, "ws command: call_offer");
+        }
+        ClientMsg::CallAnswer { call_id, .. } => {
+            tracing::info!(%user_id, conn_id, %call_id, "ws command: call_answer");
+        }
+        ClientMsg::CallIce { call_id, .. } => {
+            tracing::info!(%user_id, conn_id, %call_id, "ws command: call_ice");
+        }
+        ClientMsg::CallEnd { call_id, reason } => {
+            tracing::info!(%user_id, conn_id, %call_id, ?reason, "ws command: call_end");
+        }
+        ClientMsg::CallResume { call_id } => {
+            tracing::info!(%user_id, conn_id, %call_id, "ws command: call_resume");
+        }
+    }
+}
+
 async fn handle_client_msg(state: &AppState, user_id: Uuid, conn_id: u64, msg: ClientMsg) {
+    log_ws_command(user_id, conn_id, &msg);
     match msg {
         ClientMsg::Auth { .. } => {} // already authed; ignore
 

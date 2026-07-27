@@ -64,6 +64,28 @@ pub async fn publish_identity(
     Ok(Json(json!({ "ok": true })))
 }
 
+/// Explicit, self-service escape hatch for "this device's local identity no
+/// longer matches what's published" (reinstall, factory reset, lost device):
+/// clears the caller's own published key so their next `publish_identity`
+/// call succeeds instead of 409ing forever. Deliberately requires the caller
+/// to already be authenticated as themselves — this is "I know my device and
+/// the server disagree, let me fix it", not a way to reset anyone else's.
+///
+/// This is real, noisy rotation, not the silent-overwrite `publish_identity`
+/// refuses: every peer's cached copy of the old key goes stale and DMs sent
+/// in the meantime (before they refetch) will fail to decrypt. That's the
+/// tradeoff for having a recovery path at all.
+pub async fn reset_identity(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> ApiResult<Json<serde_json::Value>> {
+    sqlx::query("UPDATE users SET identity_key = NULL WHERE id = $1")
+        .bind(auth.user_id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(json!({ "ok": true })))
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IdentityResponse {

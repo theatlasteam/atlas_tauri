@@ -129,6 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         // E2EE key distribution
         .route("/api/keys/identity", post(routes::keys::publish_identity))
+        .route("/api/keys/identity/reset", post(routes::keys::reset_identity))
         .route("/api/keys/identity/{user_id}", get(routes::keys::get_identity))
         .route("/api/keys/packages", post(routes::keys::upload_packages))
         .route("/api/keys/packages/count", get(routes::keys::package_count))
