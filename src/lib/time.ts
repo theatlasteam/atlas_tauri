@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { t } from "./i18n";
 
 /**
  * One shared clock for every relative timestamp in the app.
@@ -19,7 +20,7 @@ export { now };
 export function formatRelativeTime(iso: string): string {
   const diffMs = now() - new Date(iso).getTime();
   const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return "now";
+  if (minutes < 1) return t("time.now");
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h`;
@@ -43,16 +44,18 @@ export function formatLastSeen(iso: string | undefined): string | null {
   if (!iso) return null;
   const then = new Date(iso);
   const diffMs = now() - then.getTime();
-  if (diffMs < 0) return "last seen just now"; // clock skew between devices
+  if (diffMs < 0) return t("time.lastSeenJustNow"); // clock skew between devices
   const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return "last seen just now";
-  if (minutes < 60) return `last seen ${minutes}m ago`;
+  if (minutes < 1) return t("time.lastSeenJustNow");
+  if (minutes < 60) return t("time.lastSeenMinutes", { n: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `last seen ${hours}h ago`;
+  if (hours < 24) return t("time.lastSeenHours", { n: hours });
   const days = Math.floor(hours / 24);
-  if (days === 1) return `last seen yesterday at ${formatClockTime(iso)}`;
-  if (days < 7) return `last seen ${days}d ago`;
-  return `last seen ${then.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  if (days === 1) return t("time.lastSeenYesterday", { time: formatClockTime(iso) });
+  if (days < 7) return t("time.lastSeenDays", { n: days });
+  return t("time.lastSeenDate", {
+    date: then.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+  });
 }
 
 /**
@@ -63,7 +66,7 @@ export function formatLastSeen(iso: string | undefined): string | null {
  */
 export function formatCountdown(targetIso: string): string {
   const remainingMs = new Date(targetIso).getTime() - now();
-  if (remainingMs <= 0) return "opening…";
+  if (remainingMs <= 0) return t("time.opening");
   const secs = Math.floor(remainingMs / 1000);
   const days = Math.floor(secs / 86_400);
   const hours = Math.floor((secs % 86_400) / 3600);

@@ -283,6 +283,15 @@ const dict = {
     "chatView.offline": "offline",
     "chatView.someone": "Someone",
 
+    "time.now": "now",
+    "time.lastSeenJustNow": "last seen just now",
+    "time.lastSeenMinutes": "last seen {n}m ago",
+    "time.lastSeenHours": "last seen {n}h ago",
+    "time.lastSeenYesterday": "last seen yesterday at {time}",
+    "time.lastSeenDays": "last seen {n}d ago",
+    "time.lastSeenDate": "last seen {date}",
+    "time.opening": "opening…",
+
     "messageBubble.decrypting": "Decrypting…",
     "messageBubble.youUnsent": "You unsent this",
     "messageBubble.messageDeleted": "Message deleted",
@@ -598,6 +607,15 @@ const dict = {
     "chatView.online": "в сети",
     "chatView.offline": "не в сети",
     "chatView.someone": "Кто-то",
+
+    "time.now": "сейчас",
+    "time.lastSeenJustNow": "последний раз в сети только что",
+    "time.lastSeenMinutes": "последний раз в сети {n} мин назад",
+    "time.lastSeenHours": "последний раз в сети {n} ч назад",
+    "time.lastSeenYesterday": "последний раз в сети вчера в {time}",
+    "time.lastSeenDays": "последний раз в сети {n} дн назад",
+    "time.lastSeenDate": "последний раз в сети {date}",
+    "time.opening": "открывается…",
 
     "messageBubble.decrypting": "Расшифровка…",
     "messageBubble.youUnsent": "Вы отменили отправку",

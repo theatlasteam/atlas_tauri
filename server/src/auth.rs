@@ -107,7 +107,32 @@ impl FromRequestParts<AppState> for AuthUser {
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or(AppError::Unauthorized)?;
-        authenticate(&state.db, token).await
+        let result = authenticate(&state.db, token).await;
+        // Every authenticated REST call passes through here, so this is the
+        // single place to log "who invoked what" without touching every
+        // route handler individually. Logs the outcome either way — a
+        // string of Unauthorized here for a command that should be working
+        // (e.g. the canary identity-reset button) is itself the diagnosis:
+        // wrong token, wrong server, or a route that plain doesn't exist yet
+        // on whatever build is actually running.
+        match &result {
+            Ok(auth) => {
+                tracing::info!(
+                    user_id = %auth.user_id,
+                    method = %parts.method,
+                    path = %parts.uri.path(),
+                    "command"
+                );
+            }
+            Err(_) => {
+                tracing::info!(
+                    method = %parts.method,
+                    path = %parts.uri.path(),
+                    "command rejected: unauthenticated"
+                );
+            }
+        }
+        result
     }
 }
 
