@@ -49,6 +49,7 @@ ts-rs = { version = "11", features = ["uuid-impl", "chrono-impl", "serde-json-im
 # fail in production while working fine on a dev machine.
 reqwest = { version = "0.12", default-features = false, features = [
     "json",
+    "stream",
     "rustls-tls-webpki-roots",
 ] }
 jsonwebtoken = "9"
