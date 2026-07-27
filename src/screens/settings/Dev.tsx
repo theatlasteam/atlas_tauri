@@ -3,6 +3,7 @@ import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
 import BackHeader from "../../components/BackHeader";
 import Switch from "../../ui/Switch";
 import { e2ee } from "../../store/e2ee";
+import { session } from "../../store/session";
 import { clearAvatarCache } from "../../data/avatarCache";
 import { getToken, apiBase } from "../../data/api";
 import {
@@ -21,6 +22,17 @@ export default function Dev() {
     const key = await e2eePublicKey();
     return e2eeFingerprint(key);
   });
+
+  const [identityReset, setIdentityReset] = createSignal<"idle" | "busy" | "done" | "error">("idle");
+  const resetMyIdentity = async () => {
+    setIdentityReset("busy");
+    try {
+      await session.resetIdentity();
+      setIdentityReset("done");
+    } catch {
+      setIdentityReset("error");
+    }
+  };
 
   const [clearedPeerKeys, setClearedPeerKeys] = createSignal<number | null>(null);
   const clearE2eeCache = () => {
@@ -65,6 +77,25 @@ export default function Dev() {
           label="My fingerprint"
           description={myFingerprint.loading ? "loading…" : myFingerprint() ?? "unavailable"}
         />
+        <SettingsRow
+          label="Reset my identity key"
+          description={
+            identityReset() === "done"
+              ? "Done — republished this device's key. Restart the app or reopen affected chats."
+              : identityReset() === "error"
+                ? "Couldn't reset — check your connection and try again."
+                : "If this device shows 'Unable to decrypt' for everything (typical after a reinstall or factory reset), this device's local key no longer matches what's published for your account. Resetting clears the server's copy and republishes this device's real one. Cost: anyone already messaging you needs to refetch your key — DMs sent in that window still fail once."
+          }
+        >
+          <button
+            type="button"
+            onClick={() => void resetMyIdentity()}
+            disabled={identityReset() === "busy"}
+            class="flex shrink-0 items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 text-xs font-medium text-accent transition hover:opacity-80 active:scale-95 disabled:opacity-50"
+          >
+            <BroomIcon size={14} /> Reset
+          </button>
+        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection title="Caches">

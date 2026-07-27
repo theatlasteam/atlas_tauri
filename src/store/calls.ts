@@ -80,10 +80,24 @@ function createCallsStore() {
   async function getMedia(media: CallMedia): Promise<MediaStream> {
     // Permission prompts surface here on every platform (WebView2 native
     // prompt, WKWebView -> Info.plist strings, Android runtime permission).
-    return navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true },
       video: media === "video" ? { facingMode: "user", width: { ideal: 1280 } } : false,
     });
+    // Diagnostic: a permission prompt accepting doesn't guarantee the OS
+    // actually handed over real mic data — a wrong/virtual/muted default
+    // input device shows up right here as enabled=true but label pointing
+    // at something unexpected, or readyState "ended".
+    for (const track of stream.getAudioTracks()) {
+      console.info(
+        "[atlas][call] local audio track:",
+        `label="${track.label}"`,
+        "enabled=" + track.enabled,
+        "muted=" + track.muted,
+        "readyState=" + track.readyState,
+      );
+    }
+    return stream;
   }
 
   async function newPeerConnection(callId: string): Promise<RTCPeerConnection> {
@@ -96,6 +110,17 @@ function createCallsStore() {
       }
     };
     conn.ontrack = (e) => {
+      // Diagnostic for the "connects but totally silent both ways" report —
+      // logs whether a real, enabled, live track actually arrived at all,
+      // which the UI-level "connected" status doesn't tell you.
+      console.info(
+        "[atlas][call] ontrack:",
+        e.track.kind,
+        "enabled=" + e.track.enabled,
+        "muted=" + e.track.muted,
+        "readyState=" + e.track.readyState,
+        "streams=" + e.streams.length,
+      );
       remoteStream = e.streams[0] ?? new MediaStream([e.track]);
       setState("hasRemoteStream", true);
       onStreams?.(localStream, remoteStream);
@@ -109,6 +134,7 @@ function createCallsStore() {
             restartTimer = null;
           }
           setState({ status: "active", startedAt: state.startedAt ?? Date.now() });
+          startStatsLogging(conn);
           break;
         case "disconnected":
           setState("status", "reconnecting");
@@ -121,6 +147,48 @@ function createCallsStore() {
       }
     };
     return conn;
+  }
+
+  let statsTimer: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Every 5s while "connected", logs whether audio bytes/energy are actually
+   * flowing — not just whether ICE thinks it's connected. Bytes-but-no-energy
+   * on the *outbound* side means the local mic capture itself is silent
+   * (an OS-level capture problem, not this app); bytes-and-energy inbound but
+   * still nothing audible points at local playback/output routing instead.
+   * Temporary instrumentation for the "silent both ways" report — safe to
+   * strip once that's root-caused, but cheap enough (one getStats call every
+   * 5s) to leave in for now.
+   */
+  function startStatsLogging(conn: RTCPeerConnection) {
+    if (statsTimer) clearInterval(statsTimer);
+    statsTimer = setInterval(async () => {
+      if (conn.connectionState !== "connected") {
+        if (statsTimer) clearInterval(statsTimer);
+        statsTimer = null;
+        return;
+      }
+      const stats = await conn.getStats().catch(() => null);
+      if (!stats) return;
+      stats.forEach((r) => {
+        if (r.type === "outbound-rtp" && r.kind === "audio") {
+          console.info(
+            `[atlas][call] outbound audio: bytesSent=${r.bytesSent} packetsSent=${r.packetsSent}`,
+          );
+        }
+        if (r.type === "inbound-rtp" && r.kind === "audio") {
+          console.info(
+            `[atlas][call] inbound audio: bytesReceived=${r.bytesReceived} ` +
+              `packetsReceived=${r.packetsReceived} packetsLost=${r.packetsLost} ` +
+              `totalAudioEnergy=${r.totalAudioEnergy ?? "n/a"} audioLevel=${r.audioLevel ?? "n/a"}`,
+          );
+        }
+        if (r.type === "media-source" && r.kind === "audio") {
+          console.info(`[atlas][call] local mic source: audioLevel=${r.audioLevel ?? "n/a"}`);
+        }
+      });
+    }, 5000);
   }
 
   /** Only the original caller restarts ICE (see module docs). */
@@ -152,6 +220,8 @@ function createCallsStore() {
     if (endTimer) clearTimeout(endTimer);
     if (restartTimer) clearTimeout(restartTimer);
     restartTimer = null;
+    if (statsTimer) clearInterval(statsTimer);
+    statsTimer = null;
     pc?.close();
     pc = null;
     localStream?.getTracks().forEach((t) => t.stop());

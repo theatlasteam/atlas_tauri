@@ -10,6 +10,8 @@ import { toUser } from "../data/mapping";
 import type { UserDto } from "../data/generated";
 import type { User } from "../data/types";
 import { e2eeAvailable, e2eePublicKey, isTauri, secretDelete, secretGet, secretSet } from "../lib/tauri";
+import { requestNotificationPermission } from "../lib/notify";
+import { preferences } from "./preferences";
 
 const TOKEN_KEY = "auth_token";
 /** Mirror of the active API base, written so the Android push notification
@@ -45,6 +47,17 @@ async function publishIdentity() {
   }
 }
 
+/**
+ * Ask the OS for notification permission once, at sign-in — not just when the
+ * Settings toggle is flipped. That toggle defaults to *on*, so for anyone who
+ * never touches it (nearly everyone), the switch's own onChange handler would
+ * never fire and permission would never be requested at all: notifications
+ * would silently never arrive, forever, with no error anywhere.
+ */
+function ensureNotificationPermission() {
+  if (preferences.notificationsEnabled) requestNotificationPermission();
+}
+
 function createSessionStore() {
   const [status, setStatus] = createSignal<SessionStatus>("loading");
   const [user, setUser] = createSignal<User | null>(null);
@@ -57,6 +70,7 @@ function createSessionStore() {
     setStatus("signedIn");
     connectSocket();
     void publishIdentity();
+    ensureNotificationPermission();
   };
 
   /** Restore a persisted session on app start. */
@@ -76,6 +90,7 @@ function createSessionStore() {
       setStatus("signedIn");
       connectSocket();
       void publishIdentity();
+      ensureNotificationPermission();
     } catch (e: any) {
       // 401 = token revoked/expired; anything else (server down) still lands
       // on the login screen, which shows the error on the next attempt.
@@ -139,6 +154,19 @@ function createSessionStore() {
     return toUser(updated);
   };
 
+  /**
+   * Recovery for "this device's local identity no longer matches what's
+   * published" (reinstall, factory reset): clear the server's copy, then
+   * publish this device's real key so it's no longer permanently rejected.
+   * Doesn't touch anyone else's cached copy of the old key — see
+   * routes::keys::reset_identity's docs for that tradeoff.
+   */
+  const resetIdentity = async () => {
+    if (!e2eeAvailable) return;
+    await api.resetIdentity();
+    await publishIdentity();
+  };
+
   void bootstrap();
 
   return {
@@ -151,6 +179,7 @@ function createSessionStore() {
     setPrivacy,
     setAvatar,
     removeAvatar,
+    resetIdentity,
   };
 }
 
