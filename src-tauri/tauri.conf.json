@@ -14,7 +14,10 @@
       {
         "title": "atlas",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "minWidth": 480,
+        "minHeight": 360,
+        "decorations": false
       }
     ],
     "security": {

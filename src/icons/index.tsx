@@ -50,6 +50,9 @@ import {
   HourglassMedium,
   Eye,
   DotsThree,
+  Minus,
+  Square,
+  CornersIn,
 } from "phosphor-solid-js";
 import type { JSX } from "solid-js";
 
@@ -120,3 +123,7 @@ export const HourglassIcon = wrap(HourglassMedium);
 export const EyeIcon = wrap(Eye);
 /** Overflow actions on a message bubble (edit, unsend). */
 export const DotsIcon = wrap(DotsThree);
+/** Custom desktop titlebar window controls. */
+export const MinimizeIcon = wrap(Minus);
+export const MaximizeIcon = wrap(Square);
+export const RestoreIcon = wrap(CornersIn);

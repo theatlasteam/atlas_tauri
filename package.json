@@ -15,6 +15,7 @@
   "license": "MIT",
   "dependencies": {
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-notification": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "phosphor-solid-js": "^2.0.0",
     "solid-js": "^1.9.3",

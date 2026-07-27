@@ -20,6 +20,13 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+# Native OS notifications on Windows (Action Center toasts) and Linux
+# (freedesktop/libnotify via D-Bus) — the raw web Notification API works on
+# Windows WebView2 but is inconsistent across Linux WebKitGTK distros; this
+# plugin talks to each OS's real notification system directly. Android has
+# its own path already (server -> FCM, see push.rs / android_push.rs) and
+# doesn't need this.
+tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

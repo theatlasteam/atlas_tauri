@@ -10,7 +10,22 @@
 // tones are a few lines of WebAudio, and generating them keeps the bundle free
 // of binary assets that have to be licensed, cached and version-controlled.
 
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 import { preferences } from "../store/preferences";
+import { isTauri, isMobilePlatform } from "./platform";
+
+/**
+ * Desktop only (Windows/Linux — macOS too, though untested here): real OS
+ * notifications via the Tauri plugin (Action Center / freedesktop), not the
+ * web Notification API, which WebKitGTK on Linux implements inconsistently
+ * across distros. Android has its own path (server -> FCM); this plugin adds
+ * nothing there and the permission model differs, so it's desktop-only.
+ */
+const useNativeNotifications = isTauri() && !isMobilePlatform();
 
 /** Envelope of each built-in sound: [frequency Hz, start s, duration s]. */
 const SOUND_TONES: Record<string, Array<[number, number, number]>> = {
@@ -72,6 +87,12 @@ export function playNotificationSound(soundId: string) {
 
 /** Ask for permission once, at sign-in, rather than mid-conversation. */
 export function requestNotificationPermission() {
+  if (useNativeNotifications) {
+    void isPermissionGranted().then((granted) => {
+      if (!granted) void requestPermission();
+    });
+    return;
+  }
   if (typeof Notification === "undefined") return;
   if (Notification.permission === "default") void Notification.requestPermission();
 }
@@ -96,6 +117,20 @@ export function notifyIncoming(notification: IncomingNotification) {
   if (typeof document !== "undefined" && document.visibilityState === "visible") return;
 
   playNotificationSound(preferences.notificationSound);
+
+  if (useNativeNotifications) {
+    // Fire-and-forget: clicking a native Action Center / freedesktop toast
+    // already raises the app window by default OS behavior, which covers
+    // the common case. It won't jump to the specific chat the way the web
+    // path's onClick does — wiring that up needs the plugin's action-channel
+    // API, a bigger addition than this pass; falls back to "just open the
+    // app" rather than nothing.
+    void isPermissionGranted().then((granted) => {
+      if (!granted) return;
+      sendNotification({ title: notification.title, body: notification.body });
+    });
+    return;
+  }
 
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   try {

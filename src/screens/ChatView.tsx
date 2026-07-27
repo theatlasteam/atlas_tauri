@@ -159,6 +159,10 @@ export default function ChatView() {
           const latest = messages()[messages().length - 1];
           void chatsStore.markRead(id, latest && !latest.pending ? latest.id : undefined);
         });
+        // A message that failed to decrypt earlier this session almost
+        // always just raced the peer's identity-key publish — worth another
+        // try every time you come back to look at this chat.
+        messagesStore.retryFailedDecryptions(id, chat()?.peerUserId);
       },
     ),
   );

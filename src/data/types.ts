@@ -60,6 +60,14 @@ export interface Message {
   sourceText?: string;
   /** True while an E2EE body is still being decrypted. */
   decrypting?: boolean;
+  /**
+   * Set when every decrypt attempt failed — almost always because the
+   * peer's identity key hadn't propagated yet at receive time, not a real
+   * crypto failure. Lets the chat re-attempt these on open rather than the
+   * "Unable to decrypt" placeholder being permanent for the rest of the
+   * session (see messages.ts::retryFailedDecryptions).
+   */
+  decryptFailed?: boolean;
   /** Optimistic-send bookkeeping. */
   pending?: boolean;
   failed?: boolean;

@@ -24,7 +24,7 @@ export default function Shell(props: RouteSectionProps) {
   });
 
   return (
-    <div class="relative flex h-screen w-full overflow-hidden bg-bg pl-[var(--safe-left)] pr-[var(--safe-right)] text-ink">
+    <div class="relative flex h-full w-full overflow-hidden bg-bg pl-[var(--safe-left)] pr-[var(--safe-right)] text-ink">
       <Show when={isDesktop()}>
         <SideNav />
       </Show>

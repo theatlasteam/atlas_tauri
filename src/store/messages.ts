@@ -53,7 +53,13 @@ function createMessagesStore() {
     }
     const otherId = peerUserId ?? "";
     void (async () => {
-      const attempts = [0, 800, 2000, 4000];
+      // A brand-new conversation's very first message can easily race the
+      // peer's identity-key publish on their end (a real network round trip
+      // on their side, not just ours) — this needs to be generous, not just
+      // "the local dev LAN was fast enough". Anything that still fails after
+      // this gets a second chance via retryFailedDecryptions, next time the
+      // chat is opened.
+      const attempts = [0, 1000, 3000, 6000, 12000];
       let retriedWithFreshKey = false;
       for (let i = 0; i < attempts.length; i++) {
         if (attempts[i]) await sleep(attempts[i]);
@@ -61,7 +67,7 @@ function createMessagesStore() {
           const key = otherId ? await e2ee.peerKey(otherId) : null;
           if (!key) continue; // peer hasn't published yet — worth another try
           const text = await e2eeOpen(key, body);
-          patch(chatId, messageId, { text, decrypting: false });
+          patch(chatId, messageId, { text, decrypting: false, decryptFailed: false });
           return;
         } catch {
           // Our cached copy of the peer's key might be stale (e.g. they
@@ -73,7 +79,7 @@ function createMessagesStore() {
               const freshKey = await e2ee.peerKey(otherId, { fresh: true });
               if (freshKey) {
                 const text = await e2eeOpen(freshKey, body);
-                patch(chatId, messageId, { text, decrypting: false });
+                patch(chatId, messageId, { text, decrypting: false, decryptFailed: false });
                 return;
               }
             } catch {
@@ -83,8 +89,20 @@ function createMessagesStore() {
           break;
         }
       }
-      patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false });
+      patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
     })();
+  };
+
+  /**
+   * Re-attempt every message in a chat that previously gave up decrypting.
+   * Called when the chat is opened (see ChatView) — cheap (a handful of
+   * `refresh` calls at most, since most chats have none), and turns "stuck
+   * forever this session" into "fixes itself the next time you look at it"
+   * once the peer's key has actually propagated.
+   */
+  const retryFailedDecryptions = (chatId: string, peerUserId?: string) => {
+    const failed = state[chatId]?.messages.filter((m) => m.decryptFailed) ?? [];
+    for (const m of failed) void refresh(m.id, peerUserId);
   };
 
   const patch = (chatId: string, messageId: string, changes: Partial<Message>) => {
@@ -391,6 +409,7 @@ function createMessagesStore() {
     state,
     loadInitial,
     loadOlder,
+    retryFailedDecryptions,
     resync,
     send,
     retryFailed,
