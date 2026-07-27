@@ -14,7 +14,9 @@ import type { MessageDto } from "../data/generated";
 import { toMessage } from "../data/mapping";
 import type { Message } from "../data/types";
 import { e2eeAvailable, e2eeOpen, e2eeSeal } from "../lib/tauri";
+import { mentionsCompass } from "../lib/compassMention";
 import { e2ee } from "./e2ee";
+import { compassUserId } from "./compassIdentity";
 import { session } from "./session";
 
 export const PAGE_SIZE = 50;
@@ -103,6 +105,28 @@ function createMessagesStore() {
   const retryFailedDecryptions = (chatId: string, peerUserId?: string) => {
     const failed = state[chatId]?.messages.filter((m) => m.decryptFailed) ?? [];
     for (const m of failed) void refresh(m.id, peerUserId);
+  };
+
+  /**
+   * An encrypted chat's @compass mention: this client is the only party
+   * that actually has the plaintext, so it builds the transcript, calls the
+   * gateway itself, and hands the finished reply to the server to post
+   * under Compass's identity. The server never sees this chat's plaintext
+   * at any point — see api.ts's compassComplete/compassReply docs.
+   */
+  const replyAsCompass = async (chatId: string) => {
+    try {
+      const compassId = await compassUserId();
+      const turns: { role: "user" | "assistant"; content: string }[] = (state[chatId]?.messages ?? [])
+        .filter((m) => !m.pending && !m.failed && !m.deleted && !m.callLog && m.text)
+        .slice(-20)
+        .map((m) => ({ role: m.authorId === compassId ? "assistant" : "user", content: m.text }));
+      if (turns.length === 0) return;
+      const { reply } = await api.compassComplete(turns);
+      await api.compassReply(chatId, reply);
+    } catch (e) {
+      console.warn("[atlas] compass reply failed:", e);
+    }
   };
 
   const patch = (chatId: string, messageId: string, changes: Partial<Message>) => {
@@ -262,6 +286,12 @@ function createMessagesStore() {
     if (opts?.unlockAt) optimistic.text = "⏳ Time capsule";
     setState(chatId, "messages", (m) => [...m, optimistic]);
 
+    // Computed from the plaintext we're about to encrypt, not something the
+    // server could ever derive itself for an E2EE chat. Skipped for a time
+    // capsule: it'd give away that the hidden body mentions Compass (and
+    // trigger a reply) before the capsule is supposed to open at all.
+    const mentioned = !opts?.unlockAt && mentionsCompass(text);
+
     try {
       let scheme = "plain";
       let body = text;
@@ -281,6 +311,7 @@ function createMessagesStore() {
         replyToId: opts?.replyToId,
         attachmentId: opts?.attachmentId,
         unlockAt: opts?.unlockAt,
+        mentionsCompass: mentioned,
       });
       const message = toMessage(dto, myId());
       message.clientTag = clientTag;
@@ -290,6 +321,13 @@ function createMessagesStore() {
         message.decrypting = false;
       }
       upsert(chatId, message);
+
+      // A 'plain' (group) mention is handled entirely server-side — it can
+      // already read the message. An encrypted chat's server never can, so
+      // this client — the only party that actually has the plaintext —
+      // generates the reply itself and hands the finished text to the
+      // server to post under Compass's identity.
+      if (mentioned && mustEncrypt) void replyAsCompass(chatId);
     } catch (e) {
       patch(chatId, `pending-${clientTag}`, { pending: false, failed: true });
       throw e;

@@ -292,6 +292,13 @@ const dict = {
     "time.lastSeenDate": "last seen {date}",
     "time.opening": "opening…",
 
+    "compass.title": "Compass",
+    "compass.localNote": "This chat is local to this device only — it isn't stored on the server.",
+    "compass.clear": "Clear",
+    "compass.empty": "Ask Compass anything. Tag @compass in a chat, too, and it'll join in and reply.",
+    "compass.placeholder": "Message Compass",
+    "compass.send": "Send",
+
     "messageBubble.decrypting": "Decrypting…",
     "messageBubble.youUnsent": "You unsent this",
     "messageBubble.messageDeleted": "Message deleted",
@@ -616,6 +623,13 @@ const dict = {
     "time.lastSeenDays": "последний раз в сети {n} дн назад",
     "time.lastSeenDate": "последний раз в сети {date}",
     "time.opening": "открывается…",
+
+    "compass.title": "Compass",
+    "compass.localNote": "Этот чат хранится только на этом устройстве — он не отправляется на сервер.",
+    "compass.clear": "Очистить",
+    "compass.empty": "Спросите Compass о чём угодно. Также можно упомянуть @compass в любом чате — он ответит там.",
+    "compass.placeholder": "Сообщение Compass",
+    "compass.send": "Отправить",
 
     "messageBubble.decrypting": "Расшифровка…",
     "messageBubble.youUnsent": "Вы отменили отправку",

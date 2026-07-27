@@ -27,7 +27,7 @@ pub const USER_COLUMNS: &str =
 // profile). Hashing is CPU/memory-heavy by design, so it always runs inside
 // spawn_blocking to keep the async workers responsive.
 
-async fn hash_password(password: String) -> Result<String, AppError> {
+pub(crate) async fn hash_password(password: String) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
         let salt = SaltString::generate(&mut HashOsRng);
         Argon2::default()

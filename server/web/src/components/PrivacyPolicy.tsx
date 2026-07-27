@@ -93,7 +93,44 @@ function PrivacyPolicyRu() {
       </ul>
       <p>Мы не используем сторонние аналитические сервисы и рекламные cookie на сайте atlasmsg.app.</p>
 
-      <h2>3. Цели обработки персональных данных</h2>
+      <h2>3. Compass (встроенный ИИ-ассистент)</h2>
+      <p>
+        Compass отвечает вам тремя разными способами — и с разными последствиями для
+        конфиденциальности, поскольку то, что технически может прочитать сервер, зависит от того,
+        где именно вы к нему обращаетесь:
+      </p>
+      <ul>
+        <li>
+          <strong>Отдельный чат «Compass»</strong> (собственный экран, а не переписка с другим
+          человеком) <strong>вообще не хранится на нашем сервере</strong>. Каждое сообщение — это
+          отдельный запрос к нашему ИИ-шлюзу и обратно; сама переписка хранится только в локальном
+          хранилище вашего устройства — точно так же, как настройки интерфейса. Мы не сохраняем ни
+          копию, ни журнал, ни какую-либо запись о том, что вы спросили и что ответил Compass.
+        </li>
+        <li>
+          <strong>@compass в групповом чате</strong> — сообщения групп и так хранятся на нашем
+          сервере в виде текста (см. выше), поэтому ответы Compass там хранятся так же — как обычное
+          сообщение от аккаунта Compass.
+        </li>
+        <li>
+          <strong>@compass в личной переписке (DM) со сквозным шифрованием</strong> — ваше
+          собственное сообщение остаётся зашифрованным как обычно; наш сервер никогда его не
+          читает. Вместо этого <strong>именно ваше устройство</strong> — единственная сторона,
+          способная его расшифровать — само формирует ответ Compass и передаёт нам уже готовый
+          текст для публикации. Этот ответ хранится в виде обычного текста (ИИ не может владеть
+          ключом шифрования так, как человек), но само сообщение, которое его вызвало, остаётся
+          недоступным нам шифротекстом.
+        </li>
+      </ul>
+      <p>
+        В любом из этих случаев то, что вы отправляете Compass, передаётся нашему провайдеру
+        ИИ-инференса для формирования ответа. <strong>Сам Atlas не хранит, не логирует и не
+        сохраняет содержимое этого обмена</strong> сверх описанного выше — провайдер обрабатывает
+        его в соответствии с собственной политикой конфиденциальности, которую мы не контролируем.
+        Не отправляйте Compass ничего, что вы не хотели бы показывать стороннему ИИ-провайдеру.
+      </p>
+
+      <h2>4. Цели обработки персональных данных</h2>
       <ul>
         <li>Регистрация и аутентификация учётной записи в Сервисе;</li>
         <li>обеспечение обмена сообщениями и вызовами между пользователями;</li>
@@ -102,14 +139,14 @@ function PrivacyPolicyRu() {
         <li>обратная связь по запросам, связанным с обработкой персональных данных.</li>
       </ul>
 
-      <h2>4. Правовые основания обработки</h2>
+      <h2>5. Правовые основания обработки</h2>
       <p>
         Обработка осуществляется на основании вашего согласия, выраженного через регистрацию в
         Сервисе или добровольное указание e-mail в форме списка ожидания (ст. 6 152-ФЗ), а также в
         целях исполнения соглашения о предоставлении доступа к функциям Сервиса.
       </p>
 
-      <h2>5. Хранение и передача данных</h2>
+      <h2>6. Хранение и передача данных</h2>
       <p>
         Персональные данные обрабатываются и хранятся на серверах, размещённых у хостинг-провайдера
         Amvera (Российская Федерация). Мы не передаём ваши персональные данные третьим лицам, за
@@ -123,7 +160,7 @@ function PrivacyPolicyRu() {
         удаление.
       </p>
 
-      <h2>6. Ваши права</h2>
+      <h2>7. Ваши права</h2>
       <p>В соответствии со 152-ФЗ вы имеете право:</p>
       <ul>
         <li>получить информацию о том, какие ваши персональные данные обрабатываются;</li>
@@ -139,7 +176,7 @@ function PrivacyPolicyRu() {
         . Мы отвечаем на такие запросы в течение 30 дней.
       </p>
 
-      <h2>7. Меры защиты данных</h2>
+      <h2>8. Меры защиты данных</h2>
       <ul>
         <li>Пароли хранятся в виде хешей Argon2, а не в открытом виде;</li>
         <li>личные сообщения шифруются end-to-end и недоступны серверу в открытом виде;</li>
@@ -147,14 +184,14 @@ function PrivacyPolicyRu() {
         <li>доступ к административным функциям (например, снятие/выдача верификации) ограничен отдельной учётной записью.</li>
       </ul>
 
-      <h2>8. Изменения политики</h2>
+      <h2>9. Изменения политики</h2>
       <p>
         Мы можем обновлять эту Политику — актуальная версия всегда доступна по адресу{" "}
         <code>atlasmsg.app/privacy</code>. При существенных изменениях будет обновлена дата в начале
         документа.
       </p>
 
-      <h2>9. Контакты</h2>
+      <h2>10. Контакты</h2>
       <p>
         По всем вопросам, связанным с обработкой персональных данных, обращайтесь по адресу{" "}
         <a href="mailto:privacy@atlasmsg.app" class="text-accent underline">
@@ -222,7 +259,41 @@ function PrivacyPolicyEn() {
       </ul>
       <p>We don't use third-party analytics or advertising cookies on atlasmsg.app.</p>
 
-      <h2>3. Why we process this data</h2>
+      <h2>3. Compass (the built-in AI assistant)</h2>
+      <p>
+        Compass answers you in three different ways, with three different privacy outcomes — because
+        what Atlas's server can technically read depends on where you're talking to it:
+      </p>
+      <ul>
+        <li>
+          <strong>The separate "Compass" chat</strong> (its own screen, not a conversation with
+          another person) is <strong>not stored on our server at all</strong>. Each message is a
+          single request to our AI gateway and back; the conversation itself lives only in your
+          device's local storage, the same way your interface preferences do. We don't keep a copy,
+          a log, or any record of what you asked or what Compass answered.
+        </li>
+        <li>
+          <strong>@compass in a group chat</strong> — group messages are already stored on our server
+          as plain text (see above), so Compass's replies there are stored the same way, as an
+          ordinary message from Compass's own account.
+        </li>
+        <li>
+          <strong>@compass in an end-to-end encrypted direct message</strong> — your own message stays
+          encrypted exactly as always; our server never reads it. Instead, <strong>your device</strong> — the only
+          party that can decrypt it — generates Compass's reply itself and hands us the finished text
+          to post. That reply is stored as plain text (an AI can't hold an encryption key the way a
+          person can), but the message that triggered it remains ciphertext we cannot read.
+        </li>
+      </ul>
+      <p>
+        In every case, what you send Compass is relayed to our AI inference provider to generate a
+        reply. <strong>Atlas itself does not store, log, or retain the content of that exchange</strong>{" "}
+        beyond what's described above — the provider processes it under its own privacy practices,
+        which we don't control. Don't send Compass anything you wouldn't want a third-party AI
+        provider to see.
+      </p>
+
+      <h2>4. Why we process this data</h2>
       <ul>
         <li>Account registration and authentication;</li>
         <li>enabling messaging and calls between users;</li>
@@ -231,7 +302,7 @@ function PrivacyPolicyEn() {
         <li>responding to privacy-related requests.</li>
       </ul>
 
-      <h2>4. Storage and transfer</h2>
+      <h2>5. Storage and transfer</h2>
       <p>
         Data is processed and stored on servers hosted by Amvera (Russian Federation). We don't share
         your personal data with third parties except where required by Russian law, or with technical
@@ -243,7 +314,7 @@ function PrivacyPolicyEn() {
         email is retained until the launch notification is sent, or until you request removal.
       </p>
 
-      <h2>5. Your rights</h2>
+      <h2>6. Your rights</h2>
       <ul>
         <li>Find out what personal data of yours is being processed;</li>
         <li>correct inaccurate data (available directly in profile settings);</li>
@@ -258,7 +329,7 @@ function PrivacyPolicyEn() {
         . We respond to such requests within 30 days.
       </p>
 
-      <h2>6. Security measures</h2>
+      <h2>7. Security measures</h2>
       <ul>
         <li>Passwords are stored as Argon2 hashes, never in plain text;</li>
         <li>direct messages are end-to-end encrypted and unreadable by the server;</li>
@@ -266,13 +337,13 @@ function PrivacyPolicyEn() {
         <li>administrative actions (e.g. granting/removing verification) are restricted to a separate account.</li>
       </ul>
 
-      <h2>7. Changes to this policy</h2>
+      <h2>8. Changes to this policy</h2>
       <p>
         We may update this policy — the current version always lives at{" "}
         <code>atlasmsg.app/privacy</code>. Meaningful changes update the date at the top of this page.
       </p>
 
-      <h2>8. Contact</h2>
+      <h2>9. Contact</h2>
       <p>
         For anything related to personal data processing, reach us at{" "}
         <a href="mailto:privacy@atlasmsg.app" class="text-accent underline">

@@ -10,7 +10,7 @@ import { ChatListSkeleton } from "../components/Skeleton";
 import VerifiedBadge from "../components/VerifiedBadge";
 import { formatRelativeTime } from "../lib/time";
 import { t } from "../lib/i18n";
-import { BellSlashIcon, ChatIcon, PlusIcon, SearchIcon } from "../icons";
+import { BellSlashIcon, ChatIcon, CompassIcon, PlusIcon, SearchIcon } from "../icons";
 
 export default function ChatList() {
   const params = useParams<{ id?: string }>();
@@ -44,6 +44,9 @@ export default function ChatList() {
       <header class="flex items-center justify-between px-5 pb-1 pt-[max(var(--safe-top),1.5rem)]">
         <h1 class="font-heading text-2xl font-bold">{t("chatList.title")}</h1>
         <div class="flex items-center gap-1">
+          <button type="button" onClick={() => navigate("/compass")} class={headerBtn} aria-label={t("compass.title")}>
+            <CompassIcon size={21} />
+          </button>
           <button type="button" onClick={() => setSearchOpen(true)} class={headerBtn} aria-label={t("chatList.searchAria")}>
             <SearchIcon size={21} />
           </button>

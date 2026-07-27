@@ -53,6 +53,7 @@ import {
   Minus,
   Square,
   CornersIn,
+  Compass,
 } from "phosphor-solid-js";
 import type { JSX } from "solid-js";
 
@@ -127,3 +128,5 @@ export const DotsIcon = wrap(DotsThree);
 export const MinimizeIcon = wrap(Minus);
 export const MaximizeIcon = wrap(Square);
 export const RestoreIcon = wrap(CornersIn);
+/** The Compass AI assistant's own local-only chat entry point. */
+export const CompassIcon = wrap(Compass);

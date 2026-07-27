@@ -158,6 +158,8 @@ export const api = {
       attachmentId?: string;
       /** Time capsule: ISO timestamp before which nobody but the author may read it. */
       unlockAt?: string;
+      /** Computed client-side from plaintext — see lib/compassMention.ts. */
+      mentionsCompass?: boolean;
     },
   ) => request<MessageDto>("POST", `/api/chats/${chatId}/messages`, msg),
   /** One message by id — used to pick a capsule up the moment it opens. */
@@ -175,6 +177,24 @@ export const api = {
     request<{ ok: boolean }>("POST", `/api/messages/${messageId}/reactions`, { emoji }),
   removeReaction: (messageId: string, emoji: string) =>
     request<{ ok: boolean }>("DELETE", `/api/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`),
+
+  // Compass (@compass) — see lib/compassMention.ts and store/compassChat.ts
+  /** A DM's @compass mention: the caller already decrypted its own history
+   * and generated the reply client-side (via compassComplete below) — this
+   * just posts it under Compass's identity in a chat the caller is a member
+   * of. The server never sees the DM's plaintext at any point. */
+  compassReply: (chatId: string, text: string) =>
+    request<MessageDto>("POST", `/api/chats/${chatId}/compass-reply`, { text }),
+  /** Stateless proxy to the inference gateway — nothing here is persisted
+   * server-side. Used for a DM mention's reply generation and for the
+   * separate local-only Compass chat, whose history never leaves the
+   * device except as these one-off requests. */
+  compassComplete: (messages: { role: "user" | "assistant"; content: string }[]) =>
+    request<{ reply: string }>("POST", "/api/compass/complete", { messages }),
+  /** Compass's real user id — generated at server startup, not something
+   * either side can hardcode. Used to tell its messages apart from a
+   * human's when building a transcript for the gateway. */
+  compassInfo: () => request<{ userId: string }>("GET", "/api/compass/info"),
 
   // attachments
   uploadAttachment: (

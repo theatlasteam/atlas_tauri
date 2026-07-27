@@ -32,6 +32,18 @@ fn valid_scheme(scheme: &str) -> bool {
 }
 
 async fn require_membership(state: &AppState, chat_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
+    // Compass posting into a DM is deliberately not real chat_members
+    // membership: a 'dm' row's peer-resolution SQL (chats.rs) assumes
+    // exactly one other member, and adding a third would corrupt that for
+    // the two actual humans. Compass *does* become a real member of a
+    // group (see compass::ensure_member) — groups have no such 2-party
+    // assumption, and "shows up as a member" is the point there. The
+    // caller of compass_reply already had their own membership checked
+    // before Compass's message is posted, so this isn't skipping
+    // authorization, just which identity performs the write.
+    if user_id == state.compass_user_id {
+        return Ok(());
+    }
     let is_member: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2)",
     )
@@ -166,6 +178,10 @@ pub struct NewMessage<'a> {
     pub attachment_id: Option<Uuid>,
     /// Send it now, let it be read then. See MessageDto::seal.
     pub unlock_at: Option<DateTime<Utc>>,
+    /// Set by the *client*, from plaintext it already has before encryption
+    /// — the server can't parse this out of an E2EE DM itself. See
+    /// compass.rs's module doc for what does and doesn't happen with it.
+    pub mentions_compass: bool,
 }
 
 /// The single write path for messages (WS + REST + server-generated call
@@ -240,8 +256,8 @@ pub async fn persist_and_fanout(
     }
 
     let inserted: Option<MessageRow> = sqlx::query_as(&format!(
-        "INSERT INTO messages (id, chat_id, author_id, scheme, body, client_tag, reply_to_id, attachment_id, unlock_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        "INSERT INTO messages (id, chat_id, author_id, scheme, body, client_tag, reply_to_id, attachment_id, unlock_at, compass_mentioned)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT (author_id, client_tag) WHERE client_tag IS NOT NULL DO NOTHING
          RETURNING {MESSAGE_COLUMNS}"
     ))
@@ -254,6 +270,7 @@ pub async fn persist_and_fanout(
     .bind(new.reply_to_id)
     .bind(new.attachment_id)
     .bind(new.unlock_at)
+    .bind(new.mentions_compass)
     .fetch_optional(&state.db)
     .await?;
 
@@ -284,6 +301,14 @@ pub async fn persist_and_fanout(
             state.hub.send_to_user(member, &event);
         }
         push_to_absent_members(state, author_id, chat_id, &dto).await;
+
+        // Only a 'plain' message is one the server can actually read — an
+        // encrypted DM's compass_mentioned flag exists for the *client* to
+        // act on instead (see compass.rs's module doc). Also guards against
+        // Compass's own reply re-triggering itself.
+        if new.mentions_compass && new.scheme == "plain" && author_id != state.compass_user_id {
+            crate::compass::respond_in_group(state.clone(), chat_id, state.compass_user_id);
+        }
     }
     Ok(dto)
 }
@@ -456,6 +481,8 @@ pub struct SendPayload {
     reply_to_id: Option<Uuid>,
     attachment_id: Option<Uuid>,
     unlock_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    mentions_compass: bool,
 }
 
 fn default_scheme() -> String {
@@ -479,6 +506,50 @@ pub async fn send_message(
             reply_to_id: payload.reply_to_id,
             attachment_id: payload.attachment_id,
             unlock_at: payload.unlock_at,
+            mentions_compass: payload.mentions_compass,
+        },
+    )
+    .await?;
+    Ok(Json(dto))
+}
+
+/// A DM (or any other chat the server can't read) mentioned @compass — the
+/// client already decrypted its own history, called
+/// `POST /api/compass/complete` itself, and is now handing back the
+/// finished reply to be posted under Compass's identity. The server takes
+/// the text on faith (same trust tier as any other message it stores
+/// without verifying); it never sees the DM's plaintext at any point.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompassReplyPayload {
+    text: String,
+}
+
+pub async fn compass_reply(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(chat_id): Path<Uuid>,
+    Json(payload): Json<CompassReplyPayload>,
+) -> ApiResult<Json<MessageDto>> {
+    // Only an actual member of this chat may post "on Compass's behalf" —
+    // the same boundary that already gates everything else about a chat.
+    // Deliberately not compass::ensure_member here: this path exists
+    // specifically for chats where Compass *isn't* (and, for a 'dm', can't
+    // safely be) a real chat_members row — see require_membership's doc.
+    require_membership(&state, chat_id, auth.user_id).await?;
+
+    let dto = persist_and_fanout(
+        &state,
+        state.compass_user_id,
+        chat_id,
+        NewMessage {
+            scheme: "plain",
+            body: &payload.text,
+            client_tag: None,
+            reply_to_id: None,
+            attachment_id: None,
+            unlock_at: None,
+            mentions_compass: false,
         },
     )
     .await?;

@@ -12,6 +12,7 @@ import BlockedUsers from "./screens/settings/BlockedUsers";
 import Dev from "./screens/settings/Dev";
 import Verification from "./screens/settings/Verification";
 import NewChat from "./screens/NewChat";
+import CompassChat from "./screens/CompassChat";
 import Shell from "./components/Shell";
 import TitleBar from "./components/TitleBar";
 import Login from "./screens/Login";
@@ -52,6 +53,7 @@ function App() {
               <Route path="/profile" component={Profile} />
               <Route path="/user/:id" component={UserProfile} />
               <Route path="/new-chat" component={NewChat} />
+              <Route path="/compass" component={CompassChat} />
               <Route path="*" component={ChatLayout} />
             </Router>
           </Match>

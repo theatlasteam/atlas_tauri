@@ -48,6 +48,10 @@ pub enum ClientMsg {
         #[serde(default)]
         #[ts(optional)]
         unlock_at: Option<DateTime<Utc>>,
+        /// Set by the client from plaintext it already has — see
+        /// compass.rs's module doc.
+        #[serde(default)]
+        mentions_compass: bool,
     },
     MarkRead { chat_id: Uuid, message_id: Uuid },
 
