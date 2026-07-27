@@ -27,6 +27,13 @@ pub struct Config {
     /// and the live SSE stream). Waitlist emails are sensitive enough that
     /// these can't be left open like the rest of the CORS-permissive API.
     pub waitlist_admin_token: Option<String>,
+    /// Hostname (from the request's `Host` header, no port) that gets the
+    /// API only — no static site fallback. Lets the same binary serve the
+    /// marketing site on the apex domain and act as a bare backend on a
+    /// subdomain (e.g. `s.atlasmsg.app`) without a second deployment. `/api/*`
+    /// and `/ws` routes are unaffected either way; this only changes what
+    /// happens on paths nothing else matched.
+    pub api_only_hostname: Option<String>,
 }
 
 fn var(key: &str) -> Option<String> {
@@ -82,6 +89,7 @@ impl Config {
                 std::path::Path::new("./web-dist").is_dir().then(|| "./web-dist".to_string())
             }),
             waitlist_admin_token: var("WAITLIST_ADMIN_TOKEN"),
+            api_only_hostname: var("API_ONLY_HOSTNAME").map(|h| h.to_lowercase()),
         })
     }
 }

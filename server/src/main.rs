@@ -7,11 +7,14 @@ mod routes;
 mod state;
 mod ws;
 
-use axum::extract::DefaultBodyLimit;
-use axum::http::{header, HeaderValue, Method};
+use axum::body::Body;
+use axum::extract::{DefaultBodyLimit, Request, State};
+use axum::http::{header, HeaderValue, Method, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, patch, post, put};
 use axum::{Json, Router};
 use sqlx::postgres::PgPoolOptions;
+use tower::ServiceExt;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
@@ -138,24 +141,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/waitlist/stream", get(routes::waitlist::stream))
         // realtime
         .route("/ws", get(ws::ws_handler))
+        // Everything the routes above didn't match. `/api/*` and `/ws` are
+        // unaffected by this — they're matched before the fallback ever
+        // runs — so this only decides what a browser sees when it visits
+        // the bare domain.
+        .fallback(static_or_api_only)
         .layer(DefaultBodyLimit::max(512 * 1024))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
-        .with_state(state.clone());
-
-    // Serves the built web/ site (Vite `dist`) for everything the API
-    // router didn't match, with unknown paths falling back to index.html —
-    // the site is a client-routed SPA, so e.g. a deep link needs the same
-    // document as `/`. Layered outside `with_state` since ServeDir/ServeFile
-    // are plain tower services, not part of the Axum-state-typed router.
-    let app = match &state.cfg.static_dir {
-        Some(dir) => {
-            let index = ServeFile::new(format!("{dir}/index.html"));
-            let serve_dir = ServeDir::new(dir).fallback(index);
-            app.fallback_service(serve_dir)
-        }
-        None => app,
-    };
+        .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
     tracing::info!(addr = %bind_addr, "atlas-server listening");
@@ -167,6 +161,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "ok": true }))
+}
+
+/// Serves the built `web/` site (Vite `dist`) for anything no route above
+/// matched — with unknown paths falling back to `index.html`, since the site
+/// is a client-routed SPA and e.g. a deep link needs that same document as
+/// `/` — *unless* the request's `Host` is `cfg.api_only_hostname`, in which
+/// case this is a bare backend and there's no site to serve.
+async fn static_or_api_only(State(state): State<AppState>, req: Request) -> Response {
+    let host = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .map(|h| h.split(':').next().unwrap_or(h).to_lowercase());
+
+    let is_api_only = match (&state.cfg.api_only_hostname, &host) {
+        (Some(configured), Some(actual)) => configured == actual,
+        _ => false,
+    };
+
+    let Some(dir) = &state.cfg.static_dir else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    if is_api_only {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
+    let index = ServeFile::new(format!("{dir}/index.html"));
+    let serve_dir = ServeDir::new(dir).fallback(index);
+    match serve_dir.oneshot(req).await {
+        Ok(resp) => resp.map(Body::new).into_response(),
+        Err(err) => match err {},
+    }
 }
 
 async fn shutdown_signal() {

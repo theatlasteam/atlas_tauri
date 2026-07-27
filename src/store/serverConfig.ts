@@ -11,7 +11,7 @@ const STORAGE_KEY = "atlas.server.override";
 function defaultApiBase(): string {
   return (
     (import.meta.env.VITE_ATLAS_API as string | undefined) ??
-    "https://atlas-server-upsidedowncan.waw0.amvera.tech"
+    "https://s.atlasmsg.app"
   );
 }
 
