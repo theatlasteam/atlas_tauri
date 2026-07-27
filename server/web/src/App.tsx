@@ -23,6 +23,7 @@ import EmberShader from "./components/EmberShader";
 import HeroShader from "./components/HeroShader";
 import LanguageSwitcher from "./components/LanguageSwitcher";
 import Reveal from "./components/Reveal";
+import WaitlistModal from "./components/WaitlistModal";
 import { t, type TranslationKey } from "./lib/i18n";
 import { GITHUB_REPO, GITHUB_REPO_URL } from "./lib/repo";
 import {
@@ -70,6 +71,7 @@ export default function App() {
   );
   const [release] = createResource(fetchLatestRelease);
   const platform = detectPlatform();
+  const [waitlistOpen, setWaitlistOpen] = createSignal(false);
 
   function toggleTheme() {
     const next = theme() === "dark" ? "light" : "dark";
@@ -111,6 +113,13 @@ export default function App() {
             </a>
           </nav>
           <div class="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setWaitlistOpen(true)}
+              class="hidden rounded-pill border border-white/15 bg-white/5 px-4 py-1.5 text-sm text-[#f2ede2]/90 backdrop-blur transition hover:bg-white/10 sm:inline-flex"
+            >
+              {t("waitlist.cta")}
+            </button>
             <LanguageSwitcher />
             <button
               type="button"
@@ -161,6 +170,13 @@ export default function App() {
               }
             />
             <AnimatedButton href={GITHUB_REPO_URL} icon={GithubLogo} variant="ghost" label={() => t("hero.github")} />
+            <button
+              type="button"
+              onClick={() => setWaitlistOpen(true)}
+              class="rounded-pill border border-white/15 px-4 py-2 text-sm text-[#f2ede2]/90 transition hover:bg-white/10 sm:hidden"
+            >
+              {t("waitlist.cta")}
+            </button>
           </div>
         </div>
       </section>
@@ -263,6 +279,16 @@ export default function App() {
           </Switch>
 
           <p class="mt-8 text-center text-xs text-ink-subtle">{t("downloads.note")}</p>
+
+          <div class="mt-6 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setWaitlistOpen(true)}
+              class="rounded-pill border border-border bg-surface px-5 py-2 text-sm font-medium text-ink transition hover:border-accent/40"
+            >
+              {t("waitlist.cta")}
+            </button>
+          </div>
         </section>
 
         <section id="source" class="relative overflow-hidden bg-[#0e0c0a] py-20 text-[#f2ede2]">
@@ -308,6 +334,8 @@ export default function App() {
         </p>
         <p class="mt-1 text-xs text-ink-subtle/70">{t("footer.built")}</p>
       </footer>
+
+      <WaitlistModal open={waitlistOpen()} onClose={() => setWaitlistOpen(false)} />
     </div>
   );
 }

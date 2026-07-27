@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Atlas — waitlist</title>
+    <meta name="robots" content="noindex" />
+    <style>
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: #131110;
+        color: #f2ede2;
+      }
+      #login {
+        display: flex;
+        min-height: 100vh;
+        align-items: center;
+        justify-content: center;
+      }
+      #login form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 320px;
+      }
+      input,
+      button {
+        font: inherit;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.05);
+        color: inherit;
+      }
+      button {
+        cursor: pointer;
+        background: #f5c98a;
+        color: #131110;
+        border: none;
+        font-weight: 600;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding: 20px 24px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      #count {
+        font-size: 28px;
+        font-weight: 700;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 24px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: 14px;
+      }
+      th {
+        color: rgba(242, 237, 226, 0.6);
+        font-weight: 500;
+      }
+      tr.new {
+        animation: flash 1.2s ease-out;
+      }
+      @keyframes flash {
+        from {
+          background: rgba(245, 201, 138, 0.25);
+        }
+        to {
+          background: transparent;
+        }
+      }
+      #status {
+        font-size: 13px;
+        color: rgba(242, 237, 226, 0.5);
+        padding: 0 24px 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="login">
+      <form id="login-form">
+        <label for="token">Admin token</label>
+        <input id="token" type="password" autocomplete="current-password" required />
+        <button type="submit">Connect</button>
+      </form>
+    </div>
+
+    <div id="app" style="display: none">
+      <header>
+        <div>
+          <div style="font-size: 13px; color: rgba(242, 237, 226, 0.6)">Waitlist signups</div>
+          <div id="count">0</div>
+        </div>
+        <div id="live-status" style="font-size: 13px; color: #8fd19e">● live</div>
+      </header>
+      <div id="status"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Joined</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <script>
+      const loginForm = document.getElementById("login-form");
+      const app = document.getElementById("app");
+      const login = document.getElementById("login");
+      const rows = document.getElementById("rows");
+      const countEl = document.getElementById("count");
+      const statusEl = document.getElementById("status");
+      const liveStatus = document.getElementById("live-status");
+
+      const STORAGE_KEY = "atlas-waitlist-admin-token";
+
+      function addRow(entry, animate) {
+        const tr = document.createElement("tr");
+        if (animate) tr.className = "new";
+        const date = new Date(entry.created_at);
+        tr.innerHTML = `<td>${entry.email.replace(/</g, "&lt;")}</td><td>${date.toLocaleString()}</td>`;
+        rows.prepend(tr);
+        countEl.textContent = rows.children.length;
+      }
+
+      function connect(token) {
+        // EventSource can't set custom headers, so this reads the SSE stream
+        // manually via fetch (which can) instead.
+        fetch(`/api/waitlist/stream`, { headers: { "x-admin-token": token } })
+          .then((res) => {
+            if (!res.ok) throw new Error(res.status === 401 ? "wrong token" : `error ${res.status}`);
+            login.style.display = "none";
+            app.style.display = "block";
+            localStorage.setItem(STORAGE_KEY, token);
+            streamViaFetch(res, token);
+          })
+          .catch((err) => {
+            statusEl.textContent = err.message;
+            statusEl.style.color = "#e08787";
+          });
+      }
+
+      async function streamViaFetch(res, token) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        let seenAny = false;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            liveStatus.textContent = "● disconnected";
+            liveStatus.style.color = "#e08787";
+            return;
+          }
+          buf += decoder.decode(value, { stream: true });
+          const events = buf.split("\n\n");
+          buf = events.pop();
+          for (const raw of events) {
+            const line = raw.split("\n").find((l) => l.startsWith("data:"));
+            if (!line) continue;
+            try {
+              const entry = JSON.parse(line.slice(5).trim());
+              addRow(entry, seenAny);
+            } catch {
+              // ignore malformed/keep-alive lines
+            }
+          }
+          seenAny = true;
+        }
+      }
+
+      loginForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        connect(document.getElementById("token").value.trim());
+      });
+
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        document.getElementById("token").value = saved;
+        connect(saved);
+      }
+    </script>
+  </body>
+</html>
