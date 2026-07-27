@@ -12,6 +12,10 @@ interface AnimatedButtonProps {
   class?: string;
   /** Plain text label — split per letter so hover can stagger each one. */
   label: () => string;
+  /** For actions that aren't navigation (e.g. opening a modal) — preventDefault
+   * is called automatically, so `href` can stay a real in-page anchor without
+   * the browser actually jumping there. */
+  onClick?: (e: MouseEvent) => void;
 }
 
 const STAGGER_MS = 8;
@@ -24,6 +28,12 @@ export default function AnimatedButton(props: AnimatedButtonProps) {
   return (
     <a
       href={props.href}
+      onClick={(e) => {
+        if (props.onClick) {
+          e.preventDefault();
+          props.onClick(e);
+        }
+      }}
       class={`btn-anim${props.class ? ` ${props.class}` : ""}`}
       classList={{
         "btn-anim-primary": variant() === "primary",
