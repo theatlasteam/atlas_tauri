@@ -14,12 +14,13 @@ export interface Release {
   assets: ReleaseAsset[];
 }
 
-export type Platform = "windows" | "linux-deb" | "linux-appimage" | "android";
+export type Platform = "windows" | "linux-deb" | "linux-appimage" | "macos" | "android";
 
 const PLATFORM_MATCHERS: Record<Platform, { label: string; test: (name: string) => boolean }> = {
   windows: { label: "Windows (.msi)", test: (n) => n.endsWith(".msi") },
   "linux-deb": { label: "Linux (.deb)", test: (n) => n.endsWith(".deb") },
   "linux-appimage": { label: "Linux (.AppImage)", test: (n) => n.endsWith(".AppImage") },
+  macos: { label: "macOS (.dmg)", test: (n) => n.endsWith(".dmg") },
   android: { label: "Android (.apk)", test: (n) => n.endsWith(".apk") },
 };
 
@@ -46,6 +47,7 @@ export function detectPlatform(): Platform {
   const ua = navigator.userAgent;
   if (/Android/i.test(ua)) return "android";
   if (/Windows/i.test(ua)) return "windows";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "macos";
   return "linux-deb";
 }
 

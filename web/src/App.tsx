@@ -1,6 +1,7 @@
 import { createResource, createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import {
   AndroidLogo,
+  AppleLogo,
   CalendarBlank,
   ChatCircle,
   Code,
@@ -50,6 +51,7 @@ const PLATFORM_ICONS: Record<Platform, typeof WindowsLogo> = {
   windows: WindowsLogo,
   "linux-deb": LinuxLogo,
   "linux-appimage": LinuxLogo,
+  macos: AppleLogo,
   android: AndroidLogo,
 };
 
@@ -57,6 +59,7 @@ const PLATFORM_NAMES: Record<Platform, string> = {
   windows: "Windows",
   "linux-deb": "Linux",
   "linux-appimage": "Linux",
+  macos: "macOS",
   android: "Android",
 };
 
@@ -64,6 +67,7 @@ const PLATFORM_DETAILS: Record<Platform, string> = {
   windows: ".msi installer",
   "linux-deb": ".deb package",
   "linux-appimage": "portable .AppImage",
+  macos: "unsigned universal .dmg",
   android: "debug-signed .apk",
 };
 
