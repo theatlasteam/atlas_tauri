@@ -12,6 +12,17 @@ pub struct Config {
     /// "stun:turn.example.com:3478,turn:turn.example.com:3478?transport=udp,turns:turn.example.com:443?transport=tcp"
     pub turn_urls: Vec<String>,
     pub turn_ttl: Duration,
+    /// Fixed username/credential for a third-party TURN provider (a free
+    /// public demo relay, or a paid service) that doesn't speak coturn's
+    /// `use-auth-secret` HMAC scheme. Takes priority over `turn_secret` when
+    /// both are set — there's no reason to want both at once. Static
+    /// credentials shipped in every client are the reason `turn_secret`'s
+    /// scheme exists at all (see turn.rs), but a fixed pair from a provider
+    /// that already expects to be embedded in clients is exactly what it's
+    /// for, and needing a whole self-hosted coturn just to place a first
+    /// working call is a real adoption cliff.
+    pub turn_static_username: Option<String>,
+    pub turn_static_credential: Option<String>,
     /// `None` => allow any origin (see main.rs). `Some(list)` => only those.
     pub cors_origins: Option<Vec<String>>,
     /// Directory for uploaded attachment blobs (created on demand).
@@ -60,6 +71,8 @@ impl Config {
             turn_ttl: Duration::from_secs(
                 var("TURN_TTL_SECS").and_then(|v| v.parse().ok()).unwrap_or(3600),
             ),
+            turn_static_username: var("TURN_STATIC_USERNAME"),
+            turn_static_credential: var("TURN_STATIC_CREDENTIAL"),
             // Unset by default: allow any origin. Auth here is a Bearer
             // token attached explicitly by client JS, never a cookie —
             // there's nothing for CORS to protect against a third-party page

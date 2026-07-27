@@ -60,22 +60,32 @@ pub async fn ice_servers(
         servers.push(IceServer { urls: stun_urls, username: None, credential: None });
     }
 
-    if !turn_urls.is_empty() && !state.cfg.turn_secret.is_empty() {
-        let expiry = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| AppError::Internal("clock before epoch".into()))?
-            .as_secs()
-            + state.cfg.turn_ttl.as_secs();
-        let username = format!("{expiry}:{}", auth.user_id);
-        let mut mac = Hmac::<Sha1>::new_from_slice(state.cfg.turn_secret.as_bytes())
-            .map_err(|e| AppError::Internal(format!("hmac init: {e}")))?;
-        mac.update(username.as_bytes());
-        let credential = B64.encode(mac.finalize().into_bytes());
-        servers.push(IceServer {
-            urls: turn_urls,
-            username: Some(username),
-            credential: Some(credential),
-        });
+    if !turn_urls.is_empty() {
+        if let (Some(username), Some(credential)) =
+            (&state.cfg.turn_static_username, &state.cfg.turn_static_credential)
+        {
+            servers.push(IceServer {
+                urls: turn_urls,
+                username: Some(username.clone()),
+                credential: Some(credential.clone()),
+            });
+        } else if !state.cfg.turn_secret.is_empty() {
+            let expiry = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|_| AppError::Internal("clock before epoch".into()))?
+                .as_secs()
+                + state.cfg.turn_ttl.as_secs();
+            let username = format!("{expiry}:{}", auth.user_id);
+            let mut mac = Hmac::<Sha1>::new_from_slice(state.cfg.turn_secret.as_bytes())
+                .map_err(|e| AppError::Internal(format!("hmac init: {e}")))?;
+            mac.update(username.as_bytes());
+            let credential = B64.encode(mac.finalize().into_bytes());
+            servers.push(IceServer {
+                urls: turn_urls,
+                username: Some(username),
+                credential: Some(credential),
+            });
+        }
     }
 
     Ok(Json(IceServersResponse { ice_servers: servers, ttl: state.cfg.turn_ttl.as_secs() }))
