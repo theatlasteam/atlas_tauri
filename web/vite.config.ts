@@ -14,7 +14,7 @@ function resolveGithubRepo(): string {
   } catch {
     // fall through to default below (e.g. no git available in the build env)
   }
-  return "upsidedowncan/atlas_tauri";
+  return "theatlasteam/atlas_tauri";
 }
 
 export default defineConfig({
