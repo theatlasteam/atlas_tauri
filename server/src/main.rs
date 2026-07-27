@@ -1,3 +1,4 @@
+mod ai_proxy;
 mod auth;
 mod compass;
 mod config;
@@ -12,7 +13,7 @@ use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Request, State};
 use axum::http::{header, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{delete, get, patch, post, put};
+use axum::routing::{any, delete, get, patch, post, put};
 use axum::{Json, Router};
 use sqlx::postgres::PgPoolOptions;
 use tower::ServiceExt;
@@ -100,6 +101,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/chats/{id}/compass-reply", post(routes::messages::compass_reply))
         .route("/api/compass/complete", post(compass::complete_route))
         .route("/api/compass/info", get(compass::info_route))
+        // Custom API surface for the Inference Gateway — reachable at
+        // ai.atlasmsg.app once that hostname is pointed at this server.
+        .route("/v1/{*path}", any(ai_proxy::proxy))
         .route("/api/messages/search", get(routes::messages::search_messages))
         // Single message fetch — the Android push payload carries ids only, so
         // the notification service pulls the body from here to decrypt it.
