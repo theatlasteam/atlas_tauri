@@ -1,12 +1,17 @@
 name: Release
 
-# Manual only — running this deletes and recreates the release/tag named below
+# Manual only — running this deletes and recreates the release/tag you give it
 # with fresh build artifacts for Android, Windows, Linux, and macOS.
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag (e.g. a5) — deletes/recreates a release with this exact tag"
+        type: string
+        required: true
 
 env:
-  RELEASE_TAG: a4
+  RELEASE_TAG: ${{ inputs.release_tag }}
 
 jobs:
   build-linux:
