@@ -8,6 +8,7 @@ import { chatsStore } from "../store/chats";
 import { session } from "../store/session";
 import type { Message } from "../data/types";
 import { formatRelativeTime } from "../lib/time";
+import { t } from "../lib/i18n";
 
 /**
  * Server-side search across all my chats (plaintext messages; E2EE bodies are
@@ -46,12 +47,12 @@ export default function MessageSearchDialog(props: { open: boolean; onOpenChange
   };
 
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange} title="Search messages">
+    <Dialog open={props.open} onOpenChange={props.onOpenChange} title={t("messageSearch.title")}>
       <div class="flex flex-col gap-3">
         <input
           value={query()}
           onInput={(e) => search(e.currentTarget.value)}
-          placeholder="Search your messages"
+          placeholder={t("messageSearch.placeholder")}
           class="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-ink placeholder-ink-subtle outline-none focus:border-accent"
         />
         <div class="max-h-72 overflow-y-auto">
@@ -59,7 +60,7 @@ export default function MessageSearchDialog(props: { open: boolean; onOpenChange
             when={results().length > 0}
             fallback={
               <p class="px-2 py-6 text-center text-sm text-ink-subtle">
-                {searching() ? "Searching…" : query().trim().length >= 2 ? "No matches" : "Find anything you've said"}
+                {searching() ? t("messageSearch.searching") : query().trim().length >= 2 ? t("messageSearch.noMatches") : t("messageSearch.findAnything")}
               </p>
             }
           >
@@ -83,7 +84,7 @@ export default function MessageSearchDialog(props: { open: boolean; onOpenChange
                         />
                         <span class="min-w-0 flex-1">
                           <span class="flex items-baseline justify-between gap-2">
-                            <span class="truncate text-sm font-semibold text-ink">{chat()?.name ?? "Chat"}</span>
+                            <span class="truncate text-sm font-semibold text-ink">{chat()?.name ?? t("messageSearch.chatFallback")}</span>
                             <span class="shrink-0 text-xs text-ink-subtle">{formatRelativeTime(message.sentAt)}</span>
                           </span>
                           <span class="block truncate text-sm text-ink-muted">{message.text}</span>

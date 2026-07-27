@@ -3,6 +3,7 @@ import { session } from "../store/session";
 import { SpinnerIcon } from "../icons";
 import logo from "../assets/logo.svg";
 import ServerConfigDialog from "../components/ServerConfigDialog";
+import { t } from "../lib/i18n";
 
 const SECRET_TAP_COUNT = 7;
 const SECRET_TAP_WINDOW_MS = 2500;
@@ -46,7 +47,7 @@ export default function Login() {
         await session.register(handle().trim(), name().trim(), password());
       }
     } catch (err: any) {
-      setError(err?.message ?? "Something went wrong");
+      setError(err?.message ?? t("login.genericError"));
     } finally {
       setBusy(false);
     }
@@ -64,17 +65,17 @@ export default function Login() {
           </button>
           <h1 class="font-heading text-3xl font-bold">Atlas</h1>
           <p class="text-sm text-ink-muted">
-            {mode() === "login" ? "Welcome back." : "Create your account."}
+            {mode() === "login" ? t("login.welcomeBack") : t("login.createAccount")}
           </p>
         </div>
 
         <form onSubmit={submit} class="flex flex-col gap-3">
           <label class="flex flex-col gap-1.5">
-            <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">Handle</span>
+            <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("login.handle")}</span>
             <input
               value={handle()}
               onInput={(e) => setHandle(e.currentTarget.value)}
-              placeholder="yourname"
+              placeholder={t("login.handlePlaceholder")}
               autocomplete="username"
               autocapitalize="none"
               spellcheck={false}
@@ -84,11 +85,11 @@ export default function Login() {
 
           <Show when={mode() === "register"}>
             <label class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">Display name</span>
+              <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("login.displayName")}</span>
               <input
                 value={name()}
                 onInput={(e) => setName(e.currentTarget.value)}
-                placeholder="Your Name"
+                placeholder={t("login.namePlaceholder")}
                 autocomplete="name"
                 class={inputClass}
               />
@@ -96,12 +97,12 @@ export default function Login() {
           </Show>
 
           <label class="flex flex-col gap-1.5">
-            <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">Password</span>
+            <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("login.password")}</span>
             <input
               type="password"
               value={password()}
               onInput={(e) => setPassword(e.currentTarget.value)}
-              placeholder={mode() === "register" ? "At least 8 characters" : "Password"}
+              placeholder={mode() === "register" ? t("login.passwordPlaceholderRegister") : t("login.passwordPlaceholder")}
               autocomplete={mode() === "login" ? "current-password" : "new-password"}
               class={inputClass}
             />
@@ -121,7 +122,7 @@ export default function Login() {
             <Show when={busy()}>
               <SpinnerIcon size={18} class="animate-spin" />
             </Show>
-            {mode() === "login" ? "Sign in" : "Create account"}
+            {mode() === "login" ? t("login.signIn") : t("login.createAccountBtn")}
           </button>
         </form>
 
@@ -133,7 +134,7 @@ export default function Login() {
           }}
           class="mt-5 w-full text-center text-sm text-ink-muted underline-offset-4 hover:underline"
         >
-          {mode() === "login" ? "New here? Create an account" : "Already have an account? Sign in"}
+          {mode() === "login" ? t("login.switchToRegister") : t("login.switchToLogin")}
         </button>
       </div>
 

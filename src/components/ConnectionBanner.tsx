@@ -1,6 +1,7 @@
 import { Show } from "solid-js";
 import { connectionState } from "../data/socket";
 import { session } from "../store/session";
+import { t } from "../lib/i18n";
 import { OfflineIcon, SpinnerIcon } from "../icons";
 
 /** Slim status strip under headers: only visible while not fully online. */
@@ -20,12 +21,12 @@ export default function ConnectionBanner() {
           fallback={
             <>
               <OfflineIcon size={14} />
-              Offline — reconnecting…
+              {t("connection.offline")}
             </>
           }
         >
           <SpinnerIcon size={14} class="animate-spin" />
-          Connecting…
+          {t("connection.connecting")}
         </Show>
       </div>
     </Show>

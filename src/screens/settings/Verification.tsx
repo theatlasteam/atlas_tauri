@@ -6,6 +6,7 @@ import Avatar from "../../components/Avatar";
 import EmptyState from "../../components/EmptyState";
 import VerifiedBadge from "../../components/VerifiedBadge";
 import { SpinnerIcon, VerifiedIcon } from "../../icons";
+import { t } from "../../lib/i18n";
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -29,7 +30,7 @@ export default function Verification() {
     try {
       setUsers(await api.listAllUsers(q.trim()));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't load users.");
+      setError(e instanceof Error ? e.message : t("verification.loadError"));
     } finally {
       setLoading(false);
     }
@@ -53,7 +54,7 @@ export default function Verification() {
       // mid-tap — the order refreshes on the next load.
       setUsers((list) => list.map((u) => (u.id === updated.id ? updated : u)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't update verification.");
+      setError(e instanceof Error ? e.message : t("verification.updateError"));
     } finally {
       setBusyId(null);
     }
@@ -61,13 +62,13 @@ export default function Verification() {
 
   return (
     <div class="flex h-full flex-col">
-      <BackHeader title="Verification" back="/settings" />
+      <BackHeader title={t("verification.title")} back="/settings" />
 
       <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 pb-28">
         <input
           value={query()}
           onInput={(e) => search(e.currentTarget.value)}
-          placeholder="Search by handle or name"
+          placeholder={t("verification.searchPlaceholder")}
           autocapitalize="none"
           spellcheck={false}
           class="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-ink placeholder-ink-subtle outline-none focus:border-accent"
@@ -83,8 +84,8 @@ export default function Verification() {
             <Show when={!loading()}>
               <EmptyState
                 icon={VerifiedIcon}
-                title="No users found"
-                subtitle={query().trim() ? "Try a different handle or name." : "No accounts registered yet."}
+                title={t("verification.noUsersTitle")}
+                subtitle={query().trim() ? t("verification.noUsersSubtitleQuery") : t("verification.noUsersSubtitleEmpty")}
               />
             </Show>
           }
@@ -120,7 +121,7 @@ export default function Verification() {
                     }}
                   >
                     <Show when={busyId() !== user.id} fallback={<SpinnerIcon size={13} class="animate-spin" />}>
-                      {user.verified ? "Remove" : "Verify"}
+                      {user.verified ? t("verification.remove") : t("verification.verify")}
                     </Show>
                   </button>
                 </div>
@@ -132,7 +133,7 @@ export default function Verification() {
         <Show when={loading()}>
           <p class="flex items-center justify-center gap-2 py-4 text-sm text-ink-subtle">
             <SpinnerIcon size={15} class="animate-spin" />
-            Loading users…
+            {t("verification.loadingUsers")}
           </p>
         </Show>
       </div>

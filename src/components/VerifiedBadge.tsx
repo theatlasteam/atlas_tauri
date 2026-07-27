@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { VerifiedIcon } from "../icons";
 import Popover from "../ui/Popover";
+import { t } from "../lib/i18n";
 
 /** Checkmark shown next to a verified user's name; tapping it explains what
  * the mark means. Granting/revoking is restricted to the "atlas" account
@@ -26,7 +27,7 @@ export default function VerifiedBadge(props: { size?: number; name?: string }) {
         ref={anchor}
         role="button"
         tabindex={0}
-        aria-label="Verified account — what does this mean?"
+        aria-label={t("verifiedBadge.aria")}
         class="inline-flex shrink-0 cursor-pointer text-verified"
         onClick={toggle}
         onKeyDown={(e) => {
@@ -40,12 +41,10 @@ export default function VerifiedBadge(props: { size?: number; name?: string }) {
         <div class="w-60 rounded-xl border border-border bg-surface-raised p-3 shadow-floating">
           <p class="flex items-center gap-1.5 text-sm font-semibold text-ink">
             <VerifiedIcon size={15} class="shrink-0 text-verified" />
-            Verified account
+            {t("verifiedBadge.title")}
           </p>
           <p class="mt-1 text-xs leading-relaxed text-ink-subtle">
-            {props.name
-              ? `${props.name} is verified — Atlas confirmed this account is authentic.`
-              : "Atlas confirmed this account is authentic."}
+            {props.name ? t("verifiedBadge.bodyNamed", { name: props.name }) : t("verifiedBadge.body")}
           </p>
         </div>
       </Popover>

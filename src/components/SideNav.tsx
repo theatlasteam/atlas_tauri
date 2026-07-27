@@ -1,5 +1,6 @@
 import { A, useLocation } from "@solidjs/router";
 import { NAV_TABS } from "../lib/nav";
+import { t } from "../lib/i18n";
 
 /** Desktop counterpart to BottomNav: a persistent icon rail docked to the far left. */
 export default function SideNav() {
@@ -12,7 +13,7 @@ export default function SideNav() {
         return (
           <A
             href={tab.href}
-            title={tab.label}
+            title={t(tab.labelKey)}
             class="flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-150 ease-out hover:bg-accent-soft"
             classList={{
               "bg-accent text-accent-ink hover:bg-accent": active(),

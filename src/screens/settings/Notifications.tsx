@@ -9,6 +9,7 @@ import Picker from "../../ui/Picker";
 import Switch from "../../ui/Switch";
 import AnimatedList from "../../ui/AnimatedList";
 import Avatar from "../../components/Avatar";
+import { t } from "../../lib/i18n";
 
 export default function Notifications() {
   const [sounds] = createResource(() => repository.listNotificationSounds());
@@ -19,10 +20,10 @@ export default function Notifications() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title="Notifications" />
+      <BackHeader title={t("settingsNotifications.title")} />
 
-      <SettingsSection title="General">
-        <SettingsRow label="Notifications" description="Show alerts for new messages">
+      <SettingsSection title={t("settingsNotifications.general")}>
+        <SettingsRow label={t("settingsNotifications.notifications")} description={t("settingsNotifications.notificationsDesc")}>
           <Switch
             checked={preferences.notificationsEnabled}
             onChange={(v) => {
@@ -33,7 +34,7 @@ export default function Notifications() {
             }}
           />
         </SettingsRow>
-        <SettingsRow label="Sound" description="Played when a message arrives while the app is in the background">
+        <SettingsRow label={t("settingsNotifications.sound")} description={t("settingsNotifications.soundDesc")}>
           <Picker
             value={preferences.notificationSound}
             onChange={(v) => {
@@ -46,12 +47,10 @@ export default function Notifications() {
       </SettingsSection>
 
       <Show when={blockedByBrowser()}>
-        <p class="-mt-4 px-6 pb-6 text-xs text-ink-subtle">
-          Alerts are blocked for this app in your system settings, so only the sound will play.
-        </p>
+        <p class="-mt-4 px-6 pb-6 text-xs text-ink-subtle">{t("settingsNotifications.blockedByBrowser")}</p>
       </Show>
 
-      <SettingsSection title="Per-chat">
+      <SettingsSection title={t("settingsNotifications.perChat")}>
         <AnimatedList>
           <For each={chatsState.chats}>
             {(chat) => (
@@ -67,7 +66,7 @@ export default function Notifications() {
                 <Switch
                   checked={!chat.muted}
                   onChange={(v) => setMuted(chat.id, !v)}
-                  label={`Notifications for ${chat.name}`}
+                  label={t("settingsNotifications.notifAriaFor", { name: chat.name })}
                 />
               </div>
             )}

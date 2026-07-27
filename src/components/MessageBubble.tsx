@@ -29,6 +29,7 @@ import {
   SpinnerIcon,
   VideoIcon,
 } from "../icons";
+import { t } from "../lib/i18n";
 
 /**
  * How long a press has to be held to count as "hold for more".
@@ -140,7 +141,7 @@ function VoiceAttachment(props: { id: string; durationMs?: number | null }) {
         type="button"
         onClick={toggle}
         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black/15 transition-transform duration-150 active:scale-90"
-        aria-label={playing() ? "Pause voice message" : "Play voice message"}
+        aria-label={playing() ? t("messageBubble.pauseVoiceAria") : t("messageBubble.playVoiceAria")}
       >
         <Show when={!loading()} fallback={<SpinnerIcon size={16} class="animate-spin" />}>
           <Show when={playing()} fallback={<PlayIcon size={16} />}>
@@ -192,7 +193,7 @@ function FileAttachment(props: { id: string; filename: string; sizeBytes: number
         <DownloadIcon size={16} />
       </span>
       <span class="min-w-0 flex-1">
-        <span class="block truncate text-sm">{props.filename || "File"}</span>
+        <span class="block truncate text-sm">{props.filename || t("messageBubble.file")}</span>
         <span class="block text-xs opacity-70">{formatBytes(props.sizeBytes)}</span>
       </span>
     </button>
@@ -248,9 +249,9 @@ function SealedCapsule(props: { message: Message; peerUserId?: string }) {
         <HourglassIcon size={17} />
       </span>
       <span class="min-w-0">
-        <span class="block text-sm font-semibold">Time capsule</span>
+        <span class="block text-sm font-semibold">{t("messageBubble.timeCapsule")}</span>
         <span class="block text-xs tabular-nums opacity-75">
-          opens in {formatCountdown(unlockAt())} · {formatUnlockAt(unlockAt())}
+          {t("messageBubble.opensIn", { countdown: formatCountdown(unlockAt()), at: formatUnlockAt(unlockAt()) })}
         </span>
       </span>
     </div>
@@ -437,7 +438,7 @@ export default function MessageBubble(props: {
           classList={{ "ml-7": !mine() && isGroupChat() }}
         >
           <Show when={m().failed}>
-            <span class="font-semibold text-danger">Failed — tap to retry</span>
+            <span class="font-semibold text-danger">{t("messageBubble.failedRetry")}</span>
           </Show>
           <Show when={isE2ee()}>
             <LockIcon size={11} />
@@ -447,7 +448,9 @@ export default function MessageBubble(props: {
           </Show>
           <span>{formatClockTime(m().sentAt)}</span>
           <Show when={m().editedAt && !m().deleted}>
-            <span title={`Edited ${formatClockTime(m().editedAt!)}`}>· edited</span>
+            <span title={t("messageBubble.editedTitle", { time: formatClockTime(m().editedAt!) })}>
+              {t("messageBubble.editedLabel")}
+            </span>
           </Show>
           <Show when={receipt() === "pending"}>
             <SpinnerIcon size={11} class="animate-spin" />
@@ -469,7 +472,7 @@ function DeletedBubble(props: { mine: boolean }) {
   return (
     <p class="flex items-center gap-1.5 text-[0.95em] italic leading-snug text-ink-subtle">
       <ProhibitIcon size={13} />
-      {props.mine ? "You unsent this" : "Message deleted"}
+      {props.mine ? t("messageBubble.youUnsent") : t("messageBubble.messageDeleted")}
     </p>
   );
 }
@@ -498,7 +501,7 @@ function MessageBody(props: { message: Message }) {
           class="whitespace-pre-wrap break-words text-[0.95em] leading-snug"
           classList={{ "italic opacity-70": m().decrypting }}
         >
-          {m().decrypting ? "Decrypting…" : m().text}
+          {m().decrypting ? t("messageBubble.decrypting") : m().text}
         </p>
       </Show>
     </>
@@ -530,8 +533,8 @@ function BubbleActions(props: {
           type="button"
           onClick={() => props.onReply(m())}
           class={action}
-          aria-label="Reply"
-          title="Reply"
+          aria-label={t("messageBubble.replyAria")}
+          title={t("messageBubble.replyAria")}
         >
           <ReplyIcon size={16} />
         </button>
@@ -541,8 +544,8 @@ function BubbleActions(props: {
         type="button"
         onClick={() => props.onActions(m(), moreBtn!)}
         class={action}
-        aria-label="Message actions"
-        title="More"
+        aria-label={t("messageBubble.moreAria")}
+        title={t("messageBubble.moreTitle")}
       >
         <DotsIcon size={16} />
       </button>

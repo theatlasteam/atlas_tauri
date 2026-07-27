@@ -5,6 +5,7 @@ import BackHeader from "../../components/BackHeader";
 import Avatar from "../../components/Avatar";
 import EmptyState from "../../components/EmptyState";
 import { ProhibitIcon, SpinnerIcon } from "../../icons";
+import { t } from "../../lib/i18n";
 
 export default function BlockedUsers() {
   const [busyId, setBusyId] = createSignal<string | null>(null);
@@ -24,13 +25,13 @@ export default function BlockedUsers() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title="Blocked users" back="/settings/privacy" />
+      <BackHeader title={t("blockedUsers.title")} back="/settings/privacy" />
 
       <Show
         when={blocksStore.state.blocks.length > 0}
         fallback={
           <Show when={blocksStore.state.loaded}>
-            <EmptyState icon={ProhibitIcon} title="No blocked users" subtitle="People you block will show up here." />
+            <EmptyState icon={ProhibitIcon} title={t("blockedUsers.noneTitle")} subtitle={t("blockedUsers.noneSubtitle")} />
           </Show>
         }
       >
@@ -59,7 +60,7 @@ export default function BlockedUsers() {
                     class="shrink-0 rounded-pill border border-border px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-bg disabled:opacity-50"
                   >
                     <Show when={busyId() !== b.user.id} fallback={<SpinnerIcon size={13} class="animate-spin" />}>
-                      Unblock
+                      {t("blockedUsers.unblock")}
                     </Show>
                   </button>
                 </div>

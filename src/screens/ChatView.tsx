@@ -43,6 +43,7 @@ import {
 import type { Message, User } from "../data/types";
 import { repository } from "../data/repository";
 import { formatBytes, formatLastSeen, formatUnlockAt } from "../lib/time";
+import { t } from "../lib/i18n";
 
 const QUICK_EMOJI = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
@@ -56,12 +57,12 @@ const QUICK_EMOJI = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 const LIVE_TYPING_INTERVAL_MS = 300;
 
 /** Preset offsets for the time-capsule picker, relative to "now". */
-const CAPSULE_PRESETS: Array<{ label: string; hint: string; offsetMs: number }> = [
-  { label: "In an hour", hint: "", offsetMs: 60 * 60_000 },
-  { label: "Tonight", hint: "8 hours from now", offsetMs: 8 * 60 * 60_000 },
-  { label: "Tomorrow", hint: "24 hours from now", offsetMs: 24 * 60 * 60_000 },
-  { label: "Next week", hint: "7 days from now", offsetMs: 7 * 24 * 60 * 60_000 },
-  { label: "In a year", hint: "365 days from now", offsetMs: 365 * 24 * 60 * 60_000 - 60_000 },
+const CAPSULE_PRESETS = () => [
+  { label: t("chatView.capsuleInHour"), hint: "", offsetMs: 60 * 60_000 },
+  { label: t("chatView.capsuleTonight"), hint: t("chatView.capsuleTonightHint"), offsetMs: 8 * 60 * 60_000 },
+  { label: t("chatView.capsuleTomorrow"), hint: t("chatView.capsuleTomorrowHint"), offsetMs: 24 * 60 * 60_000 },
+  { label: t("chatView.capsuleNextWeek"), hint: t("chatView.capsuleNextWeekHint"), offsetMs: 7 * 24 * 60 * 60_000 },
+  { label: t("chatView.capsuleInYear"), hint: t("chatView.capsuleInYearHint"), offsetMs: 365 * 24 * 60 * 60_000 - 60_000 },
 ];
 
 interface PendingAttachment {
@@ -425,15 +426,15 @@ export default function ChatView() {
     const here = chatsStore.presentIn(params.id);
     if (c.kind === "group") {
       return here.length > 0
-        ? `${c.memberCount} members · ${here.length} here now`
-        : `${c.memberCount} members`;
+        ? t("chatView.membersWithHere", { count: c.memberCount, here: here.length })
+        : t("chatView.members", { count: c.memberCount });
     }
-    if (c.peerUserId && here.includes(c.peerUserId)) return "in the chat with you";
-    if (c.online) return "online";
+    if (c.peerUserId && here.includes(c.peerUserId)) return t("chatView.inChatWithYou");
+    if (c.online) return t("chatView.online");
     // formatLastSeen returns null when the peer hides it — say nothing
     // specific rather than inventing "recently", which the header used to
     // claim regardless of what the server actually knew.
-    return formatLastSeen(c.peerLastSeenAt) ?? "offline";
+    return formatLastSeen(c.peerLastSeenAt) ?? t("chatView.offline");
   };
 
   return (
@@ -486,7 +487,7 @@ export default function ChatView() {
                   type="button"
                   onClick={() => startCall("audio")}
                   class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
-                  aria-label="Voice call"
+                  aria-label={t("chatView.voiceCallAria")}
                 >
                   <PhoneIcon size={21} />
                 </button>
@@ -494,7 +495,7 @@ export default function ChatView() {
                   type="button"
                   onClick={() => startCall("video")}
                   class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
-                  aria-label="Video call"
+                  aria-label={t("chatView.videoCallAria")}
                 >
                   <VideoIcon size={21} />
                 </button>
@@ -504,7 +505,7 @@ export default function ChatView() {
                 type="button"
                 onClick={() => setMenuOpen(true)}
                 class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
-                aria-label="Chat options"
+                aria-label={t("chatView.chatOptionsAria")}
               >
                 <ChevronDownIcon size={20} />
               </button>
@@ -528,8 +529,8 @@ export default function ChatView() {
               fallback={
                 <EmptyState
                   icon={ChatIcon}
-                  title="No messages yet"
-                  subtitle="Send the first message to start this conversation."
+                  title={t("chatView.noMessagesTitle")}
+                  subtitle={t("chatView.noMessagesSubtitle")}
                 />
               }
             >
@@ -587,7 +588,7 @@ export default function ChatView() {
                 <div class="max-w-[75%] rounded-[1.1rem] rounded-bl-md border border-dashed border-accent/40 bg-bubble-received/60 px-3.5 py-2 text-bubble-received-ink sm:max-w-[65%]">
                   <Show when={chat()?.kind === "group"}>
                     <p class="mb-0.5 truncate text-xs font-semibold text-accent">
-                      {authors()[userId]?.name ?? "Someone"}
+                      {authors()[userId]?.name ?? t("chatView.someone")}
                     </p>
                   </Show>
                   <p class="whitespace-pre-wrap break-words text-[0.95em] leading-snug opacity-70">
@@ -605,7 +606,7 @@ export default function ChatView() {
             type="button"
             onClick={() => scrollToBottom()}
             class="pop-in absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface-raised text-ink shadow-floating transition-transform duration-150 hover:scale-105 active:scale-95"
-            aria-label="Scroll to latest messages"
+            aria-label={t("chatView.scrollToLatestAria")}
           >
             <ArrowDownIcon size={18} />
           </button>
@@ -638,7 +639,7 @@ export default function ChatView() {
                 type="button"
                 onClick={clearPendingAttachment}
                 class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-subtle transition-colors duration-150 hover:bg-surface hover:text-ink active:bg-surface"
-                aria-label="Remove attachment"
+                aria-label={t("chatView.removeAttachmentAria")}
               >
                 <CloseIcon size={16} />
               </button>
@@ -652,7 +653,7 @@ export default function ChatView() {
               <div class="flex min-w-0 flex-1 items-center gap-2 rounded-lg border-l-2 border-accent bg-surface-raised px-2.5 py-1.5">
                 <EditIcon size={15} class="shrink-0 text-accent" />
                 <p class="min-w-0 flex-1 truncate text-xs text-ink-muted">
-                  <span class="font-semibold text-accent">Editing · </span>
+                  <span class="font-semibold text-accent">{t("chatView.editingPrefix")}</span>
                   {target().text}
                 </p>
               </div>
@@ -660,7 +661,7 @@ export default function ChatView() {
                 type="button"
                 onClick={cancelEdit}
                 class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-subtle transition-colors duration-150 hover:bg-surface hover:text-ink active:bg-surface"
-                aria-label="Cancel edit"
+                aria-label={t("chatView.cancelEditAria")}
               >
                 <CloseIcon size={16} />
               </button>
@@ -676,7 +677,7 @@ export default function ChatView() {
               <div class="flex min-w-0 flex-1 items-center gap-2 rounded-lg border-l-2 border-accent bg-surface-raised px-2.5 py-1.5">
                 <HourglassIcon size={15} class="shrink-0 text-accent" />
                 <p class="min-w-0 flex-1 truncate text-xs text-ink-muted">
-                  <span class="font-semibold text-accent">Sealed until </span>
+                  <span class="font-semibold text-accent">{t("chatView.sealedUntil")}</span>
                   {formatUnlockAt(unlockAt())}
                 </p>
               </div>
@@ -684,7 +685,7 @@ export default function ChatView() {
                 type="button"
                 onClick={() => setCapsuleAt(null)}
                 class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-subtle transition-colors duration-150 hover:bg-surface hover:text-ink active:bg-surface"
-                aria-label="Send now instead"
+                aria-label={t("chatView.sendNowInsteadAria")}
               >
                 <CloseIcon size={16} />
               </button>
@@ -697,7 +698,9 @@ export default function ChatView() {
             <div class="rise-in flex items-center gap-2 px-4 pt-2">
               <div class="min-w-0 flex-1 rounded-lg border-l-2 border-accent bg-surface-raised px-2.5 py-1.5">
                 <p class="text-xs font-semibold text-accent">
-                  Replying to {reply().mine ? "yourself" : authors()[reply().authorId]?.name ?? chat()?.name}
+                  {reply().mine
+                    ? t("chatView.replyingToSelf")
+                    : t("chatView.replyingTo", { name: authors()[reply().authorId]?.name ?? chat()?.name ?? "" })}
                 </p>
                 <p class="truncate text-xs text-ink-muted">{reply().text}</p>
               </div>
@@ -705,7 +708,7 @@ export default function ChatView() {
                 type="button"
                 onClick={() => setReplyTo(null)}
                 class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-subtle transition-colors duration-150 hover:bg-surface hover:text-ink active:bg-surface"
-                aria-label="Cancel reply"
+                aria-label={t("chatView.cancelReplyAria")}
               >
                 <CloseIcon size={16} />
               </button>
@@ -718,7 +721,7 @@ export default function ChatView() {
           fallback={
             <div class="flex items-center justify-center gap-2 px-4 pb-[max(var(--safe-bottom),1rem)] pt-3 text-sm text-ink-subtle">
               <ProhibitIcon size={16} />
-              {chat()?.blockedByMe ? "You've blocked this user." : "You can't message this user."}
+              {chat()?.blockedByMe ? t("chatView.blockedByMe") : t("chatView.cantMessage")}
             </div>
           }
         >
@@ -743,7 +746,7 @@ export default function ChatView() {
             onClick={pickFile}
             disabled={uploading()}
             class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface disabled:opacity-40"
-            aria-label="Attach file"
+            aria-label={t("chatView.attachFileAria")}
           >
             <Show when={!uploading()} fallback={<SpinnerIcon size={19} class="animate-spin" />}>
               <AttachIcon size={20} />
@@ -757,16 +760,16 @@ export default function ChatView() {
             onKeyDown={(e) => e.key === "Escape" && editing() && cancelEdit()}
             placeholder={
               editing()
-                ? "Edit your message…"
+                ? t("chatView.editPlaceholder")
                 : recording()
-                  ? "Recording voice message…"
+                  ? t("chatView.recordingPlaceholder")
                   : pendingAttachment()
-                    ? "Add a caption…"
+                    ? t("chatView.captionPlaceholder")
                     : capsuleAt()
-                      ? "Write something for later…"
+                      ? t("chatView.capsulePlaceholder")
                       : encrypted()
-                        ? "Encrypted message"
-                        : "Message"
+                        ? t("chatView.encryptedPlaceholder")
+                        : t("chatView.messagePlaceholder")
             }
             disabled={recording()}
             class="min-w-0 flex-1 rounded-pill border border-border bg-surface px-4 py-2.5 text-ink placeholder-ink-subtle outline-none transition-[border-color,box-shadow] duration-150 focus:border-accent focus:ring-2 focus:ring-accent/15"
@@ -782,7 +785,7 @@ export default function ChatView() {
                   "bg-danger text-white animate-pulse": recording(),
                   "bg-accent text-accent-ink": !recording(),
                 }}
-                aria-label={recording() ? "Stop recording" : "Record voice message"}
+                aria-label={recording() ? t("chatView.stopRecordingAria") : t("chatView.recordVoiceAria")}
               >
                 <Show when={recording()} fallback={<MicIcon size={19} />}>
                   <StopIcon size={19} />
@@ -807,17 +810,17 @@ export default function ChatView() {
               class="flex h-11 w-11 shrink-0 select-none items-center justify-center rounded-full bg-accent text-accent-ink transition-transform duration-150 hover:brightness-105 disabled:opacity-40 active:scale-95"
               aria-label={
                 editing()
-                  ? "Save edit"
+                  ? t("chatView.saveEditAria")
                   : capsuleAt()
-                    ? "Seal and send — hold to change when it opens"
-                    : "Send message — hold to send later"
+                    ? t("chatView.sealAndSendAria")
+                    : t("chatView.sendMessageAria")
               }
               title={
                 editing()
-                  ? "Save"
+                  ? t("chatView.saveTitle")
                   : capsuleAt()
-                    ? "Hold to change when it opens"
-                    : "Hold to send later"
+                    ? t("chatView.holdToChangeTitle")
+                    : t("chatView.holdToSendLaterTitle")
               }
             >
               <Show when={!editing()} fallback={<CheckIcon size={19} />}>
@@ -839,7 +842,7 @@ export default function ChatView() {
             void chatsStore.setMuted(params.id, !chat()?.muted);
           }}
         >
-          <span>{chat()?.muted ? "Unmute" : "Mute"}</span>
+          <span>{chat()?.muted ? t("chatView.unmute") : t("chatView.mute")}</span>
           <Show when={chat()?.muted} fallback={<BellSlashIcon size={16} />}>
             <BellIcon size={16} />
           </Show>
@@ -860,7 +863,7 @@ export default function ChatView() {
         anchorRef={() => sendBtn}
         placement="top-end"
       >
-        <For each={CAPSULE_PRESETS}>
+        <For each={CAPSULE_PRESETS()}>
           {(preset) => (
             <MenuItem
               onSelect={() => {
@@ -885,7 +888,7 @@ export default function ChatView() {
               setCapsuleAt(null);
             }}
           >
-            <span>Send now instead</span>
+            <span>{t("chatView.sendNowInsteadMenu")}</span>
             <SendIcon size={16} />
           </MenuItem>
         </Show>
@@ -922,7 +925,7 @@ export default function ChatView() {
                           type="button"
                           onClick={() => run((m) => void messagesStore.toggleReaction(m, emoji))}
                           class="flex h-9 w-9 items-center justify-center rounded-full text-lg transition-[background-color,transform] duration-150 hover:scale-110 hover:bg-accent-soft active:scale-90"
-                          aria-label={`React with ${emoji}`}
+                          aria-label={t("chatView.reactWithAria", { emoji })}
                         >
                           {emoji}
                         </button>
@@ -933,24 +936,24 @@ export default function ChatView() {
                 <div class="p-1.5">
                   <Show when={!message().deleted}>
                     <MenuItem onSelect={() => run(setReplyTo)}>
-                      <span>Reply</span>
+                      <span>{t("chatView.reply")}</span>
                       <ReplyIcon size={16} />
                     </MenuItem>
                   </Show>
                   <Show when={canEdit(message())}>
                     <MenuItem onSelect={() => run(startEdit)}>
-                      <span>Edit</span>
+                      <span>{t("chatView.edit")}</span>
                       <EditIcon size={16} />
                     </MenuItem>
                   </Show>
                   <Show when={canUnsend(message())}>
                     <MenuItem onSelect={() => run(unsend)}>
-                      <span class="text-danger">Unsend</span>
+                      <span class="text-danger">{t("chatView.unsend")}</span>
                       <TrashIcon size={16} class="text-danger" />
                     </MenuItem>
                   </Show>
                   <Show when={message().deleted}>
-                    <p class="px-3 py-2 text-sm text-ink-subtle">Nothing to do here.</p>
+                    <p class="px-3 py-2 text-sm text-ink-subtle">{t("chatView.nothingToDo")}</p>
                   </Show>
                 </div>
               </div>

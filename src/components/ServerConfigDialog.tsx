@@ -1,6 +1,7 @@
 import { createSignal, Show } from "solid-js";
 import Dialog from "../ui/Dialog";
 import { serverConfig } from "../store/serverConfig";
+import { t } from "../lib/i18n";
 
 /**
  * Hidden developer/ops escape hatch: point the app at a different backend
@@ -33,13 +34,11 @@ export default function ServerConfigDialog(props: { open: boolean; onOpenChange:
   };
 
   return (
-    <Dialog open={props.open} onOpenChange={openWithCurrent} title="Server">
+    <Dialog open={props.open} onOpenChange={openWithCurrent} title={t("serverConfig.title")}>
       <form onSubmit={save} class="flex flex-col gap-3">
-        <p class="text-sm text-ink-muted">
-          Point this app at a different atlas-server instance. Applies immediately — no restart needed.
-        </p>
+        <p class="text-sm text-ink-muted">{t("serverConfig.description")}</p>
         <label class="flex flex-col gap-1.5">
-          <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">Server URL</span>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("serverConfig.urlLabel")}</span>
           <input
             value={url()}
             onInput={(e) => {
@@ -53,11 +52,11 @@ export default function ServerConfigDialog(props: { open: boolean; onOpenChange:
           />
         </label>
         <p class="text-xs text-ink-subtle">
-          Realtime connects to <span class="font-mono">{serverConfig.wsUrl()}</span>
+          {t("serverConfig.realtimeConnectsTo")} <span class="font-mono">{serverConfig.wsUrl()}</span>
         </p>
 
         <Show when={saved()}>
-          <p class="rounded-xl bg-accent-soft px-3.5 py-2 text-sm text-ink">Saved.</p>
+          <p class="rounded-xl bg-accent-soft px-3.5 py-2 text-sm text-ink">{t("serverConfig.saved")}</p>
         </Show>
 
         <div class="mt-1 flex gap-2.5">
@@ -67,14 +66,14 @@ export default function ServerConfigDialog(props: { open: boolean; onOpenChange:
             disabled={!serverConfig.isOverridden()}
             class="flex-1 rounded-pill border border-border py-2.5 text-sm font-semibold text-ink-muted active:scale-95 disabled:opacity-40"
           >
-            Reset to default
+            {t("serverConfig.resetToDefault")}
           </button>
           <button
             type="submit"
             disabled={!url().trim()}
             class="flex-1 rounded-pill bg-accent py-2.5 text-sm font-semibold text-accent-ink active:scale-95 disabled:opacity-40"
           >
-            Save
+            {t("serverConfig.save")}
           </button>
         </div>
       </form>

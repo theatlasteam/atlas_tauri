@@ -126,3 +126,4 @@ export type FontId = "inter" | "system" | "serif" | "mono";
 export type FontSize = "sm" | "md" | "lg" | "xl";
 
 export type ConnectionState = "connecting" | "online" | "offline";
+export type Locale = "en" | "ru";

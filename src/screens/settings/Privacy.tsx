@@ -5,6 +5,7 @@ import { SettingsSection, SettingsRow, SettingsLinkRow } from "../../components/
 import BackHeader from "../../components/BackHeader";
 import Switch from "../../ui/Switch";
 import { ProhibitIcon } from "../../icons";
+import { t } from "../../lib/i18n";
 
 export default function Privacy() {
   const [error, setError] = createSignal<string | null>(null);
@@ -21,25 +22,25 @@ export default function Privacy() {
     try {
       await session.setPrivacy(patch);
     } catch {
-      setError("Couldn't save that — check your connection and try again.");
+      setError(t("settingsPrivacy.saveError"));
     }
   };
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title="Privacy & Security" />
+      <BackHeader title={t("settingsPrivacy.title")} />
 
-      <SettingsSection title="Visibility">
+      <SettingsSection title={t("settingsPrivacy.visibility")}>
         <SettingsRow
-          label="Read receipts"
-          description="Let others see when you've read their messages. Turning this off also hides theirs from you."
+          label={t("settingsPrivacy.readReceipts")}
+          description={t("settingsPrivacy.readReceiptsDesc")}
         >
           <Switch
             checked={me()?.readReceipts ?? true}
             onChange={(v) => void save({ readReceipts: v })}
           />
         </SettingsRow>
-        <SettingsRow label="Last seen" description="Show others when you were last online">
+        <SettingsRow label={t("settingsPrivacy.lastSeen")} description={t("settingsPrivacy.lastSeenDesc")}>
           <Switch
             checked={me()?.lastSeenVisible ?? true}
             onChange={(v) => void save({ lastSeenVisible: v })}
@@ -51,10 +52,10 @@ export default function Privacy() {
         <p class="-mt-4 px-6 pb-6 text-sm text-danger">{error()}</p>
       </Show>
 
-      <SettingsSection title="Live typing">
+      <SettingsSection title={t("settingsPrivacy.liveTyping")}>
         <SettingsRow
-          label="Share my typing"
-          description="People you're chatting with watch your message form as you write it, instead of a plain 'typing…'. Reciprocal: you'll see theirs too, and only while this is on."
+          label={t("settingsPrivacy.shareTyping")}
+          description={t("settingsPrivacy.shareTypingDesc")}
         >
           <Switch
             checked={preferences.liveTyping}
@@ -63,16 +64,13 @@ export default function Privacy() {
         </SettingsRow>
       </SettingsSection>
 
-      <p class="-mt-4 px-6 pb-6 text-xs text-ink-subtle">
-        Drafts are encrypted to the person you're writing to, exactly like messages are, and are
-        never stored — not on your device, not on the server.
-      </p>
+      <p class="-mt-4 px-6 pb-6 text-xs text-ink-subtle">{t("settingsPrivacy.draftsNote")}</p>
 
-      <SettingsSection title="Blocking">
+      <SettingsSection title={t("settingsPrivacy.blocking")}>
         <SettingsLinkRow
           href="/settings/blocked"
-          label="Blocked users"
-          description="People who can't message you"
+          label={t("settingsPrivacy.blockedUsers")}
+          description={t("settingsPrivacy.blockedUsersDesc")}
           icon={ProhibitIcon}
         />
       </SettingsSection>

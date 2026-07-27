@@ -9,6 +9,7 @@ import MessageSearchDialog from "../components/MessageSearchDialog";
 import { ChatListSkeleton } from "../components/Skeleton";
 import VerifiedBadge from "../components/VerifiedBadge";
 import { formatRelativeTime } from "../lib/time";
+import { t } from "../lib/i18n";
 import { BellSlashIcon, ChatIcon, PlusIcon, SearchIcon } from "../icons";
 
 export default function ChatList() {
@@ -18,8 +19,8 @@ export default function ChatList() {
   const [searchOpen, setSearchOpen] = createSignal(false);
 
   const folderTabs = () => [
-    { id: "all", name: "All" },
-    { id: "unread", name: "Unread" },
+    { id: "all", name: t("chatList.all") },
+    { id: "unread", name: t("chatList.unread") },
     ...chatsState.folders,
   ];
 
@@ -41,12 +42,12 @@ export default function ChatList() {
     <div class="flex h-full flex-col">
       <div class="shrink-0 border-b border-border bg-appbar">
       <header class="flex items-center justify-between px-5 pb-1 pt-[max(var(--safe-top),1.5rem)]">
-        <h1 class="font-heading text-2xl font-bold">Chats</h1>
+        <h1 class="font-heading text-2xl font-bold">{t("chatList.title")}</h1>
         <div class="flex items-center gap-1">
-          <button type="button" onClick={() => setSearchOpen(true)} class={headerBtn} aria-label="Search messages">
+          <button type="button" onClick={() => setSearchOpen(true)} class={headerBtn} aria-label={t("chatList.searchAria")}>
             <SearchIcon size={21} />
           </button>
-          <button type="button" onClick={() => navigate("/new-chat")} class={headerBtn} aria-label="New chat">
+          <button type="button" onClick={() => navigate("/new-chat")} class={headerBtn} aria-label={t("chatList.newChatAria")}>
             <PlusIcon size={21} />
           </button>
         </div>
@@ -83,11 +84,11 @@ export default function ChatList() {
             fallback={
               <EmptyState
                 icon={ChatIcon}
-                title={activeFolder() === "all" ? "No chats yet" : "No conversations here yet"}
+                title={activeFolder() === "all" ? t("chatList.noChatsTitle") : t("chatList.noFolderChatsTitle")}
                 subtitle={
                   activeFolder() === "all"
-                    ? "Start a new conversation to see it here."
-                    : "Try a different folder, or start a new chat."
+                    ? t("chatList.noChatsSubtitle")
+                    : t("chatList.noFolderChatsSubtitle")
                 }
               />
             }
@@ -135,7 +136,7 @@ export default function ChatList() {
                               "text-ink-muted": !typingLine(chat.id),
                             }}
                           >
-                            {typingLine(chat.id) ?? (chat.lastMessage || "No messages yet")}
+                            {typingLine(chat.id) ?? (chat.lastMessage || t("chatList.noMessagesYet"))}
                           </p>
                           <Show when={chat.unreadCount > 0}>
                             <span class="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-pill bg-accent px-1.5 text-xs font-semibold text-accent-ink">

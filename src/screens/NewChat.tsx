@@ -6,6 +6,7 @@ import VerifiedBadge from "../components/VerifiedBadge";
 import { repository } from "../data/repository";
 import { chatsStore } from "../store/chats";
 import type { User } from "../data/types";
+import { t } from "../lib/i18n";
 import { CheckIcon, UsersIcon } from "../icons";
 
 /**
@@ -74,14 +75,14 @@ export default function NewChat() {
 
   return (
     <div class="flex h-full flex-col">
-      <BackHeader title="New chat" back="/" />
+      <BackHeader title={t("newChat.title")} back="/" />
 
       <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-28">
         <input
           autofocus
           value={query()}
           onInput={(e) => search(e.currentTarget.value)}
-          placeholder="Search by handle or name"
+          placeholder={t("newChat.searchPlaceholder")}
           autocapitalize="none"
           spellcheck={false}
           class="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-ink placeholder-ink-subtle outline-none focus:border-accent"
@@ -98,7 +99,7 @@ export default function NewChat() {
           >
             <UsersIcon size={18} />
           </span>
-          {groupMode() ? "Group mode — pick members" : "New group…"}
+          {groupMode() ? t("newChat.groupModePick") : t("newChat.newGroup")}
         </button>
 
         <Show when={groupMode() && selected().length > 0}>
@@ -121,7 +122,7 @@ export default function NewChat() {
           when={results().length > 0}
           fallback={
             <p class="px-2 py-6 text-center text-sm text-ink-subtle">
-              {searching() ? "Searching…" : query().trim().length >= 2 ? "Nobody found" : "Type to search people"}
+              {searching() ? t("newChat.searching") : query().trim().length >= 2 ? t("newChat.nobodyFound") : t("newChat.typeToSearch")}
             </p>
           }
         >
@@ -165,7 +166,7 @@ export default function NewChat() {
             <input
               value={groupName()}
               onInput={(e) => setGroupName(e.currentTarget.value)}
-              placeholder="Group name"
+              placeholder={t("newChat.groupNamePlaceholder")}
               class="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-ink placeholder-ink-subtle outline-none focus:border-accent"
             />
             <button
@@ -173,7 +174,7 @@ export default function NewChat() {
               disabled={busy() || selected().length === 0 || !groupName().trim()}
               class="rounded-pill bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink active:scale-95 disabled:opacity-40"
             >
-              Create
+              {t("newChat.create")}
             </button>
           </form>
         </Show>

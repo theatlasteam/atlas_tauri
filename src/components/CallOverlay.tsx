@@ -12,6 +12,7 @@ import {
   VideoSlashIcon,
 } from "../icons";
 import { Menu, MenuItem } from "../ui/Menu";
+import { t, type TranslationKey } from "../lib/i18n";
 
 function formatTimer(secs: number): string {
   const m = Math.floor(secs / 60);
@@ -19,20 +20,20 @@ function formatTimer(secs: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-const END_REASONS: Record<string, string> = {
-  timeout: "No answer",
-  busy: "Busy",
-  offline: "Unavailable",
-  not_allowed: "Can't call this user",
-  declined: "Call declined",
-  declined_local: "Call declined",
-  hangup: "Call ended",
-  hangup_local: "Call ended",
-  peer_disconnected: "Connection lost",
-  answered_elsewhere: "Answered on another device",
-  mic_denied: "Microphone permission needed",
-  setup_failed: "Couldn't start the call",
-  canceled: "Call canceled",
+const END_REASON_KEYS: Record<string, TranslationKey> = {
+  timeout: "callOverlay.reasonTimeout",
+  busy: "callOverlay.reasonBusy",
+  offline: "callOverlay.reasonOffline",
+  not_allowed: "callOverlay.reasonNotAllowed",
+  declined: "callOverlay.reasonDeclined",
+  declined_local: "callOverlay.reasonDeclined",
+  hangup: "callOverlay.reasonHangup",
+  hangup_local: "callOverlay.reasonHangup",
+  peer_disconnected: "callOverlay.reasonPeerDisconnected",
+  answered_elsewhere: "callOverlay.reasonAnsweredElsewhere",
+  mic_denied: "callOverlay.reasonMicDenied",
+  setup_failed: "callOverlay.reasonSetupFailed",
+  canceled: "callOverlay.reasonCanceled",
 };
 
 /**
@@ -131,13 +132,14 @@ export default function CallOverlay() {
                   <div class="text-center">
                     <h2 class="text-2xl font-bold">{peer().name}</h2>
                     <p class="mt-1 text-sm text-white/70">
-                      {state.status === "ringing" && state.direction === "out" && "Ringing…"}
+                      {state.status === "ringing" && state.direction === "out" && t("callOverlay.ringing")}
                       {state.status === "ringing" && state.direction === "in" &&
-                        (state.media === "video" ? "Incoming video call" : "Incoming call")}
-                      {state.status === "connecting" && "Connecting…"}
+                        (state.media === "video" ? t("callOverlay.incomingVideoCall") : t("callOverlay.incomingCall"))}
+                      {state.status === "connecting" && t("callOverlay.connecting")}
                       {state.status === "active" && formatTimer(timer())}
-                      {state.status === "reconnecting" && "Reconnecting…"}
-                      {state.status === "ended" && (END_REASONS[state.endReason ?? ""] ?? "Call ended")}
+                      {state.status === "reconnecting" && t("callOverlay.reconnecting")}
+                      {state.status === "ended" &&
+                        t(END_REASON_KEYS[state.endReason ?? ""] ?? "callOverlay.reasonHangup")}
                     </p>
                   </div>
                 </>
@@ -148,7 +150,7 @@ export default function CallOverlay() {
           {/* In-call floating timer for video calls */}
           <Show when={state.media === "video" && state.hasRemoteStream && inCall()}>
             <div class="absolute left-1/2 top-[max(var(--safe-top),1rem)] z-10 -translate-x-1/2 rounded-pill bg-black/40 px-3 py-1 text-sm backdrop-blur">
-              {state.status === "reconnecting" ? "Reconnecting…" : formatTimer(timer())}
+              {state.status === "reconnecting" ? t("callOverlay.reconnecting") : formatTimer(timer())}
             </div>
           </Show>
 
@@ -158,13 +160,13 @@ export default function CallOverlay() {
               when={state.status === "ringing" && state.direction === "in"}
               fallback={
                 <Show when={state.status !== "ended"}>
-                  <button type="button" onClick={calls.toggleMute} class={controlBtn} aria-label="Toggle microphone">
+                  <button type="button" onClick={calls.toggleMute} class={controlBtn} aria-label={t("callOverlay.toggleMicAria")}>
                     <Show when={state.muted} fallback={<MicIcon size={22} />}>
                       <MicSlashIcon size={22} />
                     </Show>
                   </button>
                   <Show when={state.media === "video"}>
-                    <button type="button" onClick={calls.toggleCamera} class={controlBtn} aria-label="Toggle camera">
+                    <button type="button" onClick={calls.toggleCamera} class={controlBtn} aria-label={t("callOverlay.toggleCameraAria")}>
                       <Show when={state.cameraOff} fallback={<VideoIcon size={22} />}>
                         <VideoSlashIcon size={22} />
                       </Show>
@@ -175,7 +177,7 @@ export default function CallOverlay() {
                     type="button"
                     onClick={openSpeakerMenu}
                     class={controlBtn}
-                    aria-label="Audio output"
+                    aria-label={t("callOverlay.audioOutputAria")}
                   >
                     <SpeakerIcon size={22} />
                   </button>
@@ -183,7 +185,7 @@ export default function CallOverlay() {
                     type="button"
                     onClick={calls.hangUp}
                     class="flex h-16 w-16 items-center justify-center rounded-full bg-danger text-white active:scale-95"
-                    aria-label="End call"
+                    aria-label={t("callOverlay.endCallAria")}
                   >
                     <PhoneSlashIcon size={26} />
                   </button>
@@ -194,7 +196,7 @@ export default function CallOverlay() {
                 type="button"
                 onClick={calls.decline}
                 class="flex h-16 w-16 items-center justify-center rounded-full bg-danger text-white active:scale-95"
-                aria-label="Decline"
+                aria-label={t("callOverlay.declineAria")}
               >
                 <PhoneSlashIcon size={26} />
               </button>
@@ -202,7 +204,7 @@ export default function CallOverlay() {
                 type="button"
                 onClick={calls.accept}
                 class="flex h-16 w-16 items-center justify-center rounded-full bg-[#2f8f6e] text-white active:scale-95"
-                aria-label="Accept"
+                aria-label={t("callOverlay.acceptAria")}
               >
                 <PhoneIcon size={26} />
               </button>
@@ -212,7 +214,7 @@ export default function CallOverlay() {
           <Menu open={speakerOpen()} onOpenChange={setSpeakerOpen} anchorRef={() => speakerBtn} placement="top-start">
             {outputs().map((device) => (
               <MenuItem onSelect={() => setOutput(device.deviceId)}>
-                {device.label || "Audio output"}
+                {device.label || t("callOverlay.audioOutputFallback")}
               </MenuItem>
             ))}
           </Menu>

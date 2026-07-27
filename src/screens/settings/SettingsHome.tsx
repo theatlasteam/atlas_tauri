@@ -2,6 +2,7 @@ import { Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { SettingsSection, SettingsLinkRow } from "../../components/SettingsSection";
 import { session } from "../../store/session";
+import { t } from "../../lib/i18n";
 import { BellIcon, FolderIcon, PaletteIcon, ProfileIcon, ShieldIcon, VerifiedIcon } from "../../icons";
 
 const SECRET_TAP_COUNT = 7;
@@ -35,37 +36,37 @@ export default function SettingsHome() {
     <div class="h-full overflow-y-auto pb-28">
       <header class="mb-4 border-b border-border bg-appbar px-5 pb-3 pt-[max(var(--safe-top),1.5rem)]">
         <h1 class="select-none font-heading text-2xl font-bold active:opacity-70" onClick={onTitleTap}>
-          Settings
+          {t("settings.title")}
         </h1>
       </header>
 
-      <SettingsSection title="Preferences">
+      <SettingsSection title={t("settings.preferences")}>
         <SettingsLinkRow
           href="/settings/appearance"
-          label="Appearance"
-          description="Theme, accent, font, wallpaper"
+          label={t("settings.appearance")}
+          description={t("settings.appearanceDesc")}
           icon={PaletteIcon}
         />
         <SettingsLinkRow
           href="/settings/notifications"
-          label="Notifications"
-          description="Sound and per-chat alerts"
+          label={t("settings.notifications")}
+          description={t("settings.notificationsDesc")}
           icon={BellIcon}
         />
         <SettingsLinkRow
           href="/settings/folders"
-          label="Chats & Folders"
-          description="Organize conversations into folders"
+          label={t("settings.folders")}
+          description={t("settings.foldersDesc")}
           icon={FolderIcon}
         />
       </SettingsSection>
 
-      <SettingsSection title="You">
-        <SettingsLinkRow href="/profile" label="Account" description="Profile info and editable fields" icon={ProfileIcon} />
+      <SettingsSection title={t("settings.you")}>
+        <SettingsLinkRow href="/profile" label={t("settings.account")} description={t("settings.accountDesc")} icon={ProfileIcon} />
         <SettingsLinkRow
           href="/settings/privacy"
-          label="Privacy & Security"
-          description="Control who can reach you"
+          label={t("settings.privacy")}
+          description={t("settings.privacyDesc")}
           icon={ShieldIcon}
         />
       </SettingsSection>
@@ -73,11 +74,11 @@ export default function SettingsHome() {
       {/* Only the "atlas" account can grant checkmarks, so the entry point is
           hidden for everyone else — the server enforces it either way. */}
       <Show when={isAtlas()}>
-        <SettingsSection title="Admin">
+        <SettingsSection title={t("settings.admin")}>
           <SettingsLinkRow
             href="/settings/verification"
-            label="Verification"
-            description="Grant or remove verified checkmarks"
+            label={t("settings.verification")}
+            description={t("settings.verificationDesc")}
             icon={VerifiedIcon}
           />
         </SettingsSection>

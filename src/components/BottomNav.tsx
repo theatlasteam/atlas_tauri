@@ -2,6 +2,7 @@ import { A, useLocation, useNavigate } from "@solidjs/router";
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { NAV_TABS } from "../lib/nav";
 import { preferences } from "../store/preferences";
+import { t } from "../lib/i18n";
 import { SearchIcon } from "../icons";
 
 export default function BottomNav() {
@@ -113,7 +114,7 @@ export default function BottomNav() {
                   <A
                     ref={(el) => (tabRefs[i] = el)}
                     href={tab.href}
-                    aria-label={tab.label}
+                    aria-label={t(tab.labelKey)}
                     class="relative z-10 flex flex-1 flex-col items-center justify-center gap-[2px] text-[12px] font-medium transition-colors duration-200 ease-out active:scale-95"
                     classList={{
                       "text-accent-ink": active(),
@@ -121,7 +122,7 @@ export default function BottomNav() {
                     }}
                   >
                     <tab.icon size={22} class="shrink-0" />
-                    <span class="whitespace-nowrap">{tab.label}</span>
+                    <span class="whitespace-nowrap">{t(tab.labelKey)}</span>
                   </A>
                 }
               >
@@ -138,7 +139,7 @@ export default function BottomNav() {
                     class="grid transition-[grid-template-columns] duration-200 ease-out"
                     classList={{ "grid-cols-[1fr]": active(), "grid-cols-[0fr]": !active() }}
                   >
-                    <span class="overflow-hidden whitespace-nowrap">{tab.label}</span>
+                    <span class="overflow-hidden whitespace-nowrap">{t(tab.labelKey)}</span>
                   </span>
                 </A>
               </Show>
@@ -149,7 +150,7 @@ export default function BottomNav() {
 
       <A
         href="/new-chat"
-        aria-label="Search users / new chat"
+        aria-label={t("nav.searchNewChat")}
         class="pointer-events-auto flex shrink-0 self-center rounded-full border border-border bg-surface-raised/95 p-[14px] text-ink-muted shadow-floating backdrop-blur transition-[background-color,color,transform] duration-150 ease-out hover:text-ink active:scale-95"
       >
         <SearchIcon size={20} />

@@ -6,21 +6,22 @@ import VerifiedBadge from "../components/VerifiedBadge";
 import { Skeleton } from "../components/Skeleton";
 import { CameraIcon, CheckIcon, EditIcon, SignOutIcon, SpinnerIcon, TrashIcon } from "../icons";
 import type { User } from "../data/types";
+import { t, type TranslationKey } from "../lib/i18n";
 
 /** Fallback-avatar swatches — same hex values as the accent palette, kept
  * independent since your avatar color and your app theme are different
  * choices (e.g. you might use a red theme but a blue avatar). */
-const AVATAR_COLORS = [
-  { hex: "#c9772e", name: "Amber" },
-  { hex: "#2f8f6e", name: "Emerald" },
-  { hex: "#7b5ec9", name: "Violet" },
-  { hex: "#c9436f", name: "Rose" },
-  { hex: "#4a6b7c", name: "Slate" },
-  { hex: "#2f6fc9", name: "Blue" },
-  { hex: "#1f8f8a", name: "Teal" },
-  { hex: "#d9603f", name: "Terracotta" },
-  { hex: "#4550b8", name: "Indigo" },
-  { hex: "#9c4fa0", name: "Plum" },
+const AVATAR_COLORS: { hex: string; nameKey: TranslationKey }[] = [
+  { hex: "#c9772e", nameKey: "profile.color.amber" },
+  { hex: "#2f8f6e", nameKey: "profile.color.emerald" },
+  { hex: "#7b5ec9", nameKey: "profile.color.violet" },
+  { hex: "#c9436f", nameKey: "profile.color.rose" },
+  { hex: "#4a6b7c", nameKey: "profile.color.slate" },
+  { hex: "#2f6fc9", nameKey: "profile.color.blue" },
+  { hex: "#1f8f8a", nameKey: "profile.color.teal" },
+  { hex: "#d9603f", nameKey: "profile.color.terracotta" },
+  { hex: "#4550b8", nameKey: "profile.color.indigo" },
+  { hex: "#9c4fa0", nameKey: "profile.color.plum" },
 ];
 
 export default function Profile() {
@@ -61,7 +62,7 @@ export default function Profile() {
   const uploadPhoto = async (file: File) => {
     setPhotoError(null);
     if (!file.type.startsWith("image/")) {
-      setPhotoError("Please pick an image file.");
+      setPhotoError(t("profile.pickImageError"));
       return;
     }
     setUploadingPhoto(true);
@@ -76,7 +77,7 @@ export default function Profile() {
       });
       await session.setAvatar(attachment.id);
     } catch {
-      setPhotoError("Couldn't upload that photo — try again.");
+      setPhotoError(t("profile.uploadError"));
     } finally {
       setUploadingPhoto(false);
       if (fileInput) fileInput.value = "";
@@ -103,15 +104,15 @@ export default function Profile() {
       onClick={() => setEditing(false)}
       class="min-h-11 rounded-pill px-2 text-[0.95rem] font-medium text-ink-muted active:opacity-60"
       >
-      Cancel
+      {t("profile.cancel")}
       </button>
     }
     >
-    <h1 class="font-heading text-2xl font-bold">Profile</h1>
+    <h1 class="font-heading text-2xl font-bold">{t("profile.title")}</h1>
     </Show>
 
     <Show when={editing()}>
-    <h1 class="absolute left-1/2 -translate-x-1/2 font-heading text-[1.05rem] font-bold">Edit profile</h1>
+    <h1 class="absolute left-1/2 -translate-x-1/2 font-heading text-[1.05rem] font-bold">{t("profile.editTitle")}</h1>
     </Show>
 
     <Show
@@ -125,7 +126,7 @@ export default function Profile() {
         class="min-h-11 rounded-pill px-2 text-[0.95rem] font-semibold text-accent active:opacity-60 disabled:opacity-40"
         >
         <Show when={!saving()} fallback={<SpinnerIcon size={16} class="animate-spin" />}>
-        Save
+        {t("profile.save")}
         </Show>
         </button>
         </Show>
@@ -137,7 +138,7 @@ export default function Profile() {
     class="flex min-h-11 items-center gap-1.5 rounded-pill border border-border px-3 py-1.5 text-sm font-medium text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95"
     >
     <EditIcon size={15} />
-    Edit
+    {t("profile.edit")}
     </button>
     </Show>
     </header>
@@ -172,7 +173,7 @@ export default function Profile() {
       type="button"
       onClick={pickPhoto}
       disabled={uploadingPhoto()}
-      aria-label="Change photo"
+      aria-label={t("profile.changePhotoAria")}
       class="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-bg bg-accent text-accent-ink shadow-sm active:scale-90 disabled:opacity-60"
       >
       <CameraIcon size={15} />
@@ -197,7 +198,7 @@ export default function Profile() {
       class="-mt-1 flex items-center gap-1 text-xs font-medium text-danger/80 active:opacity-60 disabled:opacity-40"
       >
       <TrashIcon size={12} />
-      Remove photo
+      {t("profile.removePhoto")}
       </button>
       </Show>
 
@@ -210,36 +211,36 @@ export default function Profile() {
       fallback={
         <form id="profile-edit-form" onSubmit={save} class="mt-3 flex w-full flex-col gap-5">
         <div class="overflow-hidden rounded-2xl border border-border bg-surface">
-        <Field label="Name">
+        <Field label={t("profile.name")}>
         <input
         value={draft().name}
         onInput={(e) => setDraft((d) => ({ ...d, name: e.currentTarget.value }))}
-        placeholder="Your name"
+        placeholder={t("profile.namePlaceholder")}
         class="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
         />
         </Field>
-        <Field label="Status">
+        <Field label={t("profile.status")}>
         <input
         value={draft().status}
         onInput={(e) => setDraft((d) => ({ ...d, status: e.currentTarget.value }))}
-        placeholder="Available"
+        placeholder={t("profile.statusPlaceholder")}
         class="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
         />
         </Field>
-        <Field label="Bio" align="start">
+        <Field label={t("profile.bio")} align="start">
         <textarea
         rows="3"
         value={draft().bio}
         onInput={(e) => setDraft((d) => ({ ...d, bio: e.currentTarget.value }))}
-        placeholder="Tell people a little about yourself"
+        placeholder={t("profile.bioPlaceholder")}
         class="w-full resize-none bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
         />
         </Field>
         </div>
 
         <div class="rounded-2xl border border-border bg-surface p-4">
-        <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">Avatar color</h3>
-        <p class="mt-0.5 text-xs text-ink-subtle">Used when you don't have a photo.</p>
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("profile.avatarColor")}</h3>
+        <p class="mt-0.5 text-xs text-ink-subtle">{t("profile.avatarColorDesc")}</p>
         <div class="flex flex-wrap gap-3 pt-3">
         <For each={AVATAR_COLORS}>
         {(color) => {
@@ -247,7 +248,7 @@ export default function Profile() {
           return (
             <button
             type="button"
-            aria-label={color.name}
+            aria-label={t(color.nameKey)}
             onClick={() => setDraft((d) => ({ ...d, avatarColor: color.hex }))}
             class="relative flex h-9 w-9 items-center justify-center rounded-full active:scale-90"
             style={{ "background-color": color.hex }}
@@ -282,13 +283,13 @@ export default function Profile() {
 
       <div class="mt-6 w-full overflow-hidden rounded-2xl border border-border bg-surface">
       <div class="p-4">
-      <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Bio</h3>
+      <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("profile.bio")}</h3>
       <p class="text-sm text-ink" classList={{ "italic text-ink-subtle": !u().bio }}>
-      {u().bio || "No bio yet."}
+      {u().bio || t("profile.noBio")}
       </p>
       </div>
       <div class="border-t border-border p-4">
-      <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Handle</h3>
+      <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("profile.handle")}</h3>
       <p class="text-sm text-ink">@{u().handle}</p>
       </div>
       </div>
@@ -299,7 +300,7 @@ export default function Profile() {
       class="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface py-3 text-sm font-semibold text-danger active:scale-[0.98]"
       >
       <SignOutIcon size={17} />
-      Sign out
+      {t("profile.signOut")}
       </button>
       </Show>
       </div>

@@ -1,4 +1,5 @@
 import { ChatIcon } from "../icons";
+import { t } from "../lib/i18n";
 
 /** Detail-pane placeholder shown on desktop when no chat is selected in the sidebar. */
 export default function NoChatSelected() {
@@ -8,8 +9,8 @@ export default function NoChatSelected() {
         <ChatIcon size={30} />
       </div>
       <div>
-        <p class="font-heading text-lg font-semibold text-ink">Select a conversation</p>
-        <p class="mt-1 text-sm text-ink-subtle">Pick a chat from the list to start messaging.</p>
+        <p class="font-heading text-lg font-semibold text-ink">{t("noChatSelected.title")}</p>
+        <p class="mt-1 text-sm text-ink-subtle">{t("noChatSelected.subtitle")}</p>
       </div>
     </div>
   );

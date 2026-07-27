@@ -9,6 +9,7 @@ import Dialog from "../ui/Dialog";
 import { Skeleton } from "../components/Skeleton";
 import { ProhibitIcon, SpinnerIcon, VerifiedIcon } from "../icons";
 import VerifiedBadge from "../components/VerifiedBadge";
+import { t } from "../lib/i18n";
 
 /** Read-only view of another user's profile, reached by tapping a DM's
  * appbar. Own profile is a separate screen (Profile.tsx) with edit affordances. */
@@ -61,7 +62,7 @@ export default function UserProfile() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title="Profile" />
+      <BackHeader title={t("userProfile.title")} />
 
       <Show
         when={user()}
@@ -100,13 +101,13 @@ export default function UserProfile() {
 
             <div class="mt-6 w-full overflow-hidden rounded-2xl border border-border bg-surface">
               <div class="p-4">
-                <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Bio</h3>
+                <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("userProfile.bio")}</h3>
                 <p class="text-sm text-ink" classList={{ "italic text-ink-subtle": !u().bio }}>
-                  {u().bio || "No bio yet."}
+                  {u().bio || t("userProfile.noBio")}
                 </p>
               </div>
               <div class="border-t border-border p-4">
-                <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Handle</h3>
+                <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("userProfile.handle")}</h3>
                 <p class="text-sm text-ink">@{u().handle}</p>
               </div>
             </div>
@@ -121,7 +122,7 @@ export default function UserProfile() {
                 >
                   <Show when={!verifyBusy()} fallback={<SpinnerIcon size={17} class="animate-spin" />}>
                     <VerifiedIcon size={17} />
-                    {u().verified ? "Remove verification" : "Verify this account"}
+                    {u().verified ? t("userProfile.removeVerification") : t("userProfile.verifyAccount")}
                   </Show>
                 </button>
               </Show>
@@ -135,7 +136,7 @@ export default function UserProfile() {
                 >
                   <Show when={!busy()} fallback={<SpinnerIcon size={17} class="animate-spin" />}>
                     <ProhibitIcon size={17} />
-                    {blocked() ? "Unblock user" : "Block user"}
+                    {blocked() ? t("userProfile.unblockUser") : t("userProfile.blockUser")}
                   </Show>
                 </button>
               </Show>
@@ -144,10 +145,9 @@ export default function UserProfile() {
         )}
       </Show>
 
-      <Dialog open={confirmOpen()} onOpenChange={setConfirmOpen} title="Block this user?">
+      <Dialog open={confirmOpen()} onOpenChange={setConfirmOpen} title={t("userProfile.blockTitle")}>
         <p class="mb-5 text-sm text-ink-subtle">
-          {user()?.name ?? "This user"} won't be able to message you, and you won't be able to
-          message them. Your existing chat history stays as-is.
+          {t("userProfile.blockBody", { name: user()?.name ?? t("userProfile.blockBodyFallback") })}
         </p>
         <div class="flex gap-2">
           <button
@@ -155,7 +155,7 @@ export default function UserProfile() {
             onClick={() => setConfirmOpen(false)}
             class="flex-1 rounded-xl border border-border py-2.5 text-sm font-medium text-ink active:scale-[0.98]"
           >
-            Cancel
+            {t("userProfile.cancel")}
           </button>
           <button
             type="button"
@@ -164,7 +164,7 @@ export default function UserProfile() {
             class="flex-1 rounded-xl bg-danger py-2.5 text-sm font-semibold text-white active:scale-[0.98] disabled:opacity-50"
           >
             <Show when={!busy()} fallback={<SpinnerIcon size={16} class="mx-auto animate-spin" />}>
-              Block
+              {t("userProfile.block")}
             </Show>
           </button>
         </div>

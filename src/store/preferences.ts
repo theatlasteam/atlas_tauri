@@ -1,6 +1,10 @@
 import { createEffect, createRoot } from "solid-js";
 import { createStore } from "solid-js/store";
-import type { AccentId, FontId, FontSize, ThemeMode } from "../data/types";
+import type { AccentId, FontId, FontSize, Locale, ThemeMode } from "../data/types";
+
+function detectLocale(): Locale {
+  return typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
+}
 
 // Device-local preferences only.
 //
@@ -9,6 +13,7 @@ import type { AccentId, FontId, FontSize, ThemeMode } from "../data/types";
 // server (see store/session.ts::setPrivacy). They used to sit in this file,
 // which meant switching them off changed nothing anyone else could see.
 export interface Preferences {
+  locale: Locale;
   theme: ThemeMode;
   accent: AccentId;
   font: FontId;
@@ -28,6 +33,7 @@ export interface Preferences {
 const STORAGE_KEY = "atlas.preferences.v1";
 
 const defaults: Preferences = {
+  locale: detectLocale(),
   theme: "system",
   accent: "amber",
   font: "inter",
@@ -80,6 +86,7 @@ function createPreferencesStore() {
     root.dataset.font = preferences.font;
     root.style.setProperty("--font-size-base", FONT_SIZE_PX[preferences.fontSize]);
     root.classList.toggle("dark", resolvedTheme === "dark");
+    root.lang = preferences.locale;
   };
 
   createEffect(() => {

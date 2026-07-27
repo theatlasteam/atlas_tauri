@@ -7,6 +7,7 @@ import { Skeleton } from "../../components/Skeleton";
 import Dialog from "../../ui/Dialog";
 import AnimatedList from "../../ui/AnimatedList";
 import { FolderIcon, PlusIcon, TrashIcon } from "../../icons";
+import { t } from "../../lib/i18n";
 
 export default function Folders() {
   const [showDialog, setShowDialog] = createSignal(false);
@@ -31,9 +32,9 @@ export default function Folders() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title="Chats & Folders" />
+      <BackHeader title={t("settingsFolders.title")} />
 
-      <SettingsSection title="Folders">
+      <SettingsSection title={t("settingsFolders.folders")}>
         <Show
           when={chatsState.loaded}
           fallback={
@@ -43,7 +44,7 @@ export default function Folders() {
             </div>
           }
         >
-          <Show when={chatsState.folders.length > 0} fallback={<EmptyState icon={FolderIcon} title="No folders yet" subtitle="Add a folder to organize your chats." />}>
+          <Show when={chatsState.folders.length > 0} fallback={<EmptyState icon={FolderIcon} title={t("settingsFolders.noFoldersTitle")} subtitle={t("settingsFolders.noFoldersSubtitle")} />}>
             <AnimatedList>
               <For each={chatsState.folders}>
                 {(folder) => (
@@ -56,7 +57,7 @@ export default function Folders() {
                       <button
                         type="button"
                         onClick={() => setConfirmDelete({ id: folder.id, name: folder.name })}
-                        aria-label={`Delete folder ${folder.name}`}
+                        aria-label={t("settingsFolders.deleteFolderAria", { name: folder.name })}
                         class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-subtle active:bg-bg active:text-danger"
                       >
                         <TrashIcon size={16} />
@@ -74,17 +75,17 @@ export default function Folders() {
           class="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-medium text-accent active:bg-bg"
         >
           <PlusIcon size={17} />
-          Add folder
+          {t("settingsFolders.addFolder")}
         </button>
       </SettingsSection>
 
-      <Dialog open={showDialog()} onOpenChange={setShowDialog} title="New folder">
+      <Dialog open={showDialog()} onOpenChange={setShowDialog} title={t("settingsFolders.newFolderTitle")}>
         <form onSubmit={addFolder} class="flex flex-col gap-4">
           <input
             autofocus
             value={name()}
             onInput={(e) => setName(e.currentTarget.value)}
-            placeholder="Folder name"
+            placeholder={t("settingsFolders.folderNamePlaceholder")}
             class="rounded-xl border border-border bg-bg px-3.5 py-2.5 text-sm text-ink outline-none focus:border-accent"
           />
           <button
@@ -92,15 +93,15 @@ export default function Folders() {
             disabled={!name().trim()}
             class="rounded-pill bg-accent py-2.5 text-sm font-semibold text-accent-ink disabled:opacity-40 active:scale-95"
           >
-            Create
+            {t("settingsFolders.create")}
           </button>
         </form>
       </Dialog>
 
-      <Dialog open={confirmDelete() !== null} onOpenChange={(open) => !open && setConfirmDelete(null)} title="Delete folder">
+      <Dialog open={confirmDelete() !== null} onOpenChange={(open) => !open && setConfirmDelete(null)} title={t("settingsFolders.deleteFolderTitle")}>
         <div class="flex flex-col gap-4">
           <p class="text-sm text-ink-subtle">
-            Delete "{confirmDelete()?.name}"? Chats inside it won't be deleted, just unfiled.
+            {t("settingsFolders.deleteFolderBody", { name: confirmDelete()?.name ?? "" })}
           </p>
           <div class="flex gap-2.5">
             <button
@@ -108,14 +109,14 @@ export default function Folders() {
               onClick={() => setConfirmDelete(null)}
               class="flex-1 rounded-pill border border-border py-2.5 text-sm font-semibold text-ink active:scale-95"
             >
-              Cancel
+              {t("settingsFolders.cancel")}
             </button>
             <button
               type="button"
               onClick={confirmDeleteFolder}
               class="flex-1 rounded-pill bg-danger py-2.5 text-sm font-semibold text-white active:scale-95"
             >
-              Delete
+              {t("settingsFolders.delete")}
             </button>
           </div>
         </div>
