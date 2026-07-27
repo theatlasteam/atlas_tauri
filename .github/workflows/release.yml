@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  RELEASE_TAG: a3
+  RELEASE_TAG: a4
 
 jobs:
   build-linux:
