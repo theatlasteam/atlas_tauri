@@ -18,7 +18,11 @@ use axum::response::{IntoResponse, Response};
 use crate::auth::AuthUser;
 use crate::state::AppState;
 
-const UPSTREAM_BASE: &str = "https://inference.waw0.amvera.ru";
+/// The real Inference Gateway. Also used directly by compass.rs — a
+/// server-to-server call has no Atlas session to attach, so it can't go
+/// through this route's own AuthUser-gated proxy below without 401ing
+/// against itself.
+pub const UPSTREAM_BASE: &str = "https://inference.waw0.amvera.ru";
 
 // Requiring AuthUser (any signed-in Atlas account) keeps this from being an
 // open, unauthenticated relay to the gateway — without it, anyone on the
