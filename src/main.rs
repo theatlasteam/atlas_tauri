@@ -100,6 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/chats/{id}/read", post(routes::messages::mark_read))
         .route("/api/chats/{id}/compass-reply", post(routes::messages::compass_reply))
         .route("/api/compass/complete", post(compass::complete_route))
+        .route("/api/compass/complete/stream", post(compass::complete_stream_route))
         .route("/api/compass/info", get(compass::info_route))
         // Custom API surface for the Inference Gateway — reachable at
         // ai.atlasmsg.app once that hostname is pointed at this server.
