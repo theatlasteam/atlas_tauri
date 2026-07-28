@@ -1,7 +1,8 @@
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For, on, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
 import { compassChat } from "../store/compassChat";
 import EmptyState from "../components/EmptyState";
+import MarkdownContent from "../components/MarkdownContent";
 import { BackIcon, CompassIcon, SendIcon, SpinnerIcon } from "../icons";
 import { useIsDesktopLayout } from "../lib/platform";
 import { t } from "../lib/i18n";
@@ -31,15 +32,30 @@ export default function CompassChat() {
     if (params.id && !thread()) navigate("/compass", { replace: true });
   });
 
+  const scrollToBottom = (smooth = true) => {
+    scrollRef?.scrollTo({ top: scrollRef.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  };
+
+  // Keep pinned to the bottom while a reply streams in — content length is
+  // a cheap enough key to re-run this on every delta without diffing turns.
+  createEffect(
+    on(
+      () => turns().reduce((n, t) => n + t.content.length, 0),
+      (_, prev) => {
+        if (prev !== undefined) scrollToBottom();
+      },
+    ),
+  );
+
   const submit = async (e: Event) => {
     e.preventDefault();
     const text = draft().trim();
     if (!text || sending() || !thread()) return;
     setDraft("");
     setSending(true);
+    queueMicrotask(() => scrollToBottom());
     try {
       await compassChat.send(params.id, text);
-      queueMicrotask(() => scrollRef?.scrollTo({ top: scrollRef.scrollHeight, behavior: "smooth" }));
     } catch {
       /* the failed turn already shows its own retry-less error state */
     } finally {
@@ -85,7 +101,17 @@ export default function CompassChat() {
                       "outline outline-1 outline-danger/50": !!turn.failed,
                     }}
                   >
-                    <p class="whitespace-pre-wrap break-words">{turn.content}</p>
+                    <Show
+                      when={turn.role === "assistant"}
+                      fallback={<p class="whitespace-pre-wrap break-words">{turn.content}</p>}
+                    >
+                      <Show when={turn.content} fallback={<SpinnerIcon size={14} class="animate-spin opacity-60" />}>
+                        <MarkdownContent text={turn.content} />
+                      </Show>
+                    </Show>
+                    <Show when={turn.streaming && turn.content}>
+                      <span class="ml-0.5 inline-block h-[0.9em] w-[2px] animate-pulse bg-current align-text-bottom" />
+                    </Show>
                   </div>
                 </div>
               )}

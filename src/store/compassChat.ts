@@ -16,6 +16,8 @@ export interface CompassTurn {
   /** Set on the optimistic user turn while waiting for a reply. */
   pending?: boolean;
   failed?: boolean;
+  /** Set on the assistant turn while its reply is still streaming in. */
+  streaming?: boolean;
 }
 
 export interface CompassThread {
@@ -111,19 +113,44 @@ function createCompassChatStore() {
     if (!threads[index].title) setThreads(index, "title", titleFrom(content));
     persist();
 
+    const request = threads[index].turns
+      .filter((t) => !t.pending && !t.failed)
+      .map((t) => ({ role: t.role, content: t.content }));
+
+    // The reply turn is appended once, empty, and grows in place as deltas
+    // arrive — this is what lets the bubble render text incrementally
+    // instead of popping in all at once when the stream finishes.
+    const replyIndex = threads[index].turns.length;
+    setThreads(index, "turns", replyIndex, {
+      role: "assistant",
+      content: "",
+      sentAt: new Date().toISOString(),
+      streaming: true,
+    });
+
+    const currentThreadIndex = () => threads.findIndex((t) => t.id === threadId);
+
     try {
-      const request = threads[index].turns
-        .filter((t) => !t.pending && !t.failed)
-        .map((t) => ({ role: t.role, content: t.content }));
-      const { reply } = await api.compassComplete(request);
-      const at = threads.findIndex((t) => t.id === threadId);
-      if (at === -1) return; // thread was deleted while the request was in flight
-      const replyTurn: CompassTurn = { role: "assistant", content: reply, sentAt: new Date().toISOString() };
-      setThreads(at, "turns", threads[at].turns.length, replyTurn);
-      setThreads(at, "updatedAt", replyTurn.sentAt);
+      await api.compassCompleteStream(request, (delta) => {
+        const at = currentThreadIndex();
+        if (at === -1) return; // thread was deleted mid-stream
+        setThreads(at, "turns", replyIndex, "content", (c) => c + delta);
+      });
+      const at = currentThreadIndex();
+      if (at === -1) return;
+      setThreads(at, "turns", replyIndex, "streaming", false);
+      setThreads(at, "updatedAt", new Date().toISOString());
     } catch (e) {
-      const at = threads.findIndex((t) => t.id === threadId);
-      if (at !== -1) setThreads(at, "turns", threads[at].turns.length - 1, "failed", true);
+      const at = currentThreadIndex();
+      if (at !== -1) {
+        // No content ever arrived — treat as a failed turn like before. If
+        // some text did stream in before the error, keep it rather than
+        // discarding a partial (but real) reply.
+        if (!threads[at].turns[replyIndex]?.content) {
+          setThreads(at, "turns", replyIndex, "failed", true);
+        }
+        setThreads(at, "turns", replyIndex, "streaming", false);
+      }
       throw e;
     } finally {
       persist();

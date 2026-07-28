@@ -30,8 +30,11 @@
 //! HTTP call to the inference gateway takes.
 
 use axum::extract::State;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::Json;
+use futures_util::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 use uuid::Uuid;
 
 use crate::auth::{hash_password, AuthUser};
@@ -70,6 +73,7 @@ struct ChatCompletionRequest {
     model: String,
     messages: Vec<GatewayMessage>,
     temperature: f32,
+    stream: bool,
 }
 
 #[derive(Deserialize)]
@@ -151,6 +155,7 @@ async fn complete(state: &AppState, messages: Vec<GatewayMessage>) -> Result<Str
         model: state.cfg.compass_model.clone(),
         messages,
         temperature: 0.7,
+        stream: false,
     };
 
     let res = state
@@ -253,6 +258,124 @@ pub async fn complete_route(
     let turns = payload.messages.into_iter().map(|t| (t.role, t.content)).collect();
     let reply = complete_for_client(&state, turns).await?;
     Ok(Json(CompleteResponse { reply }))
+}
+
+#[derive(Deserialize)]
+struct StreamChunk {
+    choices: Vec<StreamChoice>,
+}
+
+#[derive(Deserialize)]
+struct StreamChoice {
+    delta: StreamDelta,
+}
+
+#[derive(Deserialize, Default)]
+struct StreamDelta {
+    content: Option<String>,
+}
+
+/// Turns the gateway's raw `text/event-stream` bytes into a stream of plain
+/// text deltas — the client just appends each one, no OpenAI framing to
+/// parse on that side. Buffers across chunk boundaries since a `data: ...`
+/// line can arrive split across multiple TCP reads.
+fn sse_from_gateway(
+    byte_stream: impl Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin + Send + 'static,
+) -> impl Stream<Item = Result<Event, Infallible>> {
+    struct ScanState<S> {
+        stream: S,
+        buf: String,
+    }
+    futures_util::stream::unfold(ScanState { stream: byte_stream, buf: String::new() }, |mut st| async move {
+        loop {
+            if let Some(pos) = st.buf.find("\n\n") {
+                let block = st.buf[..pos].to_string();
+                st.buf.drain(..=pos + 1);
+                for line in block.lines() {
+                    let Some(data) = line.trim().strip_prefix("data:") else { continue };
+                    let data = data.trim();
+                    if data == "[DONE]" {
+                        return None;
+                    }
+                    if let Ok(chunk) = serde_json::from_str::<StreamChunk>(data) {
+                        if let Some(content) =
+                            chunk.choices.into_iter().next().and_then(|c| c.delta.content)
+                        {
+                            if !content.is_empty() {
+                                return Some((Ok(Event::default().data(content)), st));
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+            match st.stream.next().await {
+                Some(Ok(bytes)) => {
+                    st.buf.push_str(&String::from_utf8_lossy(&bytes));
+                }
+                Some(Err(_)) | None => return None,
+            }
+        }
+    })
+}
+
+/// `POST /api/compass/complete/stream` — same inputs as `complete_route`,
+/// but streams the reply as it's generated instead of waiting for the whole
+/// thing. Used by the local-only Compass chat so a reply appears
+/// incrementally rather than as one long pause.
+pub async fn complete_stream_route(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Json(payload): Json<CompleteRequest>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
+    if payload.messages.is_empty() || payload.messages.len() > 60 {
+        return Err(AppError::BadRequest("messages must be 1..=60 turns".into()));
+    }
+    for turn in &payload.messages {
+        if turn.content.len() > 8_000 {
+            return Err(AppError::BadRequest("a single message is too long".into()));
+        }
+    }
+
+    let Some(api_key) = &state.cfg.compass_api_key else {
+        return Err(AppError::BadRequest(
+            "Compass isn't configured on this server (no API key set)".into(),
+        ));
+    };
+
+    let mut messages = vec![GatewayMessage { role: "system", content: system_prompt() }];
+    for turn in payload.messages {
+        let role = match turn.role.as_str() {
+            "assistant" => "assistant",
+            _ => "user",
+        };
+        messages.push(GatewayMessage { role, content: turn.content });
+    }
+
+    let body = ChatCompletionRequest {
+        model: state.cfg.compass_model.clone(),
+        messages,
+        temperature: 0.7,
+        stream: true,
+    };
+
+    let res = state
+        .http
+        .post(format!("{}/v1/chat/completions", state.cfg.compass_api_base.trim_end_matches('/')))
+        .header("X-Auth-Header", api_key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("compass gateway request failed: {e}")))?;
+
+    if !res.status().is_success() {
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+        tracing::warn!(%status, body = %text, "compass gateway returned an error");
+        return Err(AppError::Internal("Compass couldn't come up with a reply just now.".into()));
+    }
+
+    Ok(Sse::new(sse_from_gateway(res.bytes_stream())).keep_alive(KeepAlive::default()))
 }
 
 /// A group message mentioned @compass and the server can read it (it's

@@ -61,6 +61,60 @@ async function request<T>(
   return (await res.json()) as T;
 }
 
+/** Reads /api/compass/complete/stream's text/event-stream body, firing
+ * `onDelta` per chunk and resolving with the concatenated full reply. */
+async function streamCompassComplete(
+  messages: { role: "user" | "assistant"; content: string }[],
+  onDelta: (delta: string) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${apiBase()}/api/compass/complete/stream`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ messages }),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    let message = res.statusText;
+    try {
+      const data = await res.json();
+      if (typeof data?.error === "string") message = data.error;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, message);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let full = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const events = buf.split("\n\n");
+    buf = events.pop() ?? "";
+    for (const block of events) {
+      // SSE reassembly: a single event's `data:` lines join with "\n" to
+      // reconstitute a delta that itself contained a newline (e.g. a
+      // paragraph break), rather than each line being its own delta.
+      const dataLines = block
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).replace(/^ /, ""));
+      if (dataLines.length === 0) continue;
+      const delta = dataLines.join("\n");
+      if (!delta) continue;
+      full += delta;
+      onDelta(delta);
+    }
+  }
+  return full;
+}
+
 /** Shared by attachment and avatar fetches: authorized GET → blob object URL. */
 async function fetchBlobUrl(path: string): Promise<string> {
   const headers: Record<string, string> = {};
@@ -191,6 +245,17 @@ export const api = {
    * device except as these one-off requests. */
   compassComplete: (messages: { role: "user" | "assistant"; content: string }[]) =>
     request<{ reply: string }>("POST", "/api/compass/complete", { messages }),
+  /** Same request as compassComplete, but the reply streams in as plain-text
+   * SSE deltas (one `data:` line per chunk) instead of one JSON blob at the
+   * end — `onDelta` fires per chunk, the promise resolves with the full
+   * text once the stream ends. Used only by the local-only Compass chat,
+   * where showing a reply arrive incrementally matters; the DM-mention path
+   * still uses the non-streaming call since it just posts the finished text. */
+  compassCompleteStream: (
+    messages: { role: "user" | "assistant"; content: string }[],
+    onDelta: (delta: string) => void,
+    signal?: AbortSignal,
+  ) => streamCompassComplete(messages, onDelta, signal),
   /** Compass's real user id — generated at server startup, not something
    * either side can hardcode. Used to tell its messages apart from a
    * human's when building a transcript for the gateway. */
