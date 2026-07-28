@@ -14,7 +14,10 @@ export default function Shell(props: RouteSectionProps) {
   // A user's profile (reached by tapping a DM's appbar) is the same kind of
   // drill-down push, not a tab destination, so it's excluded too.
   const showBottomNav = () =>
-    !isDesktop() && !location.pathname.startsWith("/chat/") && !location.pathname.startsWith("/user/");
+    !isDesktop() &&
+    !location.pathname.startsWith("/chat/") &&
+    !location.pathname.startsWith("/user/") &&
+    !location.pathname.startsWith("/compass/");
 
   useBeforeLeave((e) => {
     if (typeof e.to !== "string" || typeof document.startViewTransition !== "function") return;

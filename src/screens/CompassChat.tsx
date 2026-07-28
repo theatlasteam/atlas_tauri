@@ -1,28 +1,44 @@
-import { createSignal, For, Show } from "solid-js";
-import BackHeader from "../components/BackHeader";
+import { createEffect, createSignal, For, Show } from "solid-js";
+import { A, useNavigate, useParams } from "@solidjs/router";
 import { compassChat } from "../store/compassChat";
-import { BroomIcon, SendIcon, SpinnerIcon } from "../icons";
+import EmptyState from "../components/EmptyState";
+import { BackIcon, CompassIcon, SendIcon, SpinnerIcon } from "../icons";
+import { useIsDesktopLayout } from "../lib/platform";
 import { t } from "../lib/i18n";
 
 /**
- * A separate screen, not a chat in the normal sense — this conversation
- * never touches the messages table or any other server-side storage; it
- * lives only in this device's localStorage (see store/compassChat.ts). Each
- * turn is a single stateless call to the inference gateway.
+ * A single local-only Compass conversation — never touches the messages
+ * table or any other server-side storage; it lives only in this device's
+ * localStorage (see store/compassChat.ts). Each turn is a single stateless
+ * call to the inference gateway. Styled to match ChatView's header/composer
+ * so Compass reads as part of the app rather than a separate tool.
  */
 export default function CompassChat() {
+  const params = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const isDesktop = useIsDesktopLayout();
+
+  const thread = () => compassChat.byId(params.id);
+  const turns = () => thread()?.turns ?? [];
+
   const [draft, setDraft] = createSignal("");
   const [sending, setSending] = createSignal(false);
   let scrollRef: HTMLDivElement | undefined;
 
+  // A stale/deleted thread id (e.g. deleted in another tab) has nothing to
+  // show — bounce back to the list rather than rendering an empty shell.
+  createEffect(() => {
+    if (params.id && !thread()) navigate("/compass", { replace: true });
+  });
+
   const submit = async (e: Event) => {
     e.preventDefault();
     const text = draft().trim();
-    if (!text || sending()) return;
+    if (!text || sending() || !thread()) return;
     setDraft("");
     setSending(true);
     try {
-      await compassChat.send(text);
+      await compassChat.send(params.id, text);
       queueMicrotask(() => scrollRef?.scrollTo({ top: scrollRef.scrollHeight, behavior: "smooth" }));
     } catch {
       /* the failed turn already shows its own retry-less error state */
@@ -32,29 +48,32 @@ export default function CompassChat() {
   };
 
   return (
-    <div class="flex h-full flex-col">
-      <BackHeader title={t("compass.title")} back="/" />
-
-      <div class="flex items-center justify-between px-5 pb-3">
-        <p class="text-xs text-ink-subtle">{t("compass.localNote")}</p>
-        <Show when={compassChat.turns.length > 0}>
-          <button
-            type="button"
-            onClick={() => compassChat.clear()}
-            class="flex shrink-0 items-center gap-1 rounded-pill px-2 py-1 text-xs text-ink-subtle transition hover:bg-surface hover:text-ink"
+    <div class="relative flex h-full flex-col">
+      <header class="flex shrink-0 items-center gap-3 border-b border-border bg-appbar px-3 pb-3 pt-[max(var(--safe-top),1.5rem)]">
+        <Show when={!isDesktop()}>
+          <A
+            href="/compass"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
           >
-            <BroomIcon size={13} /> {t("compass.clear")}
-          </button>
+            <BackIcon size={22} />
+          </A>
         </Show>
-      </div>
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+          <CompassIcon size={18} />
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="truncate font-semibold leading-tight">{t("compass.title")}</p>
+          <p class="truncate text-xs text-ink-subtle">{t("compass.localNote")}</p>
+        </div>
+      </header>
 
-      <div ref={scrollRef} class="flex-1 overflow-y-auto px-4 pb-4">
+      <div ref={scrollRef} class="flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-2">
         <Show
-          when={compassChat.turns.length > 0}
-          fallback={<p class="px-4 py-10 text-center text-sm text-ink-subtle">{t("compass.empty")}</p>}
+          when={turns().length > 0}
+          fallback={<EmptyState icon={CompassIcon} title={t("compass.title")} subtitle={t("compass.empty")} />}
         >
           <div class="flex flex-col gap-2.5">
-            <For each={compassChat.turns}>
+            <For each={turns()}>
               {(turn) => (
                 <div class="flex" classList={{ "justify-end": turn.role === "user", "justify-start": turn.role === "assistant" }}>
                   <div
@@ -75,7 +94,10 @@ export default function CompassChat() {
         </Show>
       </div>
 
-      <form onSubmit={submit} class="flex gap-2 border-t border-border px-3 pb-[max(var(--safe-bottom),0.75rem)] pt-2.5">
+      <form
+        onSubmit={submit}
+        class="flex shrink-0 gap-2 border-t border-border bg-surface/95 px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5 backdrop-blur"
+      >
         <input
           type="text"
           value={draft()}

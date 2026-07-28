@@ -5,19 +5,26 @@
 //! never talk to the upstream gateway themselves, only to this route, which
 //! forwards the request byte-for-byte and streams the response back.
 //!
-//! No key lives here: `X-Auth-Header` / `Authorization` are passed through
-//! from whoever calls this route.
+//! The gateway key lives only in `COMPASS_API_KEY` on this server — this
+//! route injects it itself and requires a signed-in Atlas session, so the
+//! key is never handed to a client and the gateway is never reachable
+//! anonymously through us.
 
 use axum::body::Body;
 use axum::extract::{Request, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 
+use crate::auth::AuthUser;
 use crate::state::AppState;
 
 const UPSTREAM_BASE: &str = "https://inference.waw0.amvera.ru";
 
-pub async fn proxy(State(state): State<AppState>, req: Request) -> Response {
+// Requiring AuthUser (any signed-in Atlas account) keeps this from being an
+// open, unauthenticated relay to the gateway — without it, anyone on the
+// internet could hit ai.atlasmsg.app and use this server as a free anonymous
+// proxy, whether or not they supplied their own key.
+pub async fn proxy(State(state): State<AppState>, _auth: AuthUser, req: Request) -> Response {
     let method = req.method().clone();
     let path_and_query = req
         .uri()
@@ -33,10 +40,12 @@ pub async fn proxy(State(state): State<AppState>, req: Request) -> Response {
 
     let mut headers = HeaderMap::new();
     for (name, value) in req.headers() {
-        // hop-by-hop / host headers must not be forwarded verbatim.
+        // hop-by-hop / host headers must not be forwarded verbatim, and any
+        // caller-supplied auth is dropped — this server's own key is the
+        // only one that's ever sent upstream.
         if matches!(
             name.as_str(),
-            "host" | "content-length" | "connection" | "transfer-encoding"
+            "host" | "content-length" | "connection" | "transfer-encoding" | "authorization" | "x-auth-header"
         ) {
             continue;
         }
@@ -44,6 +53,15 @@ pub async fn proxy(State(state): State<AppState>, req: Request) -> Response {
     }
     if let Ok(host_value) = HeaderValue::from_str(&upstream_host) {
         headers.insert(axum::http::header::HOST, host_value);
+    }
+    let Some(api_key) = &state.cfg.compass_api_key else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    match HeaderValue::from_str(api_key) {
+        Ok(v) => {
+            headers.insert("X-Auth-Header", v);
+        }
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 
     let body_bytes = match axum::body::to_bytes(req.into_body(), 8 * 1024 * 1024).await {
