@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 
@@ -31,5 +32,17 @@ export default defineConfig({
   build: {
     target: "ESNext",
     minify: "esbuild",
+    rollupOptions: {
+      // Real per-language routes (/ru, /en) plus "/" (aliases /ru) and
+      // /privacy, each its own static HTML file with its own <title>,
+      // meta description, canonical and hreflang tags — see server/src/main.rs,
+      // which serves a directory's index.html when the request path matches it.
+      input: {
+        main: resolve(__dirname, "index.html"),
+        ru: resolve(__dirname, "ru/index.html"),
+        en: resolve(__dirname, "en/index.html"),
+        privacy: resolve(__dirname, "privacy/index.html"),
+      },
+    },
   },
 });
