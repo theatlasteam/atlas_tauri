@@ -288,7 +288,7 @@ pub async fn summary(
     let since = Utc::now() - chrono::Duration::hours(hours);
 
     let hourly = sqlx::query_as::<_, (DateTime<Utc>, Option<i64>)>(
-        "SELECT bucket_start, SUM(pageviews) FROM metrics_hourly
+        "SELECT bucket_start, SUM(pageviews)::bigint FROM metrics_hourly
          WHERE bucket_start >= $1 GROUP BY bucket_start ORDER BY bucket_start",
     )
     .bind(since)
@@ -299,7 +299,7 @@ pub async fn summary(
     .collect();
 
     let devices = sqlx::query_as::<_, (String, Option<i64>)>(
-        "SELECT device, SUM(pageviews) FROM metrics_hourly
+        "SELECT device, SUM(pageviews)::bigint FROM metrics_hourly
          WHERE bucket_start >= $1 GROUP BY device ORDER BY 2 DESC NULLS LAST",
     )
     .bind(since)
@@ -310,7 +310,7 @@ pub async fn summary(
     .collect();
 
     let referrers = sqlx::query_as::<_, (String, Option<i64>)>(
-        "SELECT referrer_host, SUM(pageviews) FROM metrics_hourly
+        "SELECT referrer_host, SUM(pageviews)::bigint FROM metrics_hourly
          WHERE bucket_start >= $1 GROUP BY referrer_host ORDER BY 2 DESC NULLS LAST LIMIT 20",
     )
     .bind(since)
@@ -321,7 +321,7 @@ pub async fn summary(
     .collect();
 
     let (total_dur, total_sessions): (Option<i64>, Option<i64>) = sqlx::query_as(
-        "SELECT SUM(total_duration_secs), SUM(sessions_with_duration) FROM metrics_hourly WHERE bucket_start >= $1",
+        "SELECT SUM(total_duration_secs)::bigint, SUM(sessions_with_duration)::bigint FROM metrics_hourly WHERE bucket_start >= $1",
     )
     .bind(since)
     .fetch_one(&state.db)
@@ -332,7 +332,7 @@ pub async fn summary(
     };
 
     let avg_duration_by_path = sqlx::query_as::<_, (String, Option<i64>, Option<i64>)>(
-        "SELECT path, SUM(total_duration_secs), SUM(sessions_with_duration) FROM metrics_hourly
+        "SELECT path, SUM(total_duration_secs)::bigint, SUM(sessions_with_duration)::bigint FROM metrics_hourly
          WHERE bucket_start >= $1 GROUP BY path",
     )
     .bind(since)
