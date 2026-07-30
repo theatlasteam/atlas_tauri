@@ -5,6 +5,7 @@ pub mod devices;
 pub mod folders;
 pub mod keys;
 pub mod messages;
+pub mod metrics;
 pub mod turn;
 pub mod users;
 pub mod waitlist;

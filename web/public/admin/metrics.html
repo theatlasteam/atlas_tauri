@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Atlas — analytics</title>
+    <meta name="robots" content="noindex" />
+    <style>
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: #131110;
+        color: #f2ede2;
+      }
+      #login {
+        display: flex;
+        min-height: 100vh;
+        align-items: center;
+        justify-content: center;
+      }
+      #login form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 320px;
+      }
+      input,
+      button {
+        font: inherit;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.05);
+        color: inherit;
+      }
+      button {
+        cursor: pointer;
+        background: #f5c98a;
+        color: #131110;
+        border: none;
+        font-weight: 600;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding: 20px 24px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      #active-count {
+        font-size: 28px;
+        font-weight: 700;
+      }
+      #status {
+        font-size: 13px;
+        color: rgba(242, 237, 226, 0.5);
+        padding: 0 24px 16px;
+      }
+      main {
+        padding: 24px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+      .card {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 14px;
+        padding: 18px 20px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .card.wide {
+        grid-column: 1 / -1;
+      }
+      .card h2 {
+        margin: 0 0 12px;
+        font-size: 13px;
+        font-weight: 500;
+        color: rgba(242, 237, 226, 0.6);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: 14px;
+      }
+      th {
+        color: rgba(242, 237, 226, 0.6);
+        font-weight: 500;
+      }
+      .bar-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+        font-size: 14px;
+      }
+      .bar-label {
+        width: 90px;
+        flex-shrink: 0;
+        color: rgba(242, 237, 226, 0.8);
+      }
+      .bar-track {
+        flex: 1;
+        height: 10px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.06);
+        overflow: hidden;
+      }
+      .bar-fill {
+        height: 100%;
+        background: #f5c98a;
+      }
+      .bar-count {
+        width: 46px;
+        text-align: right;
+        color: rgba(242, 237, 226, 0.6);
+        font-size: 13px;
+      }
+      .big-stat {
+        font-size: 32px;
+        font-weight: 700;
+      }
+      .big-stat-label {
+        font-size: 13px;
+        color: rgba(242, 237, 226, 0.6);
+        margin-top: 4px;
+      }
+      canvas {
+        width: 100%;
+        height: 220px;
+        display: block;
+      }
+      #live-status {
+        font-size: 13px;
+        color: #8fd19e;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="login">
+      <form id="login-form">
+        <label for="token">Admin token</label>
+        <input id="token" type="password" autocomplete="current-password" required />
+        <button type="submit">Connect</button>
+      </form>
+    </div>
+
+    <div id="app" style="display: none">
+      <header>
+        <div>
+          <div style="font-size: 13px; color: rgba(242, 237, 226, 0.6)">Active now</div>
+          <div id="active-count">0</div>
+        </div>
+        <div id="live-status">● live</div>
+      </header>
+      <div id="status"></div>
+
+      <main>
+        <div class="card wide">
+          <h2>Pageviews — last 24h</h2>
+          <canvas id="chart" width="1000" height="220"></canvas>
+        </div>
+
+        <div class="card">
+          <h2>Device breakdown</h2>
+          <div id="devices"></div>
+        </div>
+
+        <div class="card">
+          <h2>Top referrers</h2>
+          <table>
+            <tbody id="referrers"></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="big-stat" id="avg-duration">—</div>
+          <div class="big-stat-label">Average time on page (overall)</div>
+        </div>
+
+        <div class="card">
+          <h2>Average time on page — by path</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Path</th>
+                <th>Avg. duration</th>
+              </tr>
+            </thead>
+            <tbody id="path-durations"></tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const loginForm = document.getElementById("login-form");
+      const app = document.getElementById("app");
+      const login = document.getElementById("login");
+      const statusEl = document.getElementById("status");
+      const liveStatus = document.getElementById("live-status");
+      const activeCountEl = document.getElementById("active-count");
+      const devicesEl = document.getElementById("devices");
+      const referrersEl = document.getElementById("referrers");
+      const avgDurationEl = document.getElementById("avg-duration");
+      const pathDurationsEl = document.getElementById("path-durations");
+      const canvas = document.getElementById("chart");
+      const ctx = canvas.getContext("2d");
+
+      const STORAGE_KEY = "atlas-metrics-admin-token";
+      const POLL_MS = 5000;
+      let pollTimer;
+
+      function fmtDuration(secs) {
+        if (!secs || secs <= 0) return "0s";
+        const m = Math.floor(secs / 60);
+        const s = Math.round(secs % 60);
+        return m > 0 ? `${m}m ${s}s` : `${s}s`;
+      }
+
+      function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+
+      function drawChart(hourly) {
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        if (hourly.length === 0) return;
+
+        const max = Math.max(1, ...hourly.map((p) => p.pageviews));
+        const padding = 10;
+        const stepX = (w - padding * 2) / Math.max(1, hourly.length - 1);
+
+        ctx.strokeStyle = "rgba(255,255,255,0.08)";
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+          const y = padding + ((h - padding * 2) * i) / 4;
+          ctx.beginPath();
+          ctx.moveTo(padding, y);
+          ctx.lineTo(w - padding, y);
+          ctx.stroke();
+        }
+
+        ctx.strokeStyle = "#f5c98a";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        hourly.forEach((p, i) => {
+          const x = padding + i * stepX;
+          const y = h - padding - (p.pageviews / max) * (h - padding * 2);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        ctx.fillStyle = "rgba(245,201,138,0.15)";
+        ctx.lineTo(padding + (hourly.length - 1) * stepX, h - padding);
+        ctx.lineTo(padding, h - padding);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      function renderBars(container, items, labelKey) {
+        container.innerHTML = "";
+        const max = Math.max(1, ...items.map((i) => i.count));
+        for (const item of items) {
+          const row = document.createElement("div");
+          row.className = "bar-row";
+          row.innerHTML = `
+            <div class="bar-label">${escapeHtml(item[labelKey])}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${(item.count / max) * 100}%"></div></div>
+            <div class="bar-count">${item.count}</div>
+          `;
+          container.appendChild(row);
+        }
+      }
+
+      function renderSummary(data) {
+        activeCountEl.textContent = data.active_now;
+        drawChart(data.hourly);
+        renderBars(devicesEl, data.devices, "device");
+
+        referrersEl.innerHTML = data.referrers
+          .map((r) => `<tr><td>${escapeHtml(r.host)}</td><td>${r.count}</td></tr>`)
+          .join("");
+
+        avgDurationEl.textContent = fmtDuration(data.avg_duration_secs);
+
+        pathDurationsEl.innerHTML = data.avg_duration_by_path
+          .map((p) => `<tr><td>${escapeHtml(p.path)}</td><td>${fmtDuration(p.avg_secs)}</td></tr>`)
+          .join("");
+      }
+
+      async function poll(token) {
+        try {
+          const res = await fetch("/api/metrics/summary?hours=24", { headers: { "x-admin-token": token } });
+          if (!res.ok) throw new Error(res.status === 401 ? "wrong token" : `error ${res.status}`);
+          renderSummary(await res.json());
+          liveStatus.textContent = "● live";
+          liveStatus.style.color = "#8fd19e";
+          statusEl.textContent = "";
+          return true;
+        } catch (err) {
+          liveStatus.textContent = "● error";
+          liveStatus.style.color = "#e08787";
+          statusEl.textContent = err.message;
+          statusEl.style.color = "#e08787";
+          return false;
+        }
+      }
+
+      function connect(token) {
+        poll(token).then((ok) => {
+          // Only reveal the dashboard once we know the token actually works.
+          if (!ok) return;
+          login.style.display = "none";
+          app.style.display = "block";
+          localStorage.setItem(STORAGE_KEY, token);
+          clearInterval(pollTimer);
+          pollTimer = setInterval(() => poll(token), POLL_MS);
+        });
+      }
+
+      loginForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        connect(document.getElementById("token").value.trim());
+      });
+
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        document.getElementById("token").value = saved;
+        connect(saved);
+      }
+    </script>
+  </body>
+</html>

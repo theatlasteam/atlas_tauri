@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::push::Push;
+use crate::routes::metrics::Tracker;
 use crate::routes::waitlist::WaitlistEntry;
 use crate::ws::hub::Hub;
 
@@ -19,6 +20,9 @@ pub struct AppState {
     /// design (a lagging admin tab misses old entries, not new ones) — see
     /// routes::waitlist.
     pub waitlist_tx: broadcast::Sender<WaitlistEntry>,
+    /// In-memory-only pageview session tracker (see routes::metrics) — never
+    /// persisted beyond the current session's duration calculation.
+    pub metrics: Arc<Tracker>,
     /// Reused across outbound calls to the Compass inference gateway
     /// (connection pooling) — see compass.rs.
     pub http: reqwest::Client,
@@ -35,6 +39,15 @@ impl AppState {
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("reqwest client");
-        Self { db, hub: Arc::new(Hub::default()), cfg: Arc::new(cfg), push, waitlist_tx, http, compass_user_id }
+        Self {
+            db,
+            hub: Arc::new(Hub::default()),
+            cfg: Arc::new(cfg),
+            push,
+            waitlist_tx,
+            metrics: Arc::new(Tracker::new()),
+            http,
+            compass_user_id,
+        }
     }
 }
