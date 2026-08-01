@@ -1,7 +1,7 @@
 // View-model types used by the UI, plus re-exports of the wire types that are
 // generated from the Rust server via ts-rs (src/data/generated — do not edit).
 
-export type { UserDto, ChatDto, MessageDto, AttachmentDto, ReactionDto, ReplyPreviewDto, FolderDto, BlockDto } from "./generated";
+export type { UserDto, ChatDto, MessageDto, AttachmentDto, ReactionDto, ReplyPreviewDto, FolderDto, BlockDto, SpaceDto } from "./generated";
 export type { ServerEvent, ClientMsg } from "./generated";
 
 import type { AttachmentDto, ReactionDto } from "./generated";
@@ -31,6 +31,11 @@ export interface CallLog {
   calleeId: string;
 }
 
+/** Parsed body of a "space" message: a pointer to an Atlas Space (see SpaceDto). */
+export interface SpacePointer {
+  id: string;
+}
+
 export interface Message {
   id: string;
   chatId: string;
@@ -44,6 +49,8 @@ export interface Message {
   attachment?: AttachmentDto;
   reactions: ReactionDto[];
   callLog?: CallLog;
+  /** Set when scheme === "space" — points at the shared Atlas Space. */
+  space?: SpacePointer;
   /** Time capsule: when this message becomes readable (ISO timestamp). */
   unlockAt?: string;
   /** True while the capsule is still shut — the server withheld the body. */

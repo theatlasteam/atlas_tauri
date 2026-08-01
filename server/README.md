@@ -56,6 +56,9 @@ noted.
 - `POST /keys/identity` (first-write-wins), `GET /keys/identity/{userId}`
 - `POST /keys/packages`, `GET /keys/packages/count`, `POST /keys/packages/{userId}/claim`
 - `GET /calls/ice-servers` — STUN/TURN config with ephemeral credentials
+- `POST /api/spaces/generate` `{prompt, parentSpaceId?}` — generate (or remix)
+  an Atlas Space via the inference gateway; `GET /api/spaces/{id}` fetches
+  its HTML. See spaces.rs.
 - `GET /api/health` (no auth)
 
 ## WebSocket protocol (`/ws`)

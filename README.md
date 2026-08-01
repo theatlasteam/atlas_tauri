@@ -24,6 +24,10 @@
 - **Co-presence** — the chat header tells you when the other person has *this* conversation open,
   not merely that they're online somewhere. Tracked per device, so a phone and a laptop are each
   reported where they actually are, and vacated the moment you navigate away or drop off.
+- **Atlas Spaces** — generate small, self-contained HTML mini-apps by prompting an AI, share them in a
+  chat, and remix anyone else's into a new one linked back to the original. Rendered in a sandboxed
+  iframe (`allow-scripts` only) on the viewer's device — the real security boundary, not just the
+  generation prompt.
 - **Direct messages & groups** — folders, mute, typing indicators, read receipts
 - **Edit & unsend** — rewrite a message (marked as edited) or take it back for everyone. An unsent
   message leaves a tombstone rather than a hole, so quoted replies and unread counts stay correct,

@@ -1,7 +1,7 @@
 // DTO -> view-model conversion shared by the stores.
 
 import type { ChatDto, MessageDto, ReplyPreviewDto, UserDto } from "./generated";
-import type { CallLog, Chat, Message, User } from "./types";
+import type { CallLog, Chat, Message, SpacePointer, User } from "./types";
 
 /**
  * The one UserDto -> User conversion.
@@ -41,6 +41,19 @@ export function parseCallLog(body: string): CallLog | undefined {
   return undefined;
 }
 
+/** A "space" message's body is `{"spaceId":"..."}` — see server/src/spaces.rs. */
+export function parseSpace(body: string): SpacePointer | undefined {
+  try {
+    const data = JSON.parse(body);
+    if (data && typeof data === "object" && typeof data.spaceId === "string") {
+      return { id: data.spaceId };
+    }
+  } catch {
+    /* not a space pointer */
+  }
+  return undefined;
+}
+
 /** Text shown before/without decryption. */
 export function initialText(dto: MessageDto): string {
   if (dto.deleted) return "Message deleted";
@@ -48,6 +61,7 @@ export function initialText(dto: MessageDto): string {
   // instead, so this text only ever surfaces in list previews.
   if (dto.sealed) return "⏳ Time capsule";
   if (dto.scheme === "plain") return dto.body;
+  if (dto.scheme === "space") return "🧩 Atlas Space";
   if (dto.scheme === "call-log") {
     const log = parseCallLog(dto.body);
     if (!log) return "Call";
@@ -92,7 +106,11 @@ export function toMessage(dto: MessageDto, myUserId: string): Message {
   // A sealed capsule and an unsent message both carry no ciphertext to work
   // on: the first until it opens and the client refetches it, the second ever.
   const isE2ee =
-    !dto.sealed && !dto.deleted && dto.scheme !== "plain" && dto.scheme !== "call-log";
+    !dto.sealed &&
+    !dto.deleted &&
+    dto.scheme !== "plain" &&
+    dto.scheme !== "call-log" &&
+    dto.scheme !== "space";
   return {
     id: dto.id,
     chatId: dto.chatId,
@@ -105,6 +123,7 @@ export function toMessage(dto: MessageDto, myUserId: string): Message {
     attachment: dto.attachment ?? undefined,
     reactions: dto.reactions,
     callLog: dto.scheme === "call-log" ? parseCallLog(dto.body) : undefined,
+    space: dto.scheme === "space" ? parseSpace(dto.body) : undefined,
     unlockAt: dto.unlockAt ?? undefined,
     sealed: dto.sealed,
     editedAt: dto.editedAt ?? undefined,
@@ -117,6 +136,7 @@ export function toMessage(dto: MessageDto, myUserId: string): Message {
 export function previewText(message: Message): string {
   if (message.deleted) return "Message deleted";
   if (message.sealed) return "⏳ Time capsule";
+  if (message.space) return "🧩 Atlas Space";
   if (message.attachment) {
     switch (message.attachment.kind) {
       case "image":

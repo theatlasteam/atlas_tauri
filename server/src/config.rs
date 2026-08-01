@@ -55,6 +55,12 @@ pub struct Config {
     /// server making unauthenticated requests that will just fail.
     pub compass_api_key: Option<String>,
     pub compass_model: String,
+    /// Model used for Atlas Spaces generation (`POST /api/spaces/generate`).
+    /// Shares `compass_api_base`/`compass_api_key` — same inference gateway,
+    /// just a different model id — rather than a second, parallel gateway
+    /// config. Generation is disabled exactly when `compass_api_key` is
+    /// unset, same as Compass itself.
+    pub spaces_model: String,
 }
 
 fn var(key: &str) -> Option<String> {
@@ -117,6 +123,7 @@ impl Config {
                 .unwrap_or_else(|| "https://ai.atlasmsg.app".into()),
             compass_api_key: var("COMPASS_API_KEY"),
             compass_model: var("COMPASS_MODEL").unwrap_or_else(|| "gpt-5".into()),
+            spaces_model: var("SPACES_MODEL").unwrap_or_else(|| "glm-5.1".into()),
         })
     }
 }

@@ -54,6 +54,8 @@ import {
   Square,
   CornersIn,
   Compass,
+  AppWindow,
+  ArrowsClockwise,
 } from "phosphor-solid-js";
 import type { JSX } from "solid-js";
 
@@ -130,3 +132,7 @@ export const MaximizeIcon = wrap(Square);
 export const RestoreIcon = wrap(CornersIn);
 /** The Compass AI assistant's own local-only chat entry point. */
 export const CompassIcon = wrap(Compass);
+/** Atlas Spaces: a generated, shareable mini-app. */
+export const SpaceIcon = wrap(AppWindow);
+/** Remix an existing Space into a new one. */
+export const RemixIcon = wrap(ArrowsClockwise);

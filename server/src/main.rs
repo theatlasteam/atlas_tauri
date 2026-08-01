@@ -6,6 +6,7 @@ mod error;
 mod models;
 mod push;
 mod routes;
+mod spaces;
 mod state;
 mod ws;
 
@@ -102,6 +103,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/compass/complete", post(compass::complete_route))
         .route("/api/compass/complete/stream", post(compass::complete_stream_route))
         .route("/api/compass/info", get(compass::info_route))
+        // Atlas Spaces — generated shareable/remixable HTML mini-apps.
+        .route("/api/spaces/generate", post(spaces::generate_route))
+        .route("/api/spaces/{id}", get(spaces::get_route))
         // Custom API surface for the Inference Gateway — reachable at
         // ai.atlasmsg.app once that hostname is pointed at this server.
         .route("/v1/{*path}", any(ai_proxy::proxy))

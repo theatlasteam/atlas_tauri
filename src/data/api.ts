@@ -7,6 +7,7 @@ import type {
   ChatDto,
   FolderDto,
   MessageDto,
+  SpaceDto,
   UserDto,
 } from "./generated";
 import { serverConfig } from "../store/serverConfig";
@@ -303,4 +304,13 @@ export const api = {
 
   // calls
   iceServers: () => request<{ iceServers: IceServer[]; ttl: number }>("GET", "/api/calls/ice-servers"),
+
+  // Atlas Spaces — generated, shareable, remixable HTML mini-apps.
+  /** Generate a new Space, or (with parentSpaceId) a remix of an existing
+   * one. Only generates and stores it — sharing it into a chat is a
+   * separate `sendMessage` with `scheme: "space"`. */
+  generateSpace: (prompt: string, parentSpaceId?: string) =>
+    request<SpaceDto>("POST", "/api/spaces/generate", { prompt, parentSpaceId }),
+  /** Fetch a Space's HTML to render in a sandboxed iframe. */
+  getSpace: (id: string) => request<SpaceDto>("GET", `/api/spaces/${id}`),
 };
