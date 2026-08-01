@@ -11,7 +11,7 @@
 //! model ignores every word of it.
 //!
 //! Generation reuses Compass's inference gateway wiring (same `state.http`,
-//! same `COMPASS_API_BASE`/`COMPASS_API_KEY`) with a different model
+//! same `ai_proxy::UPSTREAM_BASE` + `COMPASS_API_KEY`) with a different model
 //! (`SPACES_MODEL`, default GLM-5.1) — see compass.rs for the sibling
 //! implementation this one deliberately mirrors.
 
@@ -136,7 +136,7 @@ async fn generate_html(
 
     let res = state
         .http
-        .post(format!("{}/v1/chat/completions", state.cfg.compass_api_base.trim_end_matches('/')))
+        .post(format!("{}/v1/chat/completions", crate::ai_proxy::UPSTREAM_BASE))
         .header("X-Auth-Header", api_key)
         .json(&body)
         .send()

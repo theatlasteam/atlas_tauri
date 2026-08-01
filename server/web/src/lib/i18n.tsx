@@ -123,10 +123,23 @@ const dict = {
 
 export type TranslationKey = keyof (typeof dict)["en"];
 
+// The locale is primarily determined by the URL (/ru, /en) so that each
+// route renders deterministically for search-engine crawlers regardless of
+// any stored preference — that's the whole point of having separate routes.
+// Only the bare "/" (aliased to /ru) falls back to a stored preference or
+// the browser's language, since it has no locale of its own in the path.
 function detectLocale(): Locale {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === "en" || stored === "ru") return stored;
-  return navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
+  if (typeof window !== "undefined") {
+    const path = window.location.pathname;
+    if (path === "/en" || path.startsWith("/en/")) return "en";
+    if (path === "/ru" || path.startsWith("/ru/")) return "ru";
+    if (path === "/") {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored === "en" || stored === "ru") return stored;
+      return navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
+    }
+  }
+  return "ru";
 }
 
 const [locale, setLocaleSignal] = createSignal<Locale>(detectLocale());

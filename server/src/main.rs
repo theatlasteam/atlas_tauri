@@ -61,6 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Collects call state that no socket can clean up (see the doc comment) —
     // without it a leaked entry makes a user permanently "busy".
     ws::calls::spawn_stale_call_reaper(state.clone());
+    routes::metrics::spawn_reaper(state.clone());
 
     let app = Router::new()
         .route("/api/health", get(health))
@@ -155,6 +156,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/waitlist", get(routes::waitlist::list).post(routes::waitlist::join))
         .route("/api/waitlist/count", get(routes::waitlist::count))
         .route("/api/waitlist/stream", get(routes::waitlist::stream))
+        // analytics (anonymous, aggregate-only pageview/time-on-page stats
+        // for the marketing site, plus an admin summary view)
+        .route("/api/metrics/event", post(routes::metrics::event))
+        .route("/api/metrics/summary", get(routes::metrics::summary))
         // realtime
         .route("/ws", get(ws::ws_handler))
         // Everything the routes above didn't match. `/api/*` and `/ws` are

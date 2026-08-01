@@ -38,6 +38,10 @@ pub struct Config {
     /// and the live SSE stream). Waitlist emails are sensitive enough that
     /// these can't be left open like the rest of the CORS-permissive API.
     pub waitlist_admin_token: Option<String>,
+    /// Bearer token gating the analytics admin endpoint (`GET
+    /// /api/metrics/summary`). Separate from `waitlist_admin_token` so the
+    /// two can be rotated/shared independently.
+    pub metrics_admin_token: Option<String>,
     /// Hostname (from the request's `Host` header, no port) that gets the
     /// API only — no static site fallback. Lets the same binary serve the
     /// marketing site on the apex domain and act as a bare backend on a
@@ -45,21 +49,17 @@ pub struct Config {
     /// and `/ws` routes are unaffected either way; this only changes what
     /// happens on paths nothing else matched.
     pub api_only_hostname: Option<String>,
-    /// Base URL for the Compass (@compass) AI assistant's inference gateway.
-    /// The server never hardcodes the real upstream provider — it always
-    /// calls whatever's configured here, so the actual provider (and even
-    /// whether one is even reachable) stays swappable without a code change.
-    pub compass_api_base: String,
-    /// Sent as `X-Auth-Header` to the inference gateway. `None` => Compass
+    /// Sent as `X-Auth-Header` to the inference gateway
+    /// (`ai_proxy::UPSTREAM_BASE`). `None` => Compass
     /// replies are disabled (mentioning it does nothing) rather than the
     /// server making unauthenticated requests that will just fail.
     pub compass_api_key: Option<String>,
     pub compass_model: String,
     /// Model used for Atlas Spaces generation (`POST /api/spaces/generate`).
-    /// Shares `compass_api_base`/`compass_api_key` — same inference gateway,
-    /// just a different model id — rather than a second, parallel gateway
-    /// config. Generation is disabled exactly when `compass_api_key` is
-    /// unset, same as Compass itself.
+    /// Shares the same inference gateway as Compass (`ai_proxy::UPSTREAM_BASE`
+    /// + `compass_api_key`) — just a different model id — rather than a
+    /// second, parallel gateway config. Generation is disabled exactly when
+    /// `compass_api_key` is unset, same as Compass itself.
     pub spaces_model: String,
 }
 
@@ -118,9 +118,8 @@ impl Config {
                 std::path::Path::new("./web-dist").is_dir().then(|| "./web-dist".to_string())
             }),
             waitlist_admin_token: var("WAITLIST_ADMIN_TOKEN"),
+            metrics_admin_token: var("METRICS_ADMIN_TOKEN"),
             api_only_hostname: var("API_ONLY_HOSTNAME").map(|h| h.to_lowercase()),
-            compass_api_base: var("COMPASS_API_BASE")
-                .unwrap_or_else(|| "https://ai.atlasmsg.app".into()),
             compass_api_key: var("COMPASS_API_KEY"),
             compass_model: var("COMPASS_MODEL").unwrap_or_else(|| "gpt-5".into()),
             spaces_model: var("SPACES_MODEL").unwrap_or_else(|| "glm-5.1".into()),
