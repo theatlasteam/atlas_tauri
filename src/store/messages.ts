@@ -335,6 +335,48 @@ function createMessagesStore() {
   };
 
   /**
+   * Share an Atlas Space into a chat: post a `scheme: "space"` pointer
+   * message. Unlike `send`, this never goes through E2EE — the same tier as
+   * a call-log message (see routes::messages persist_and_fanout): the
+   * server already stores the Space's HTML itself, so there's nothing an
+   * E2EE body would keep confidential that the server doesn't already have.
+   */
+  const sendSpace = async (chatId: string, spaceId: string): Promise<void> => {
+    ensure(chatId);
+    const clientTag = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const optimistic: Message = {
+      id: `pending-${clientTag}`,
+      chatId,
+      authorId: myId(),
+      text: "",
+      scheme: "space",
+      sentAt: now,
+      mine: true,
+      reactions: [],
+      space: { id: spaceId },
+      pending: true,
+      clientTag,
+    };
+    setState(chatId, "messages", (m) => [...m, optimistic]);
+
+    try {
+      const dto = await api.sendMessage(chatId, {
+        scheme: "space",
+        body: JSON.stringify({ spaceId }),
+        clientTag,
+      });
+      const message = toMessage(dto, myId());
+      message.clientTag = clientTag;
+      upsert(chatId, message);
+    } catch (e) {
+      patch(chatId, `pending-${clientTag}`, { pending: false, failed: true });
+      throw e;
+    }
+  };
+
+  /**
    * Resend a message that failed to go out.
    *
    * Every option the original send carried has to be carried again. Dropping
@@ -350,6 +392,10 @@ function createMessagesStore() {
   const retryFailed = async (chatId: string, message: Message, peerUserId?: string) => {
     if (!message.failed) return;
     setState(chatId, "messages", (m) => m.filter((x) => x.id !== message.id));
+    if (message.space) {
+      await sendSpace(chatId, message.space.id);
+      return;
+    }
     await send(chatId, message.sourceText ?? message.text, {
       replyToId: message.replyTo?.id,
       peerUserId,
@@ -450,6 +496,7 @@ function createMessagesStore() {
     retryFailedDecryptions,
     resync,
     send,
+    sendSpace,
     retryFailed,
     refresh,
     edit,

@@ -646,8 +646,8 @@ pub async fn edit_message(
     let row = own_message(&state, message_id, auth.user_id).await?;
     require_not_blocked(&state, row.chat_id, auth.user_id).await?;
 
-    if row.scheme == "call-log" {
-        return Err(AppError::BadRequest("call logs cannot be edited".into()));
+    if row.scheme == "call-log" || row.scheme == "space" {
+        return Err(AppError::BadRequest("this message type cannot be edited".into()));
     }
     // A capsule that its author could rewrite while it counts down is not
     // sealed — it is a draft with a delivery date.

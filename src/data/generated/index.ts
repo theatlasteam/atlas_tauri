@@ -10,5 +10,6 @@ export type { ReactionDto } from "./ReactionDto";
 export type { ReplyPreviewDto } from "./ReplyPreviewDto";
 export type { FolderDto } from "./FolderDto";
 export type { BlockDto } from "./BlockDto";
+export type { SpaceDto } from "./SpaceDto";
 export type { ServerEvent } from "./ServerEvent";
 export type { ClientMsg } from "./ClientMsg";

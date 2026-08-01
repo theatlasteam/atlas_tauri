@@ -2,6 +2,9 @@ import { render } from "solid-js/web";
 import "./index.css";
 import App from "./App";
 import PrivacyPolicy from "./components/PrivacyPolicy";
+import { initAnalytics } from "./lib/analytics";
+
+initAnalytics();
 
 // No router dependency for a two-page site: the server already falls back
 // unmatched paths to this same index.html (see server/src/main.rs), so a

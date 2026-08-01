@@ -55,6 +55,7 @@ export default function LanguageSwitcher(props: { compact?: boolean }) {
                   onClick={() => {
                     setLocale(lang.id);
                     setOpen(false);
+                    window.location.assign(`/${lang.id}`);
                   }}
                   class="flex w-full items-center justify-between px-3 py-2 text-sm text-[#f2ede2]/80 transition hover:bg-white/5 hover:text-[#f2ede2]"
                   classList={{ "text-accent": locale() === lang.id }}

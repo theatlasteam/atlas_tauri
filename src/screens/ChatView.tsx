@@ -13,6 +13,8 @@ import MessageBubble, { HOLD_MS } from "../components/MessageBubble";
 import ConnectionBanner from "../components/ConnectionBanner";
 import { MessageListSkeleton } from "../components/Skeleton";
 import VerifiedBadge from "../components/VerifiedBadge";
+import SpaceViewer from "../components/SpaceViewer";
+import SpacePromptModal from "../components/SpacePromptModal";
 import Popover from "../ui/Popover";
 import { Menu, MenuItem } from "../ui/Menu";
 import { useIsDesktopLayout } from "../lib/platform";
@@ -35,6 +37,7 @@ import {
   ProhibitIcon,
   ReplyIcon,
   SendIcon,
+  SpaceIcon,
   SpinnerIcon,
   StopIcon,
   TrashIcon,
@@ -106,6 +109,9 @@ export default function ChatView() {
   const [editing, setEditing] = createSignal<Message | null>(null);
   /** Group chats: authorId -> resolved profile (name, fallback avatar, photo flag). */
   const [authors, setAuthors] = createSignal<Record<string, User>>({});
+  /** Atlas Space currently open in the full-screen viewer, if any. */
+  const [openSpaceId, setOpenSpaceId] = createSignal<string | null>(null);
+  const [spaceComposerOpen, setSpaceComposerOpen] = createSignal(false);
 
   let recorder: MediaRecorder | null = null;
   let recordStart = 0;
@@ -401,7 +407,7 @@ export default function ChatView() {
   /** Editing a capsule mid-countdown would make "sealed" mean "provisional",
    *  so the server refuses it — don't offer it either. */
   const canEdit = (m: Message) =>
-    m.mine && !m.deleted && !m.callLog && !m.pending && !m.failed && !m.sealed;
+    m.mine && !m.deleted && !m.callLog && !m.space && !m.pending && !m.failed && !m.sealed;
   const canUnsend = (m: Message) => m.mine && !m.deleted && !m.pending && !m.failed;
 
   const startEdit = (message: Message) => {
@@ -546,10 +552,12 @@ export default function ChatView() {
               <div class="flex flex-col">
                 <For each={messages()}>
                   {(message, i) => {
-                    // Group consecutive messages from the same author (call-log
-                    // rows never group) so only the last bubble in a run gets a
-                    // tail + name label, like every real messenger does.
-                    const groupable = (m: Message | undefined) => m && !m.callLog && !message.callLog;
+                    // Group consecutive messages from the same author
+                    // (call-log and Space rows never group) so only the last
+                    // bubble in a run gets a tail + name label, like every
+                    // real messenger does.
+                    const groupable = (m: Message | undefined) =>
+                      m && !m.callLog && !m.space && !message.callLog && !message.space;
                     const prev = () => messages()[i() - 1];
                     const next = () => messages()[i() + 1];
                     const isFirst = () => !groupable(prev()) || prev()!.authorId !== message.authorId;
@@ -562,8 +570,8 @@ export default function ChatView() {
                       <div
                         onClick={() => bubbleRetry(message)}
                         classList={{
-                          "mt-2.5": isFirst() || !!message.callLog,
-                          "mt-0.5": !isFirst() && !message.callLog,
+                          "mt-2.5": isFirst() || !!message.callLog || !!message.space,
+                          "mt-0.5": !isFirst() && !message.callLog && !message.space,
                         }}
                       >
                         <MessageBubble
@@ -574,6 +582,7 @@ export default function ChatView() {
                           isLastInGroup={isLast()}
                           onReply={(m) => setReplyTo(m)}
                           onActions={(m, anchor) => setActionsFor({ message: m, anchor })}
+                          onOpenSpace={setOpenSpaceId}
                         />
                       </div>
                     );
@@ -755,6 +764,15 @@ export default function ChatView() {
             <Show when={!uploading()} fallback={<SpinnerIcon size={19} class="animate-spin" />}>
               <AttachIcon size={20} />
             </Show>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSpaceComposerOpen(true)}
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
+            aria-label={t("space.createAria")}
+            title={t("space.createAria")}
+          >
+            <SpaceIcon size={20} />
           </button>
           </Show>
           <input
@@ -965,6 +983,18 @@ export default function ChatView() {
           }}
         </Show>
       </Popover>
+
+      <SpaceViewer spaceId={openSpaceId()} chatId={params.id} onClose={() => setOpenSpaceId(null)} />
+      <SpacePromptModal
+        open={spaceComposerOpen()}
+        onOpenChange={setSpaceComposerOpen}
+        mode="create"
+        onGenerated={(spaceId) => {
+          setSpaceComposerOpen(false);
+          void messagesStore.sendSpace(params.id, spaceId);
+          queueMicrotask(() => scrollToBottom());
+        }}
+      />
     </div>
   );
 }

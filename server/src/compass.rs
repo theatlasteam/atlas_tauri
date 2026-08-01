@@ -160,7 +160,7 @@ async fn complete(state: &AppState, messages: Vec<GatewayMessage>) -> Result<Str
 
     let res = state
         .http
-        .post(format!("{}/v1/chat/completions", state.cfg.compass_api_base.trim_end_matches('/')))
+        .post(format!("{}/v1/chat/completions", crate::ai_proxy::UPSTREAM_BASE))
         .header("X-Auth-Header", api_key)
         .json(&body)
         .send()
@@ -361,7 +361,7 @@ pub async fn complete_stream_route(
 
     let res = state
         .http
-        .post(format!("{}/v1/chat/completions", state.cfg.compass_api_base.trim_end_matches('/')))
+        .post(format!("{}/v1/chat/completions", crate::ai_proxy::UPSTREAM_BASE))
         .header("X-Auth-Header", api_key)
         .json(&body)
         .send()

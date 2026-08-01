@@ -26,6 +26,7 @@ import {
   PlayIcon,
   ProhibitIcon,
   ReplyIcon,
+  SpaceIcon,
   SpinnerIcon,
   VideoIcon,
 } from "../icons";
@@ -200,6 +201,27 @@ function FileAttachment(props: { id: string; filename: string; sizeBytes: number
   );
 }
 
+/** A shared Atlas Space: a small card that opens the sandboxed iframe viewer
+ * rather than showing anything inline — the whole point of the sandbox is
+ * that its contents never run anywhere but inside it. */
+function SpaceBubble(props: { message: Message; onOpen: (spaceId: string) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => props.onOpen(props.message.space!.id)}
+      class="flex min-w-44 items-center gap-2.5 py-0.5 text-left"
+    >
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black/15">
+        <SpaceIcon size={17} />
+      </span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-sm font-semibold">{t("messageBubble.space")}</span>
+        <span class="block text-xs opacity-70">{t("messageBubble.openSpace")}</span>
+      </span>
+    </button>
+  );
+}
+
 function CallLogBubble(props: { message: Message }) {
   const log = () => props.message.callLog!;
   const missed = () => log().outcome !== "completed";
@@ -269,6 +291,8 @@ export default function MessageBubble(props: {
   onReply: (message: Message) => void;
   /** Open the message-actions sheet (reactions, reply, edit, unsend). */
   onActions: (message: Message, anchor: HTMLElement) => void;
+  /** Open a shared Atlas Space's sandboxed viewer. */
+  onOpenSpace: (spaceId: string) => void;
 }) {
   const isFirst = () => props.isFirstInGroup ?? true;
   const isLast = () => props.isLastInGroup ?? true;
@@ -301,7 +325,8 @@ export default function MessageBubble(props: {
 
   // A tombstone keeps the scheme of what it replaced; showing its padlock
   // would advertise the confidentiality of a message that no longer exists.
-  const isE2ee = () => !m().deleted && m().scheme !== "plain" && m().scheme !== "call-log";
+  const isE2ee = () =>
+    !m().deleted && m().scheme !== "plain" && m().scheme !== "call-log" && m().scheme !== "space";
   const hasReactions = () => m().reactions.length > 0;
   /**
    * A capsule whose body is still withheld. The server seals capsules from
@@ -393,8 +418,13 @@ export default function MessageBubble(props: {
                 when={!sealed()}
                 fallback={<SealedCapsule message={m()} peerUserId={props.chat?.peerUserId} />}
               >
-                <Show when={m().callLog} fallback={<MessageBody message={m()} />}>
-                  <CallLogBubble message={m()} />
+                <Show
+                  when={!m().space}
+                  fallback={<SpaceBubble message={m()} onOpen={props.onOpenSpace} />}
+                >
+                  <Show when={m().callLog} fallback={<MessageBody message={m()} />}>
+                    <CallLogBubble message={m()} />
+                  </Show>
                 </Show>
               </Show>
             </Show>
