@@ -5,7 +5,7 @@
 -- A plugin is a set of files (manifest.json + main.js + helpers) stored as a
 -- JSON object of filename -> source. The scalar columns are denormalized from
 -- manifest.json so the store can be listed without parsing every body.
-CREATE TABLE plugins (
+CREATE TABLE IF NOT EXISTS plugins (
     id UUID PRIMARY KEY,
     -- The plugin's manifest id ("dev.signature"), the key installs are keyed by.
     plugin_id TEXT NOT NULL UNIQUE,
@@ -19,4 +19,4 @@ CREATE TABLE plugins (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX plugins_created_at_idx ON plugins(created_at DESC);
+CREATE INDEX IF NOT EXISTS plugins_created_at_idx ON plugins(created_at DESC);
