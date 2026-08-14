@@ -1,14 +1,18 @@
-import { Show } from "solid-js";
-import { useBeforeLeave, useLocation, type RouteSectionProps } from "@solidjs/router";
+import { createEffect, Show } from "solid-js";
+import { useBeforeLeave, useLocation, useNavigate, type RouteSectionProps } from "@solidjs/router";
 import BottomNav from "./BottomNav";
 import SideNav from "./SideNav";
 import CallOverlay from "./CallOverlay";
+import { ToastHost } from "../plugins/toasts";
+import { bindNavigate } from "../plugins/nav";
+import { emitPluginEvent } from "../plugins/runtime";
 import { getNavDirection, withViewTransition } from "../lib/pageTransition";
 import { useIsDesktopLayout } from "../lib/platform";
 
 export default function Shell(props: RouteSectionProps) {
   const isDesktop = useIsDesktopLayout();
   const location = useLocation();
+  const navigate = useNavigate();
   // On mobile, ChatView owns the full screen with its own bottom input bar —
   // the floating nav would overlap it, so it only shows outside an open chat.
   // A user's profile (reached by tapping a DM's appbar) is the same kind of
@@ -18,6 +22,19 @@ export default function Shell(props: RouteSectionProps) {
     !location.pathname.startsWith("/chat/") &&
     !location.pathname.startsWith("/user/") &&
     !location.pathname.startsWith("/compass/");
+
+  // Plugin SDK: hand the router's navigate over (useNavigate can't be called
+  // from a plain object context), and surface chat opens/closes as events.
+  bindNavigate((to) => navigate(to));
+
+  let lastChat: string | null = null;
+  createEffect(() => {
+    const match = /^\/chat\/([^/]+)/.exec(location.pathname);
+    const chatId = match ? decodeURIComponent(match[1]) : null;
+    if (chatId && chatId !== lastChat) emitPluginEvent("chatOpened", { chatId });
+    else if (!chatId && lastChat) emitPluginEvent("chatClosed", { chatId: lastChat });
+    lastChat = chatId;
+  });
 
   useBeforeLeave((e) => {
     if (typeof e.to !== "string" || typeof document.startViewTransition !== "function") return;
@@ -36,6 +53,7 @@ export default function Shell(props: RouteSectionProps) {
         <BottomNav />
       </Show>
       <CallOverlay />
+      <ToastHost />
     </div>
   );
 }

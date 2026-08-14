@@ -146,6 +146,9 @@ export default function App() {
               <a href="#source" class="hover:text-[#f2ede2]">
                 {t("nav.source")}
               </a>
+              <a href="/plugins" class="hover:text-[#f2ede2]">
+                {t("nav.plugins")}
+              </a>
             </nav>
             <div class="flex items-center gap-2">
               <button

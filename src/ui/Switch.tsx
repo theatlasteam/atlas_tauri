@@ -6,7 +6,7 @@ export default function Switch(props: { checked: boolean; onChange: (v: boolean)
       aria-checked={props.checked}
       aria-label={props.label}
       onClick={() => props.onChange(!props.checked)}
-      class="relative flex h-11 w-16 shrink-0 items-center"
+      class="relative flex h-[44px] w-[68px] shrink-0 items-center"
       data-checked={props.checked ? "" : undefined}
     >
       <span

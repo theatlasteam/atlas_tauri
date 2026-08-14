@@ -14,6 +14,17 @@ tower = { version = "0.5", features = ["util"] }
 futures-util = "0.3"
 bytes = "1"
 
+# Model Context Protocol — lets AI assistants develop plugins against the
+# store (list/get/validate/create/update/delete) over the streamable HTTP
+# transport at /mcp.
+rmcp = { version = "3", default-features = false, features = [
+    "server",
+    "macros",
+    "schemars",
+    "transport-streamable-http-server",
+    "transport-async-rw",
+] }
+
 # Database
 sqlx = { version = "0.8", default-features = false, features = [
     "runtime-tokio",

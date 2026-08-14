@@ -1,0 +1,10 @@
+{
+  "id": "dev.materialnav",
+  "name": "Material Nav",
+  "version": "0.1.0",
+  "description": "Replaces the floating bottom nav with a Material 3-style bar that stays docked to the bottom edge.",
+  "main": "src/main.tsx",
+  "icon": "icon.svg",
+  "permissions": ["ui", "navigation"]
+}
+

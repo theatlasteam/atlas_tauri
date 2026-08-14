@@ -3,6 +3,7 @@ mod auth;
 mod compass;
 mod config;
 mod error;
+mod mcp;
 mod models;
 mod push;
 mod routes;
@@ -63,6 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     routes::metrics::spawn_reaper(state.clone());
 
     let app = Router::new()
+        .merge(mcp::router(state.clone()))
         .route("/api/health", get(health))
         // auth & sessions
         .route("/api/auth/register", post(auth::register))
@@ -156,6 +158,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // for the marketing site, plus an admin summary view)
         .route("/api/metrics/event", post(routes::metrics::event))
         .route("/api/metrics/summary", get(routes::metrics::summary))
+        // plugin store (see routes/plugins.rs). `/mine` is registered before
+        // `/api/plugins/{id}` so the literal segment wins over the param.
+        .route("/api/plugins", get(routes::plugins::list).post(routes::plugins::create))
+        .route("/api/plugins/mine", get(routes::plugins::list_mine))
+        .route(
+            "/api/plugins/{id}",
+            get(routes::plugins::get).put(routes::plugins::update).delete(routes::plugins::delete),
+        )
+        .route("/api/plugins/{id}/install", post(routes::plugins::install))
         // realtime
         .route("/ws", get(ws::ws_handler))
         // Everything the routes above didn't match. `/api/*` and `/ws` are

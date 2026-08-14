@@ -15,6 +15,7 @@ import { toMessage } from "../data/mapping";
 import type { Message } from "../data/types";
 import { e2eeAvailable, e2eeOpen, e2eeSeal } from "../lib/tauri";
 import { mentionsCompass } from "../lib/compassMention";
+import { emitMessageReceived, emitMessageSent, transformBeforeSend } from "../plugins/runtime";
 import { e2ee } from "./e2ee";
 import { compassUserId } from "./compassIdentity";
 import { session } from "./session";
@@ -196,6 +197,17 @@ function createMessagesStore() {
       const counterparty = message.mine ? opts?.peerUserId : message.authorId;
       decrypt(dto.chatId, dto.id, dto.scheme, dto.body, counterparty);
     }
+    // Plugins observe messages that reached this device (never our own echo,
+    // and not the still-sealed bodies). Fire-and-forget by design.
+    if (!message.mine && !message.deleted && !message.decrypting && !message.decryptFailed) {
+      emitMessageReceived({
+        chatId: dto.chatId,
+        text: message.text,
+        mine: false,
+        authorId: message.authorId,
+        sentAt: message.sentAt,
+      });
+    }
     return message;
   };
 
@@ -257,6 +269,13 @@ function createMessagesStore() {
     ensure(chatId);
     const clientTag = crypto.randomUUID();
     const now = new Date().toISOString();
+
+    // Plugin hooks run before anything is sent: a plugin can rewrite the
+    // text (e.g. append a signature) or return null to veto the send.
+    const pluginText = await transformBeforeSend(chatId, text);
+    if (pluginText === null) return;
+    text = pluginText;
+    if (!text.trim()) return;
 
     // DMs always encrypt when the platform supports it — no opt-out, and no
     // silent plaintext fallback. If the peer's key isn't published yet, the
@@ -321,6 +340,16 @@ function createMessagesStore() {
         message.decrypting = false;
       }
       upsert(chatId, message);
+
+      // Plugins observe messages that actually made it out (their own sends
+      // too — onSent hooks run for every sent message).
+      emitMessageSent({
+        chatId,
+        text,
+        mine: true,
+        messageId: message.id,
+        sentAt: message.sentAt,
+      });
 
       // A 'plain' (group) mention is handled entirely server-side — it can
       // already read the message. An encrypted chat's server never can, so

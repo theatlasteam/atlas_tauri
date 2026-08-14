@@ -1,6 +1,14 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
+/* Mono typography across the app (code, editors, ids) uses Geist Mono,
+   loaded via Google Fonts in index.html. Tailwind's `font-mono` utility and
+   the code editor resolve to this variable. */
+@theme {
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
 :root {
   /* Referenced by the fixed header's padding-top (App.tsx) so it clears a
      phone's notch/status bar. Browsers support env(safe-area-inset-*)
@@ -245,4 +253,87 @@ body {
     transform: none;
     transition: none;
   }
+}
+
+/* VS Code–style plugin editor — see screens/PluginEditor.tsx. A transparent
+   <textarea> sits on top of a highlighted <pre> (overlay technique); both share
+   identical metrics so they scroll in lockstep. The panel itself is
+   inline-styled (fixed dark), these rules cover the rest. */
+.code-editor {
+  caret-color: #f5c98a;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.code-editor .gutter-pre,
+.code-editor .editor-overlay,
+.code-editor .editor-input {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  tab-size: 2;
+  white-space: pre;
+}
+.code-editor ::selection {
+  background: rgba(201, 119, 46, 0.35);
+}
+.code-editor .gutter-pre {
+  margin: 0;
+  min-height: 100%;
+  padding: 12px 10px 12px 0;
+  text-align: right;
+  color: #5c554a;
+  border: 0;
+}
+/* The gutter is a normal-flow flex item; the code surface sits in its own
+   relative box to its right, so text never slides under the line numbers.
+   The overlay scrolls in lockstep with the textarea but is overflow:hidden so
+   only the textarea ever shows scrollbars. */
+.code-editor .editor-overlay,
+.code-editor .editor-input {
+  position: absolute;
+  inset: 0;
+}
+.code-editor .editor-overlay {
+  margin: 0;
+  padding: 12px 16px;
+  border: 0;
+  color: #d4d4d4;
+  pointer-events: none;
+  overflow: hidden;
+}
+.code-editor .editor-input {
+  margin: 0;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: #f5c98a;
+  resize: none;
+  outline: none;
+  box-shadow: none;
+  overflow: auto;
+}
+.code-editor .editor-input::selection {
+  background: rgba(201, 119, 46, 0.35);
+  -webkit-text-fill-color: transparent;
+}
+/* syntax tokens — VS Code Dark+ palette */
+.code-editor .tok-k {
+  color: #c586c0;
+}
+.code-editor .tok-s {
+  color: #ce9178;
+}
+.code-editor .tok-c {
+  color: #6a9955;
+}
+.code-editor .tok-n {
+  color: #b5cea8;
+}
+.code-editor .tok-jk {
+  color: #9cdcfe;
+}
+.code-editor .tok-jb {
+  color: #569cd6;
 }

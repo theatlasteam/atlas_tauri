@@ -151,3 +151,29 @@ export function notifyIncoming(notification: IncomingNotification) {
     // above has already done the useful part.
   }
 }
+
+/**
+ * A notification raised by a plugin (ctx.notify). Unlike incoming-message
+ * notifications, it shows regardless of document visibility — plugins opt in
+ * explicitly, so "didn't see it because I was in another tab" is exactly the
+ * case they're solving. Still respects the permission model.
+ */
+export function sendPluginNotification(title: string, body: string) {
+  if (useNativeNotifications) {
+    void isPermissionGranted().then((granted) => {
+      if (!granted) return;
+      sendNotification({ title, body });
+    });
+    return;
+  }
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  try {
+    const shown = new Notification(title, { body });
+    shown.onclick = () => {
+      window.focus();
+      shown.close();
+    };
+  } catch {
+    /* webview without working Notification — skip */
+  }
+}

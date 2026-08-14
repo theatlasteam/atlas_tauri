@@ -6,6 +6,7 @@ import { e2ee } from "../../store/e2ee";
 import { session } from "../../store/session";
 import { clearAvatarCache } from "../../data/avatarCache";
 import { getToken, apiBase } from "../../data/api";
+import { preferences, setPreferences } from "../../store/preferences";
 import {
   e2eeAvailable,
   e2eePublicKey,
@@ -70,6 +71,19 @@ export default function Dev() {
   return (
     <div class="h-full overflow-y-auto pb-28">
       <BackHeader title="Developer" />
+
+      <SettingsSection title="Plugins">
+        <SettingsRow
+          label="Developer mode"
+          description="Enables exporting plugins as .atp files and importing them from disk, plus other plugin tooling."
+        >
+          <Switch
+            checked={preferences.developerMode}
+            onChange={(v) => setPreferences("developerMode", v)}
+            label="Developer mode"
+          />
+        </SettingsRow>
+      </SettingsSection>
 
       <SettingsSection title="Identity">
         <SettingsRow label="E2EE available" description={e2eeAvailable ? "yes (Tauri)" : "no (web build)"} />

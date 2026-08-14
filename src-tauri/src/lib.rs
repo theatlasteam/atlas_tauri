@@ -1,4 +1,5 @@
 mod e2ee;
+mod plugins;
 mod secure;
 
 // JNI shim letting the Android push notification service decrypt a message
@@ -11,6 +12,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             secure::secret_get,
             secure::secret_set,
@@ -19,6 +22,9 @@ pub fn run() {
             e2ee::e2ee_fingerprint,
             e2ee::e2ee_seal,
             e2ee::e2ee_open,
+            plugins::plugin_list,
+            plugins::plugin_save,
+            plugins::plugin_remove,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

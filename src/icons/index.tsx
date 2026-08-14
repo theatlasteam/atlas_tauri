@@ -40,6 +40,7 @@ import {
   WifiSlash,
   CircleNotch,
   DownloadSimple,
+  UploadSimple,
   Play,
   Pause,
   Wrench,
@@ -54,6 +55,7 @@ import {
   Square,
   CornersIn,
   Compass,
+  PuzzlePiece,
 } from "phosphor-solid-js";
 import type { JSX } from "solid-js";
 
@@ -111,6 +113,7 @@ export const SignOutIcon = wrap(SignOut);
 export const OfflineIcon = wrap(WifiSlash);
 export const SpinnerIcon = wrap(CircleNotch);
 export const DownloadIcon = wrap(DownloadSimple);
+export const ExportIcon = wrap(UploadSimple);
 export const PlayIcon = wrap(Play);
 export const PauseIcon = wrap(Pause);
 export const WrenchIcon = wrap(Wrench);
@@ -130,3 +133,5 @@ export const MaximizeIcon = wrap(Square);
 export const RestoreIcon = wrap(CornersIn);
 /** The Compass AI assistant's own local-only chat entry point. */
 export const CompassIcon = wrap(Compass);
+/** Installed/creatable plugins — the extensibility surface. */
+export const PluginsIcon = wrap(PuzzlePiece);

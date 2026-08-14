@@ -9,6 +9,7 @@ import Notifications from "./screens/settings/Notifications";
 import Folders from "./screens/settings/Folders";
 import Privacy from "./screens/settings/Privacy";
 import BlockedUsers from "./screens/settings/BlockedUsers";
+import Plugins from "./screens/settings/Plugins";
 import Dev from "./screens/settings/Dev";
 import Verification from "./screens/settings/Verification";
 import NewChat from "./screens/NewChat";
@@ -47,6 +48,7 @@ function App() {
               <Route path="/settings/appearance" component={Appearance} />
               <Route path="/settings/notifications" component={Notifications} />
               <Route path="/settings/folders" component={Folders} />
+              <Route path="/settings/plugins" component={Plugins} />
               <Route path="/settings/privacy" component={Privacy} />
               <Route path="/settings/blocked" component={BlockedUsers} />
               <Route path="/settings/dev" component={Dev} />

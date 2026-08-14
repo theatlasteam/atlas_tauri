@@ -3,7 +3,7 @@ import { useNavigate } from "@solidjs/router";
 import { SettingsSection, SettingsLinkRow } from "../../components/SettingsSection";
 import { session } from "../../store/session";
 import { t } from "../../lib/i18n";
-import { BellIcon, FolderIcon, PaletteIcon, ProfileIcon, ShieldIcon, VerifiedIcon } from "../../icons";
+import { BellIcon, FolderIcon, PaletteIcon, PluginsIcon, ProfileIcon, ShieldIcon, VerifiedIcon } from "../../icons";
 
 const SECRET_TAP_COUNT = 7;
 const SECRET_TAP_WINDOW_MS = 2500;
@@ -58,6 +58,12 @@ export default function SettingsHome() {
           label={t("settings.folders")}
           description={t("settings.foldersDesc")}
           icon={FolderIcon}
+        />
+        <SettingsLinkRow
+          href="/settings/plugins"
+          label={t("settings.plugins")}
+          description={t("settings.pluginsDesc")}
+          icon={PluginsIcon}
         />
       </SettingsSection>
 

@@ -28,6 +28,8 @@ export interface Preferences {
    * opted into rather than out of.
    */
   liveTyping: boolean;
+  /** Developer mode: enables .atp export/import and other plugin tooling. */
+  developerMode: boolean;
 }
 
 const STORAGE_KEY = "atlas.preferences.v1";
@@ -43,6 +45,7 @@ const defaults: Preferences = {
   notificationSound: "chime",
   notificationsEnabled: true,
   liveTyping: false,
+  developerMode: false,
 };
 
 function loadInitial(): Preferences {
