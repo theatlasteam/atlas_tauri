@@ -8,22 +8,43 @@
 # split out and pushed to its master branch.
 #
 # Usage:
-#   ./scripts/deploy.sh          # commit nothing; push current main to both
+#   ./scripts/deploy.sh          # push current main to both remotes
 #   ./scripts/deploy.sh "msg"    # commit all changes with $msg, then push
+#   ./scripts/deploy.sh --force  # force-push both (history rewrite)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 AMVERA_BRANCH="${AMVERA_BRANCH:-master}"
+FORCE=0
+MSG=""
 
-if [[ $# -ge 1 ]]; then
+for arg in "$@"; do
+  case "$arg" in
+    --force) FORCE=1 ;;
+    *) MSG="$arg" ;;
+  esac
+done
+
+if [[ -n "$MSG" ]]; then
   git add -A
-  git commit -m "$1"
+  git commit -m "$MSG"
 fi
 
 echo "==> pushing server/ subtree to Amvera ($AMVERA_BRANCH)"
-git subtree push --prefix=server amvera "$AMVERA_BRANCH"
+if [[ "$FORCE" == "1" ]]; then
+  TMP_BRANCH="_amvera_deploy_$$"
+  git subtree split --prefix=server --branch="$TMP_BRANCH"
+  git push --force amvera "$TMP_BRANCH:$AMVERA_BRANCH"
+  git branch -D "$TMP_BRANCH"
+else
+  git subtree push --prefix=server amvera "$AMVERA_BRANCH"
+fi
 
 echo "==> pushing repo to GitHub (origin/main)"
-git push origin main
+if [[ "$FORCE" == "1" ]]; then
+  git push --force origin main
+else
+  git push origin main
+fi
 
 echo "==> done"
