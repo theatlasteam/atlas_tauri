@@ -1,6 +1,6 @@
 import { createSignal, For, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import BackHeader from "../components/BackHeader";
+import Appbar from "../components/Appbar";
 import Avatar from "../components/Avatar";
 import VerifiedBadge from "../components/VerifiedBadge";
 import { repository } from "../data/repository";
@@ -75,7 +75,7 @@ export default function NewChat() {
 
   return (
     <div class="flex h-full flex-col">
-      <BackHeader title={t("newChat.title")} back="/" />
+      <Appbar title={t("newChat.title")} back="/" sticky />
 
       <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-28">
         <input

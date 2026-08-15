@@ -1,0 +1,9 @@
+{
+  "id": "dev.quotes",
+  "name": "Quotes",
+  "version": "0.1.0",
+  "description": "Replies to every message that contains \"inspire me\" with a quote from a public API, and pings your device when one lands.",
+  "main": "src/main.tsx",
+  "icon": "icon.svg",
+  "permissions": ["messages.send", "messages.read", "notifications", "commands", "storage", "ui"]
+}

@@ -4,7 +4,7 @@ import { api } from "../data/api";
 import { blocksStore } from "../store/blocks";
 import { session } from "../store/session";
 import Avatar from "../components/Avatar";
-import BackHeader from "../components/BackHeader";
+import Appbar from "../components/Appbar";
 import Dialog from "../ui/Dialog";
 import { Skeleton } from "../components/Skeleton";
 import { ProhibitIcon, SpinnerIcon, VerifiedIcon } from "../icons";
@@ -62,7 +62,7 @@ export default function UserProfile() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title={t("userProfile.title")} />
+      <Appbar title={t("userProfile.title")} back="/settings" sticky />
 
       <Show
         when={user()}

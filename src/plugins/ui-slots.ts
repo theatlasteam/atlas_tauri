@@ -11,7 +11,8 @@ export type UiSlot =
   | "nav.bottom"
   | "nav.side"
   | "header.actions"
-  | "dialog";
+  | "dialog"
+  | "switch";
 
 const slots = new Map<UiSlot, { pluginId: string; component: PluginComponent }>();
 const [version, bump] = createSignal(0);

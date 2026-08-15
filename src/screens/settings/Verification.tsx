@@ -1,7 +1,7 @@
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import { api } from "../../data/api";
 import type { UserDto } from "../../data/generated";
-import BackHeader from "../../components/BackHeader";
+import Appbar from "../../components/Appbar";
 import Avatar from "../../components/Avatar";
 import EmptyState from "../../components/EmptyState";
 import VerifiedBadge from "../../components/VerifiedBadge";
@@ -62,7 +62,7 @@ export default function Verification() {
 
   return (
     <div class="flex h-full flex-col">
-      <BackHeader title={t("verification.title")} back="/settings" />
+      <Appbar title={t("verification.title")} back="/settings" sticky />
 
       <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 pb-28">
         <input

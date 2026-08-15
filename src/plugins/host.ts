@@ -19,7 +19,13 @@ import { Menu } from "../ui/Menu";
 import Picker from "../ui/Picker";
 import type { PickerOption } from "../ui/Picker";
 import EmptyState from "../components/EmptyState";
-import BackHeader from "../components/BackHeader";
+import Appbar from "../components/Appbar";
+import Button from "../ui/Button";
+import Chip from "../ui/Chip";
+import List, { ListItem } from "../ui/List";
+import Slider from "../ui/Slider";
+import { Skeleton } from "../components/Skeleton";
+import VerifiedBadge from "../components/VerifiedBadge";
 import { SpinnerIcon, CloseIcon, SearchIcon, PlusIcon, DownloadIcon, PlayIcon } from "../icons";
 import type { PluginContext } from "./runtime";
 
@@ -36,7 +42,14 @@ export const uiComponents = {
   Menu,
   Picker,
   EmptyState,
-  BackHeader,
+  Appbar,
+  Button,
+  Chip,
+  List,
+  ListItem,
+  Slider,
+  Skeleton,
+  VerifiedBadge,
   Icons: { SpinnerIcon, CloseIcon, SearchIcon, PlusIcon, DownloadIcon, PlayIcon },
   type: {} as {
     PopoverProps: PopoverProps;

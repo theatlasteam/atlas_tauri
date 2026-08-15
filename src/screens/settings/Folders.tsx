@@ -1,7 +1,7 @@
 import { createSignal, For, Show } from "solid-js";
 import { chatsState, createFolder, deleteFolder } from "../../store/chats";
 import { SettingsSection } from "../../components/SettingsSection";
-import BackHeader from "../../components/BackHeader";
+import Appbar from "../../components/Appbar";
 import EmptyState from "../../components/EmptyState";
 import { Skeleton } from "../../components/Skeleton";
 import Dialog from "../../ui/Dialog";
@@ -32,7 +32,7 @@ export default function Folders() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title={t("settingsFolders.title")} />
+      <Appbar title={t("settingsFolders.title")} back="/settings" sticky />
 
       <SettingsSection title={t("settingsFolders.folders")}>
         <Show

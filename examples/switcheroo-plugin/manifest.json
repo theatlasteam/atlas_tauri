@@ -1,0 +1,9 @@
+{
+  "id": "dev.switcheroo",
+  "name": "Switcheroo",
+  "version": "0.1.0",
+  "description": "Swap every toggle in Atlas between styles: the classic pill, a checkbox, a compact capsule or a minimal line.",
+  "main": "src/main.tsx",
+  "icon": "icon.svg",
+  "permissions": ["ui", "storage"]
+}

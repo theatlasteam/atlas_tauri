@@ -1,0 +1,9 @@
+{
+  "id": "dev.todo",
+  "name": "Todo",
+  "version": "0.1.0",
+  "description": "A tiny todo list. Run the \"Todos\" command from the Plugins screen to open the list, add and check items off — everything is stored locally in the plugin's own key-value store.",
+  "main": "src/main.tsx",
+  "icon": "icon.svg",
+  "permissions": ["commands", "storage", "ui", "messages.read"]
+}

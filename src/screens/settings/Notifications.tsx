@@ -4,7 +4,7 @@ import { chatsState, setMuted } from "../../store/chats";
 import { preferences, setPreferences } from "../../store/preferences";
 import { playNotificationSound, requestNotificationPermission } from "../../lib/notify";
 import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
-import BackHeader from "../../components/BackHeader";
+import Appbar from "../../components/Appbar";
 import Picker from "../../ui/Picker";
 import Switch from "../../ui/Switch";
 import AnimatedList from "../../ui/AnimatedList";
@@ -20,7 +20,7 @@ export default function Notifications() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title={t("settingsNotifications.title")} />
+      <Appbar title={t("settingsNotifications.title")} back="/settings" sticky />
 
       <SettingsSection title={t("settingsNotifications.general")}>
         <SettingsRow label={t("settingsNotifications.notifications")} description={t("settingsNotifications.notificationsDesc")}>

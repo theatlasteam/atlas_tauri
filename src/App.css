@@ -153,6 +153,18 @@
   --color-accent-soft: #3a1f3c;
 }
 
+/* Custom accent: the picker's slider writes a raw hex to --custom-accent;
+   the tint and on-accent ink are derived from it with color-mix. */
+:root[data-accent="custom"] {
+  --color-accent: var(--custom-accent, #c9772e);
+  --color-accent-soft: color-mix(in oklab, var(--color-accent) 16%, white);
+  --color-accent-ink: color-mix(in oklab, var(--color-accent) 8%, white);
+}
+:root[data-theme="dark"][data-accent="custom"] {
+  --color-accent-soft: color-mix(in oklab, var(--color-accent) 24%, black);
+  --color-accent-ink: color-mix(in oklab, var(--color-accent) 6%, white);
+}
+
 /* Font family presets */
 :root[data-font="inter"] {
   --font-sans: "Inter var", "Inter", ui-sans-serif, system-ui, sans-serif;

@@ -129,7 +129,8 @@ export type AccentId =
   | "teal"
   | "coral"
   | "indigo"
-  | "plum";
+  | "plum"
+  | "custom";
 export type FontId = "inter" | "system" | "serif" | "mono";
 export type FontSize = "sm" | "md" | "lg" | "xl";
 

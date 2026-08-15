@@ -3,6 +3,7 @@ import { A, useNavigate } from "@solidjs/router";
 import { compassChat } from "../store/compassChat";
 import EmptyState from "../components/EmptyState";
 import AnimatedList from "../ui/AnimatedList";
+import Appbar from "../components/Appbar";
 import { CompassIcon, PlusIcon, TrashIcon } from "../icons";
 import { formatRelativeTime } from "../lib/time";
 import { t } from "../lib/i18n";
@@ -28,17 +29,19 @@ export default function CompassList() {
 
   return (
     <div class="flex h-full flex-col">
-      <header class="flex shrink-0 items-center justify-between border-b border-border bg-appbar px-5 pb-3 pt-[max(var(--safe-top),1.5rem)]">
-        <h1 class="font-heading text-2xl font-bold">{t("compass.title")}</h1>
-        <button
-          type="button"
-          onClick={startNew}
-          class="flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
-          aria-label={t("compass.newChatAria")}
-        >
-          <PlusIcon size={21} />
-        </button>
-      </header>
+      <Appbar
+        title={t("compass.title")}
+        actions={
+          <button
+            type="button"
+            onClick={startNew}
+            class="flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
+            aria-label={t("compass.newChatAria")}
+          >
+            <PlusIcon size={21} />
+          </button>
+        }
+      />
 
       <div class="flex-1 overflow-y-auto overscroll-contain pb-28">
         <Show

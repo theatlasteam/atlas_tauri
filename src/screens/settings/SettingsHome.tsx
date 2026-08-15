@@ -1,6 +1,7 @@
 import { Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { SettingsSection, SettingsLinkRow } from "../../components/SettingsSection";
+import Appbar from "../../components/Appbar";
 import { session } from "../../store/session";
 import { t } from "../../lib/i18n";
 import { BellIcon, FolderIcon, PaletteIcon, PluginsIcon, ProfileIcon, ShieldIcon, VerifiedIcon } from "../../icons";
@@ -34,11 +35,7 @@ export default function SettingsHome() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <header class="mb-4 border-b border-border bg-appbar px-5 pb-3 pt-[max(var(--safe-top),1.5rem)]">
-        <h1 class="select-none font-heading text-2xl font-bold active:opacity-70" onClick={onTitleTap}>
-          {t("settings.title")}
-        </h1>
-      </header>
+      <Appbar sticky title={t("settings.title")} onTitleClick={onTitleTap} class="mb-4" />
 
       <SettingsSection title={t("settings.preferences")}>
         <SettingsLinkRow

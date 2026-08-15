@@ -1,7 +1,7 @@
 import { For, Show, createSignal, onMount } from "solid-js";
 import { A } from "@solidjs/router";
 import { blocksStore } from "../../store/blocks";
-import BackHeader from "../../components/BackHeader";
+import Appbar from "../../components/Appbar";
 import Avatar from "../../components/Avatar";
 import EmptyState from "../../components/EmptyState";
 import { ProhibitIcon, SpinnerIcon } from "../../icons";
@@ -25,7 +25,7 @@ export default function BlockedUsers() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title={t("blockedUsers.title")} back="/settings/privacy" />
+      <Appbar title={t("blockedUsers.title")} back="/settings/privacy" sticky />
 
       <Show
         when={blocksStore.state.blocks.length > 0}

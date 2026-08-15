@@ -2,7 +2,7 @@ import { createSignal, Show } from "solid-js";
 import { preferences, setPreferences } from "../../store/preferences";
 import { session } from "../../store/session";
 import { SettingsSection, SettingsRow, SettingsLinkRow } from "../../components/SettingsSection";
-import BackHeader from "../../components/BackHeader";
+import Appbar from "../../components/Appbar";
 import Switch from "../../ui/Switch";
 import { ProhibitIcon } from "../../icons";
 import { t } from "../../lib/i18n";
@@ -28,7 +28,7 @@ export default function Privacy() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title={t("settingsPrivacy.title")} />
+      <Appbar title={t("settingsPrivacy.title")} back="/settings" sticky />
 
       <SettingsSection title={t("settingsPrivacy.visibility")}>
         <SettingsRow

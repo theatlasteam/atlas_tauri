@@ -30,6 +30,8 @@ export interface Preferences {
   liveTyping: boolean;
   /** Developer mode: enables .atp export/import and other plugin tooling. */
   developerMode: boolean;
+  /** Custom accent hex (used when `accent === "custom"`). */
+  customAccent: string;
 }
 
 const STORAGE_KEY = "atlas.preferences.v1";
@@ -46,6 +48,7 @@ const defaults: Preferences = {
   notificationsEnabled: true,
   liveTyping: false,
   developerMode: false,
+  customAccent: "#c9772e",
 };
 
 function loadInitial(): Preferences {
@@ -87,6 +90,8 @@ function createPreferencesStore() {
     root.dataset.theme = resolvedTheme;
     root.dataset.accent = preferences.accent;
     root.dataset.font = preferences.font;
+    // For the custom accent, feed the raw hex to CSS ([data-accent=custom]).
+    root.style.setProperty("--custom-accent", preferences.customAccent);
     root.style.setProperty("--font-size-base", FONT_SIZE_PX[preferences.fontSize]);
     root.classList.toggle("dark", resolvedTheme === "dark");
     root.lang = preferences.locale;

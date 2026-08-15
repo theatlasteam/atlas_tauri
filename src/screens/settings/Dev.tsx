@@ -1,6 +1,6 @@
 import { createResource, createSignal, Show } from "solid-js";
 import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
-import BackHeader from "../../components/BackHeader";
+import Appbar from "../../components/Appbar";
 import Switch from "../../ui/Switch";
 import { e2ee } from "../../store/e2ee";
 import { session } from "../../store/session";
@@ -70,7 +70,7 @@ export default function Dev() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title="Developer" />
+      <Appbar title="Developer" back="/settings" sticky />
 
       <SettingsSection title="Plugins">
         <SettingsRow

@@ -1,0 +1,9 @@
+{
+  "id": "dev.iosify",
+  "name": "iOSify",
+  "version": "0.1.0",
+  "description": "Restyles the whole app like iOS: system-blue accent, liquid-glass gradients, squircle avatars and controls (not circles), inset grouped lists without descriptions, SF-style rounded type, and iOS-native switches, dialogs, tab bar and rail.",
+  "main": "src/main.tsx",
+  "icon": "icon.svg",
+  "permissions": ["ui", "storage"]
+}

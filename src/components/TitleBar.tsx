@@ -31,7 +31,8 @@ export default function TitleBar() {
   return (
     <div
       data-tauri-drag-region
-      class="flex h-9 shrink-0 select-none items-center justify-between border-b border-border bg-appbar pl-3"
+      style={{ "--titlebar-h": "36px" }}
+      class="flex h-[var(--titlebar-h)] shrink-0 select-none items-center justify-between border-b border-border bg-appbar pl-3"
     >
       <div data-tauri-drag-region class="flex flex-1 items-center gap-2 self-stretch">
         <img src={logo} alt="" width="16" height="12" class="pointer-events-none" />

@@ -1,9 +1,11 @@
 import { createSignal, createMemo, For, onMount, Show } from "solid-js";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
-import BackHeader from "../../components/BackHeader";
+import Appbar from "../../components/Appbar";
 import Dialog from "../../ui/Dialog";
 import Switch from "../../ui/Switch";
+import Button from "../../ui/Button";
+import Chip from "../../ui/Chip";
 import { isTauri } from "../../lib/tauri";
 import { apiBase } from "../../data/api";
 import {
@@ -244,7 +246,7 @@ export default function Plugins() {
 
   return (
     <div class="h-full overflow-y-auto pb-28">
-      <BackHeader title={t("plugins.title")} />
+      <Appbar title={t("plugins.title")} back="/settings" sticky />
 
       {/* Header actions */}
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3 px-4">
@@ -262,23 +264,15 @@ export default function Plugins() {
         </div>
         <div class="flex items-center gap-2">
           <Show when={devMode()}>
-            <button
-              type="button"
-              onClick={() => void doImport()}
-              class="flex items-center gap-1.5 rounded-pill border border-border bg-surface px-3 py-2 text-xs font-medium text-ink transition hover:border-accent/40 hover:text-accent"
-            >
+            <Button variant="ghost" size="sm" onClick={() => void doImport()}>
               <ExportIcon size={14} />
               {t("plugins.import")}
-            </button>
+            </Button>
           </Show>
-          <button
-            type="button"
-            onClick={createPlugin}
-            class="flex items-center gap-1.5 rounded-pill bg-accent-soft px-3 py-2 text-xs font-medium text-accent transition hover:opacity-80 active:scale-95"
-          >
+          <Button variant="soft" size="sm" onClick={createPlugin}>
             <PlusIcon size={14} />
             {t("plugins.create")}
-          </button>
+          </Button>
         </div>
       </div>
       <Show when={editorOpened()}>
@@ -365,14 +359,14 @@ export default function Plugins() {
                     fallback={<></>}
                   >
                     {(entry) => (
-                      <button
-                        type="button"
+                      <Button
+                        size="sm"
                         onClick={() => runCommand(entry.pluginId, entry.command.id)}
-                        class="mt-2 flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 text-xs font-medium text-accent transition hover:opacity-80 active:scale-95"
+                        class="mt-2"
                       >
                         <PlayIcon size={13} />
                         {entry.command.label}
-                      </button>
+                      </Button>
                     )}
                   </For>
                 </Show>
@@ -436,20 +430,16 @@ export default function Plugins() {
                         <SpinnerIcon size={16} class="animate-spin text-ink-subtle" />
                       </Show>
                       <Show when={installedRecord}>
-                        <span class="flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-medium text-white">
+                        <Chip color="success">
                           <CheckIcon size={13} />
                           {t("plugins.installedBadge")}
-                        </span>
+                        </Chip>
                       </Show>
                       <Show when={!installedRecord && busy() !== plugin.pluginId}>
-                        <button
-                          type="button"
-                          onClick={() => doInstall(plugin)}
-                          class="flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 text-xs font-medium text-accent transition hover:opacity-80 active:scale-95"
-                        >
+                        <Button variant="soft" size="sm" onClick={() => doInstall(plugin)}>
                           <DownloadIcon size={14} />
                           {t("plugins.install")}
-                        </button>
+                        </Button>
                       </Show>
                     </div>
                   </div>
@@ -578,9 +568,7 @@ export default function Plugins() {
                 <div class="flex flex-wrap gap-1.5">
                   <For each={permissions}>
                     {(permission) => (
-                      <span class="rounded-full bg-accent-soft px-2.5 py-1 text-[11px] font-medium text-accent">
-                        {permission}
-                      </span>
+                      <Chip color="accent">{permission}</Chip>
                     )}
                   </For>
                 </div>
@@ -593,67 +581,58 @@ export default function Plugins() {
                     fallback={<></>}
                   >
                     {(entry) => (
-                      <button
-                        type="button"
-                        onClick={() => runCommand(entry.pluginId, entry.command.id)}
-                        class="flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-2 text-xs font-medium text-accent transition hover:opacity-80 active:scale-95"
-                      >
+                      <Button size="sm" onClick={() => runCommand(entry.pluginId, entry.command.id)}>
                         <PlayIcon size={13} />
                         {entry.command.label}
-                      </button>
+                      </Button>
                     )}
                   </For>
                 </Show>
 
                 <div class="ml-auto flex items-center gap-2">
                   <Show when={isInstalled && devMode()}>
-                    <button
-                      type="button"
-                      onClick={() => void doExport(record!)}
-                      class="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-2 text-xs font-medium text-ink transition hover:border-accent/40 hover:text-accent"
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => void doExport(record!)}>
                       <ExportIcon size={14} />
                       {t("plugins.export")}
-                    </button>
+                    </Button>
                   </Show>
                   <Show when={isInstalled && hasConfigScreen(record!.pluginId)}>
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => {
                         setConfigFor(record!);
                         setDetailsFor(null);
                       }}
-                      class="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-2 text-xs font-medium text-ink transition hover:border-accent/40 hover:text-accent"
                     >
                       <SlidersHorizontal size={14} />
                       {t("plugins.configure")}
-                    </button>
+                    </Button>
                   </Show>
                   <Show when={isInstalled}>
-                    <button
-                      type="button"
+                    <Button
+                      variant="danger"
+                      size="sm"
                       onClick={() => {
                         setRemoving(record!);
                         setDetailsFor(null);
                       }}
-                      class="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-2 text-xs font-medium text-ink transition hover:border-red-500/40 hover:text-red-500"
                     >
                       <TrashIcon size={14} />
                       {t("plugins.uninstall")}
-                    </button>
+                    </Button>
                   </Show>
                   <Show when={!isInstalled}>
-                    <button
-                      type="button"
+                    <Button
+                      size="sm"
                       onClick={() => {
                         doInstall(storePlugin!);
                         setDetailsFor(null);
                       }}
-                      class="flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-2 text-xs font-medium text-accent transition hover:opacity-80 active:scale-95"
                     >
                       <DownloadIcon size={14} />
                       {t("plugins.install")}
-                    </button>
+                    </Button>
                   </Show>
                 </div>
               </div>
@@ -669,18 +648,23 @@ export default function Plugins() {
           const record = configFor()!;
           const Comp = getConfigScreen(record.pluginId);
           return (
-            <div class="fixed inset-0 z-50 flex flex-col bg-bg">
-              <header class="flex shrink-0 items-center justify-between border-b border-border bg-appbar px-4 pb-3 pt-[max(var(--safe-top),1.5rem)]">
-                <h1 class="font-heading text-xl font-bold">{record.name}</h1>
-                <button
-                  type="button"
-                  onClick={() => setConfigFor(null)}
-                  aria-label={t("plugins.configClose")}
-                  class="flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition hover:bg-surface hover:text-ink active:scale-95"
-                >
-                  ✕
-                </button>
-              </header>
+            <div
+              class="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-bg"
+              style={{ top: "var(--titlebar-h, 0px)" }}
+            >
+              <Appbar
+                title={record.name}
+                actions={
+                  <button
+                    type="button"
+                    onClick={() => setConfigFor(null)}
+                    aria-label={t("plugins.configClose")}
+                    class="flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition hover:bg-surface hover:text-ink active:scale-95"
+                  >
+                    ✕
+                  </button>
+                }
+              />
               <div class="min-h-0 flex-1 overflow-y-auto">
                 {Comp ? Comp({ plugin: { id: record.pluginId, name: record.name }, onClose: () => setConfigFor(null) }) : null}
               </div>
