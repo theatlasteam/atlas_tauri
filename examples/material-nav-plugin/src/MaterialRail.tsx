@@ -2,6 +2,10 @@ import { For } from "solid-js";
 
 // Material 3-style navigation rail for desktop: a slim docked bar on the left
 // edge (non-floating, full-height), with M3 active-indicator pills.
+//
+// NOTE: style objects use kebab-case keys only — the Solid transform bakes
+// them into DOM template strings verbatim, and the browser's CSS parser
+// ignores camelCase keys like `flexDirection`.
 
 const TABS = [
   { id: "/", label: "Chats", glyph: "💬" },
@@ -30,14 +34,14 @@ export function MaterialRail(props: {
         inset: "0 auto 0 0",
         width: "80px",
         display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
+        "flex-direction": "column",
+        "align-items": "center",
         gap: "12px",
-        paddingTop: "max(var(--safe-top, 0px), 12px)",
-        paddingBottom: "16px",
+        "padding-top": "max(var(--safe-top, 0px), 12px)",
+        "padding-bottom": "16px",
         background: "var(--color-surface-raised, #fdfbf8)",
-        borderRight: "1px solid var(--color-border, rgba(0,0,0,0.08))",
-        zIndex: 20,
+        "border-right": "1px solid var(--color-border, rgba(0,0,0,0.08))",
+        "z-index": 20,
       }}
     >
       <For each={TABS}>
@@ -52,27 +56,27 @@ export function MaterialRail(props: {
               style={{
                 width: "56px",
                 display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
+                "flex-direction": "column",
+                "align-items": "center",
                 gap: "2px",
                 padding: "6px 0",
                 border: 0,
                 cursor: "pointer",
                 background: "transparent",
-                fontFamily: "inherit",
+                "font-family": "inherit",
               }}
             >
               <span
                 style={{
                   display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  "align-items": "center",
+                  "justify-content": "center",
                   width: "56px",
                   height: "32px",
-                  borderRadius: "999px",
+                  "border-radius": "999px",
                   background: active() ? "var(--color-accent-soft, rgba(201,119,46,0.2))" : "transparent",
                   color: active() ? "var(--color-accent, #c9772e)" : "var(--color-ink-subtle, #8a8378)",
-                  fontSize: "18px",
+                  "font-size": "18px",
                   transition: "background-color 0.2s ease, color 0.2s ease",
                 }}
               >
@@ -80,8 +84,8 @@ export function MaterialRail(props: {
               </span>
               <span
                 style={{
-                  fontSize: "11px",
-                  fontWeight: active() ? 700 : 500,
+                  "font-size": "11px",
+                  "font-weight": active() ? 700 : 500,
                   color: active() ? "var(--color-accent, #c9772e)" : "var(--color-ink-muted, #6b6459)",
                 }}
               >

@@ -3,6 +3,10 @@ import { Show } from "solid-js";
 // The iOS toggle: a green track (SF system green) with a white knob that
 // slides. Slightly narrower than the built-in pill and with the iOS
 // translucent border around the knob.
+//
+// NOTE: style objects use kebab-case keys only — the Solid transform bakes
+// them into DOM template strings verbatim, and the browser's CSS parser
+// ignores camelCase keys like `borderRadius`.
 
 export function IosSwitch(props: {
   checked: boolean;
@@ -19,10 +23,10 @@ export function IosSwitch(props: {
       style={{
         position: "relative",
         display: "inline-flex",
-        alignItems: "center",
+        "align-items": "center",
         width: "51px",
         height: "31px",
-        flexShrink: 0,
+        "flex-shrink": 0,
         padding: 0,
         border: 0,
         background: "transparent",
@@ -35,12 +39,10 @@ export function IosSwitch(props: {
           display: "block",
           width: "51px",
           height: "31px",
-          borderRadius: "999px",
+          "border-radius": "999px",
           background: props.checked ? "#34c759" : "rgba(120,120,128,0.32)",
           transition: "background-color 0.2s ease",
-          boxShadow: props.checked
-            ? "inset 0 0 0 0.5px rgba(0,0,0,0.04)"
-            : "inset 0 0 0 0.5px rgba(0,0,0,0.04)",
+          boxShadow: "inset 0 0 0 0.5px rgba(0,0,0,0.04)",
         }}
       >
         <span
@@ -50,9 +52,9 @@ export function IosSwitch(props: {
             left: props.checked ? "24px" : "2px",
             width: "27px",
             height: "27px",
-            borderRadius: "999px",
+            "border-radius": "999px",
             background: "#ffffff",
-            boxShadow: "0 3px 8px rgba(0,0,0,0.15), 0 1px 1px rgba(0,0,0,0.16)",
+            "box-shadow": "0 3px 8px rgba(0,0,0,0.15), 0 1px 1px rgba(0,0,0,0.16)",
             transition: "left 0.2s ease",
           }}
         />

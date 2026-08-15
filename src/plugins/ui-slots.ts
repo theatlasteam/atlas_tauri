@@ -4,8 +4,33 @@
 // when a slot is unset. Values are Solid component functions.
 
 import { createSignal, type JSX } from "solid-js";
+import { createComponent } from "solid-js/web";
 
 export type PluginComponent = (props: Record<string, unknown>) => JSX.Element;
+
+/**
+ * Render a plugin-provided slot component with reactive props.
+ *
+ * Solid components must be invoked through `createComponent` (what JSX
+ * compiles to) with getters — calling the function directly with a plain
+ * object (`plugin({ checked: props.checked })`) bakes each prop to a static
+ * value, so the plugin's own reactive reads (createEffect, style bindings)
+ * capture a frozen snapshot and never update. This helper builds getters so
+ * the plugin tracks the app's signals exactly like a normal child component.
+ */
+export function renderSlotComponent(
+  component: PluginComponent,
+  props: Record<string, unknown>,
+): JSX.Element {
+  const reactive: Record<string, unknown> = {};
+  for (const key of Object.keys(props)) {
+    Object.defineProperty(reactive, key, {
+      enumerable: true,
+      get: () => props[key],
+    });
+  }
+  return createComponent(component, reactive);
+}
 
 export type UiSlot =
   | "nav.bottom"

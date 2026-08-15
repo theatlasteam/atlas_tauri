@@ -33,3 +33,6 @@ server/data/attachments/*
 # OS / editor
 .DS_Store
 *.log
+
+# Local scratch tests — never committed.
+.test/

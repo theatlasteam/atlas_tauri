@@ -4,6 +4,10 @@ import { Show } from "solid-js";
 // (squircle ~ 21px), a blue "OK"/dismiss button and iOS system blur backdrop.
 // Unlike the app's default bottom sheet, iOS dialogs are always centered and
 // fairly small.
+//
+// NOTE: style objects use kebab-case keys only — the Solid transform bakes
+// them into DOM template strings verbatim, and the browser's CSS parser
+// ignores camelCase keys like `borderRadius`.
 
 export function IosDialog(props: {
   title: string;
@@ -17,10 +21,10 @@ export function IosDialog(props: {
         style={{
           position: "fixed",
           inset: "0",
-          zIndex: 50,
+          "z-index": 50,
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          "align-items": "center",
+          "justify-content": "center",
           padding: "24px",
         }}
       >
@@ -30,8 +34,8 @@ export function IosDialog(props: {
             position: "absolute",
             inset: "0",
             background: "rgba(0,0,0,0.4)",
-            backdropFilter: "blur(20px) saturate(180%)",
-            WebkitBackdropFilter: "blur(20px) saturate(180%)",
+            "backdrop-filter": "blur(20px) saturate(180%)",
+            "-webkit-backdrop-filter": "blur(20px) saturate(180%)",
           }}
           onClick={() => props.onOpenChange(false)}
         />
@@ -43,27 +47,27 @@ export function IosDialog(props: {
           aria-label={props.title}
           style={{
             position: "relative",
-            zIndex: 10,
+            "z-index": 10,
             width: "100%",
-            maxWidth: "270px",
+            "max-width": "270px",
             overflow: "hidden",
             background: "var(--color-surface-raised, #f9f9f9)",
-            borderRadius: "21px",
-            boxShadow: "0 20px 60px -12px rgba(0,0,0,0.4)",
+            "border-radius": "21px",
+            "box-shadow": "0 20px 60px -12px rgba(0,0,0,0.4)",
           }}
         >
-          <div style={{ padding: "20px 16px 8px", textAlign: "center" }}>
+          <div style={{ padding: "20px 16px 8px", "text-align": "center" }}>
             <h2
               style={{
                 margin: "0 0 8px",
-                fontSize: "17px",
-                fontWeight: 600,
+                "font-size": "17px",
+                "font-weight": 600,
                 color: "var(--color-ink, #000)",
               }}
             >
               {props.title}
             </h2>
-            <div style={{ fontSize: "13px", lineHeight: "1.45", color: "var(--color-ink-muted, #3c3c43)" }}>
+            <div style={{ "font-size": "13px", "line-height": "1.45", color: "var(--color-ink-muted, #3c3c43)" }}>
               {props.children}
             </div>
           </div>
@@ -72,8 +76,8 @@ export function IosDialog(props: {
           <div
             style={{
               display: "flex",
-              marginTop: "12px",
-              borderTop: "1px solid var(--color-border, rgba(60,60,67,0.16))",
+              "margin-top": "12px",
+              "border-top": "1px solid var(--color-border, rgba(60,60,67,0.16))",
             }}
           >
             <button
@@ -84,11 +88,11 @@ export function IosDialog(props: {
                 padding: "11px 0",
                 border: 0,
                 background: "transparent",
-                fontSize: "17px",
-                fontWeight: 600,
+                "font-size": "17px",
+                "font-weight": 600,
                 color: "var(--color-accent, #007aff)",
                 cursor: "pointer",
-                fontFamily: "inherit",
+                "font-family": "inherit",
               }}
             >
               Done

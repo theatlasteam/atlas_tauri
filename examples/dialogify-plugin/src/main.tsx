@@ -1,12 +1,17 @@
-import { Show, onMount, type JSX } from "solid-js";
+import { Show, createSignal, onMount, type JSX } from "solid-js";
 
 // Atlas plugin — forces dialogs to use a centered modal presentation on every
 // viewport, including mobile.
 //
-// IMPORTANT: plugins are fetched at runtime, so Tailwind classes (rounded-3xl,
-// opacity-0, duration-200, ...) are NOT compiled into the app's CSS. Use
-// inline styles + the app's CSS variables instead. Solid still animates via
-// `onMount` toggling inline transition properties.
+// IMPORTANT (kebab-case): plugins are fetched at runtime, so Tailwind classes
+// are NOT compiled into the app's CSS — use inline styles + the app's CSS
+// variables. Style objects must use kebab-case keys ("border-radius",
+// "align-items"): the Solid transform bakes static style objects into DOM
+// strings verbatim, and the browser's CSS parser ignores camelCase keys.
+//
+// Also, animation state must be a signal: Solid bakes `opacity: entered ? 1 : 0`
+// into the style at render time, so a plain `let` flipped in a rAF would leave
+// the dialog permanently invisible.
 
 export function activate(ctx) {
   ctx.log("Dialogify active");
@@ -30,8 +35,8 @@ function Dialogify(props: {
 }) {
   // Enter animation: start hidden, then flip to visible on the next frame so
   // the inline `transition` animates opacity + transform.
-  let entered = false;
-  onMount(() => requestAnimationFrame(() => (entered = true)));
+  const [entered, setEntered] = createSignal(false);
+  onMount(() => requestAnimationFrame(() => setEntered(true)));
 
   return (
     <Show when={props.open}>
@@ -39,10 +44,10 @@ function Dialogify(props: {
         style={{
           position: "fixed",
           inset: "0",
-          zIndex: 50,
+          "z-index": 50,
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          "align-items": "center",
+          "justify-content": "center",
           padding: "16px",
         }}
       >
@@ -52,8 +57,8 @@ function Dialogify(props: {
             position: "absolute",
             inset: "0",
             background: "rgba(0,0,0,0.4)",
-            backdropFilter: "blur(2px)",
-            opacity: entered ? 1 : 0,
+            "backdrop-filter": "blur(2px)",
+            opacity: entered() ? 1 : 0,
             transition: "opacity 200ms ease-out",
           }}
           onClick={() => props.onOpenChange(false)}
@@ -66,25 +71,25 @@ function Dialogify(props: {
           aria-label={props.title}
           style={{
             position: "relative",
-            zIndex: 10,
+            "z-index": 10,
             width: "100%",
-            maxWidth: "24rem",
+            "max-width": "24rem",
             overflow: "hidden",
             background: "var(--color-surface-raised, #fff)",
             border: "1px solid var(--color-border, rgba(0,0,0,0.1))",
-            borderRadius: "24px",
-            boxShadow: "0 8px 30px -6px rgba(0,0,0,0.35)",
+            "border-radius": "24px",
+            "box-shadow": "0 8px 30px -6px rgba(0,0,0,0.35)",
             padding: "20px",
-            opacity: entered ? 1 : 0,
-            transform: entered ? "scale(1) translateY(0)" : "scale(0.95) translateY(8px)",
+            opacity: entered() ? 1 : 0,
+            transform: entered() ? "scale(1) translateY(0)" : "scale(0.95) translateY(8px)",
             transition: "opacity 200ms ease-out, transform 200ms ease-out",
           }}
         >
           <h2
             style={{
               margin: "0 0 16px",
-              fontSize: "1.125rem",
-              fontWeight: 600,
+              "font-size": "1.125rem",
+              "font-weight": 600,
               color: "var(--color-ink)",
             }}
           >

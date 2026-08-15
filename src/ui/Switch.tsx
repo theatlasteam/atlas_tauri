@@ -1,17 +1,23 @@
-import { Show, type JSX } from "solid-js";
-import { slotComponent, type PluginComponent } from "../plugins/ui-slots";
+import { Show } from "solid-js";
+import { renderSlotComponent, slotComponent, type PluginComponent } from "../plugins/ui-slots";
 
 /**
- * Renders the plugin-provided switch. It's a component (not an inline call)
- * so Solid keeps the same DOM node across `checked` changes — if we called
- * the plugin function directly in the fallback, each toggle would mount a
- * fresh element and the CSS transitions (left/background) would never play.
+ * Renders the plugin-provided switch through renderSlotComponent. Props must
+ * be passed as GETTERS: `{ checked: props.checked }` reads the value eagerly
+ * and freezes it, so the plugin never sees changes. Getters keep the chain
+ * reactive while Solid reuses the same DOM node, so transitions still play.
  */
-function PluginSwitch(props: { checked: boolean; onChange: (v: boolean) => void; label?: string; component: PluginComponent }): JSX.Element {
-  return props.component({
-    checked: props.checked,
-    onChange: props.onChange,
-    label: props.label ?? "",
+function PluginSwitch(props: { checked: boolean; onChange: (v: boolean) => void; label?: string; component: PluginComponent }) {
+  return renderSlotComponent(props.component, {
+    get checked() {
+      return props.checked;
+    },
+    get onChange() {
+      return props.onChange;
+    },
+    get label() {
+      return props.label ?? "";
+    },
   });
 }
 

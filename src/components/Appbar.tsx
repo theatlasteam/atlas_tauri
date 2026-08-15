@@ -1,7 +1,7 @@
 import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { A } from "@solidjs/router";
 import { BackIcon } from "../icons";
-import { slotComponent } from "../plugins/ui-slots";
+import { renderSlotComponent, slotComponent } from "../plugins/ui-slots";
 
 interface AppbarProps {
   /** Title next to the leading content. */
@@ -42,17 +42,31 @@ export default function Appbar(props: AppbarProps) {
     ) : undefined;
 
   onMount(() => {
-    // Find the nearest scroll container to watch (walk up from the bar).
-    let el = headerRef?.parentElement;
-    let container: HTMLElement | null = null;
-    while (el) {
+    // Find the scroll container this bar sits above. Screens usually wrap
+    // the bar + scrollable in a flex column, so the scroll area can be a
+    // *sibling* of the bar rather than an ancestor — search both.
+    const isScrollable = (el: Element) => {
       const oy = getComputedStyle(el).overflowY;
-      if (oy === "auto" || oy === "scroll") {
+      return (oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 1;
+    };
+    let container: HTMLElement | null = null;
+    let el = headerRef?.parentElement;
+    while (el && !container) {
+      if (isScrollable(el)) {
         container = el;
         break;
       }
+      // A sibling scroll area (e.g. the flex-1 overflow-y-auto div next to
+      // the header in NewChat / Verification).
+      for (const child of Array.from(el.children)) {
+        if (child !== headerRef && isScrollable(child)) {
+          container = child as HTMLElement;
+          break;
+        }
+      }
       el = el.parentElement;
     }
+    if (!container) container = document.scrollingElement as HTMLElement | null;
     if (!container) return;
     const onScroll = () => setScrolled(container!.scrollTop > 8);
     onScroll();
@@ -90,7 +104,7 @@ export default function Appbar(props: AppbarProps) {
       </Show>
       <Show when={slotComponent("header.actions")}>
         <div class="ml-auto flex shrink-0 items-center gap-1">
-          {slotComponent("header.actions")?.({})}
+          {renderSlotComponent(slotComponent("header.actions")!, {})}
         </div>
       </Show>
     </header>

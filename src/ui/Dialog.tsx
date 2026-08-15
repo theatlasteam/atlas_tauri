@@ -2,7 +2,7 @@ import { createEffect, onCleanup, Show, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Transition } from "solid-transition-group";
 import { useEscapeKey, useFocusTrap } from "./lib/dismiss";
-import { slotComponent } from "../plugins/ui-slots";
+import { renderSlotComponent, slotComponent } from "../plugins/ui-slots";
 
 export default function Dialog(props: {
   open: boolean;
@@ -31,12 +31,22 @@ export default function Dialog(props: {
   const plugin = () => slotComponent("dialog");
 
   const pluginComp = () =>
-    plugin()?.({
-      title: props.title,
-      open: props.open,
-      onOpenChange: props.onOpenChange,
-      children: props.children,
-    });
+    plugin()
+      ? renderSlotComponent(plugin()!, {
+          get title() {
+            return props.title;
+          },
+          get open() {
+            return props.open;
+          },
+          get onOpenChange() {
+            return props.onOpenChange;
+          },
+          get children() {
+            return props.children;
+          },
+        })
+      : undefined;
 
   return (
     <Portal>

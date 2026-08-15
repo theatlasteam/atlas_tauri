@@ -3,14 +3,13 @@ import { IosDialog } from "./IosDialog";
 import { IosTabBar } from "./IosTabBar";
 import { IosRail } from "./IosRail";
 import { IosifySettings } from "./Settings";
-import themeCss from "./theme.css?raw";
 
 // Atlas plugin — restyles the whole app to look like iOS: system colors,
 // liquid-glass gradient wallpaper, squircle avatars/cards, SF-style type,
 // grouped lists without descriptions, and iOS-native switch/dialog/nav.
 //
 // Unlike the other example plugins, this one also injects a global <style>
-// sheet (theme.css) so it can restyle parts of the app it doesn't own via CSS
+// sheet at runtime so it can restyle parts of the app it doesn't own via CSS
 // custom properties and a few targeted rules.
 
 export function activate(ctx) {

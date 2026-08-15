@@ -4,7 +4,7 @@ import { NAV_TABS } from "../lib/nav";
 import { preferences } from "../store/preferences";
 import { t } from "../lib/i18n";
 import { SearchIcon } from "../icons";
-import { slotComponent } from "../plugins/ui-slots";
+import { slotComponent, renderSlotComponent } from "../plugins/ui-slots";
 
 export default function BottomNav() {
   const location = useLocation();
@@ -90,9 +90,13 @@ export default function BottomNav() {
         when={!pluginSlot()}
         fallback={
           <div class="pointer-events-auto flex w-full items-stretch justify-center">
-            {pluginSlot()!({
-              navigate: (to: string) => navigate(to),
-              pathname: location.pathname,
+            {renderSlotComponent(pluginSlot()!, {
+              get navigate() {
+                return (to: string) => navigate(to);
+              },
+              get pathname() {
+                return location.pathname;
+              },
             })}
           </div>
         }

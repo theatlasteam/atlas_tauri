@@ -2,6 +2,10 @@ import { For } from "solid-js";
 
 // iOS-style desktop sidebar rail: translucent, frosted, with squircle
 // (continuous-corner) icon tiles instead of the app's circular ones.
+//
+// NOTE: style objects use kebab-case keys only — the Solid transform bakes
+// them into DOM template strings verbatim, and the browser's CSS parser
+// ignores camelCase keys like `borderRadius`.
 
 const TABS = [
   { id: "/", label: "Chats", glyph: "💬", match: (p: string) => p === "/" || p.startsWith("/chat") },
@@ -20,8 +24,8 @@ export function IosRail(props: {
       aria-label="Primary"
       style={{
         display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
+        "flex-direction": "column",
+        "align-items": "center",
         gap: "6px",
         width: "100%",
         height: "100%",
@@ -40,15 +44,15 @@ export function IosRail(props: {
               title={tab.label}
               style={{
                 display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
+                "align-items": "center",
+                "justify-content": "center",
                 width: "48px",
                 height: "48px",
                 border: 0,
-                borderRadius: "28% / 28%",
+                "border-radius": "28% / 28%",
                 background: active() ? "rgba(0,122,255,0.14)" : "transparent",
                 color: active() ? "var(--color-accent, #007aff)" : "var(--color-ink-muted, #6b6459)",
-                fontSize: "20px",
+                "font-size": "20px",
                 cursor: "pointer",
                 transition: "background-color 0.2s ease, color 0.2s ease",
               }}

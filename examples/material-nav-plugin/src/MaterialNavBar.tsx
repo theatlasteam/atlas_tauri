@@ -6,6 +6,10 @@ import { For } from "solid-js";
 //
 // Uses app CSS variables where they exist so it stays in the app's theme;
 // the "material" look comes from the solid container + active pill.
+//
+// NOTE: style objects use kebab-case keys only — the Solid transform bakes
+// them into DOM template strings verbatim, and the browser's CSS parser
+// ignores camelCase keys like `flexDirection`.
 
 const TABS = [
   { id: "/", label: "Chats", glyph: "💬" },
@@ -34,17 +38,17 @@ export function MaterialNavBar(props: {
         position: "fixed",
         inset: "auto 0 0 0",
         display: "flex",
-        alignItems: "stretch",
+        "align-items": "stretch",
         // M3 "surface-container": lifted tinted surface, no floating shadow.
         background: "var(--color-surface-raised, #fdfbf8)",
-        borderTop: "1px solid var(--color-border, rgba(0,0,0,0.08))",
+        "border-top": "1px solid var(--color-border, rgba(0,0,0,0.08))",
         // High enough to sit above chat content but below dialogs.
-        zIndex: 20,
+        "z-index": 20,
         // Let the app's status-bar safe inset space us correctly.
-        paddingBottom: "max(var(--safe-bottom, 0px), 0px)",
-        paddingTop: "8px",
+        "padding-bottom": "max(var(--safe-bottom, 0px), 0px)",
+        "padding-top": "8px",
         height: "auto",
-        boxShadow: "0 -1px 0 rgba(0,0,0,0.03)",
+        "box-shadow": "0 -1px 0 rgba(0,0,0,0.03)",
       }}
     >
       <For each={TABS}>
@@ -58,33 +62,33 @@ export function MaterialNavBar(props: {
               style={{
                 flex: 1,
                 display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
+                "flex-direction": "column",
+                "align-items": "center",
+                "justify-content": "center",
                 gap: "2px",
                 padding: "10px 0 8px",
                 border: 0,
                 cursor: "pointer",
                 background: "transparent",
-                fontFamily: "inherit",
+                "font-family": "inherit",
               }}
             >
               <span
                 style={{
                   display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  "align-items": "center",
+                  "justify-content": "center",
                   // M3 active indicator: a filled "secondary-container" pill
                   // around the icon, inactive icons are plain and muted.
                   width: "56px",
                   height: "32px",
-                  borderRadius: "999px",
+                  "border-radius": "999px",
                   background:
                     active() && props.showPill !== false
                       ? "var(--color-accent-soft, rgba(201,119,46,0.2))"
                       : "transparent",
                   color: active() ? "var(--color-accent, #c9772e)" : "var(--color-ink-subtle, #8a8378)",
-                  fontSize: "18px",
+                  "font-size": "18px",
                   transition: "background-color 0.2s ease, color 0.2s ease",
                 }}
               >
@@ -92,8 +96,8 @@ export function MaterialNavBar(props: {
               </span>
               <span
                 style={{
-                  fontSize: "12px",
-                  fontWeight: active() ? 700 : 500,
+                  "font-size": "12px",
+                  "font-weight": active() ? 700 : 500,
                   color: active() ? "var(--color-accent, #c9772e)" : "var(--color-ink-muted, #6b6459)",
                 }}
               >

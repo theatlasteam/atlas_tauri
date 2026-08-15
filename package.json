@@ -1,7 +1,7 @@
 {
   "name": "atlas",
   "version": "0.1.0",
-  "description": "",
+  "description": "Atlas — end-to-end encrypted chat app built with Tauri, Solid.js, and Rust.",
   "type": "module",
   "scripts": {
     "dev": "vite --host",

@@ -2,7 +2,7 @@ import { Show } from "solid-js";
 import { A, useLocation, useNavigate } from "@solidjs/router";
 import { NAV_TABS } from "../lib/nav";
 import { t } from "../lib/i18n";
-import { slotComponent } from "../plugins/ui-slots";
+import { slotComponent, renderSlotComponent } from "../plugins/ui-slots";
 
 /** Desktop counterpart to BottomNav: a persistent icon rail docked to the far
  *  left. A plugin may replace it entirely via the `nav.side` UI slot. */
@@ -17,9 +17,13 @@ export default function SideNav() {
         when={!pluginSlot()}
         fallback={
           <div class="flex h-full w-full flex-col items-center gap-1">
-            {pluginSlot()!({
-              navigate: (to: string) => navigate(to),
-              pathname: location.pathname,
+            {renderSlotComponent(pluginSlot()!, {
+              get navigate() {
+                return (to: string) => navigate(to);
+              },
+              get pathname() {
+                return location.pathname;
+              },
             })}
           </div>
         }

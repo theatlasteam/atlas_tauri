@@ -2,6 +2,10 @@ import { createSignal } from "solid-js";
 
 // iOSify configuration screen — toggles which parts of the iOS treatment the
 // plugin applies. Settings persist in the plugin's own storage.
+//
+// NOTE: style objects use kebab-case keys only — the Solid transform bakes
+// them into DOM template strings verbatim, and the browser's CSS parser
+// ignores camelCase keys like `borderRadius`.
 
 const FEATURES = [
   { key: "colors", label: "iOS colors", hint: "System blue accent, iOS grays" },
@@ -64,13 +68,13 @@ export function IosifySettings(props: {
               aria-checked={toggles()[f.key]}
               onClick={() => set(f.key, !toggles()[f.key])}
               style={{
-                flexShrink: 0,
+                "flex-shrink": 0,
                 position: "relative",
                 width: "51px",
                 height: "31px",
                 border: 0,
                 padding: 0,
-                borderRadius: "999px",
+                "border-radius": "999px",
                 background: toggles()[f.key] ? "#34c759" : "rgba(120,120,128,0.32)",
                 cursor: "pointer",
                 transition: "background-color 0.2s ease",
@@ -83,9 +87,9 @@ export function IosifySettings(props: {
                   left: toggles()[f.key] ? "24px" : "2px",
                   width: "27px",
                   height: "27px",
-                  borderRadius: "999px",
+                  "border-radius": "999px",
                   background: "#fff",
-                  boxShadow: "0 3px 8px rgba(0,0,0,0.15)",
+                  "box-shadow": "0 3px 8px rgba(0,0,0,0.15)",
                   transition: "left 0.2s ease",
                 }}
               />
@@ -100,13 +104,13 @@ export function IosifySettings(props: {
         style={{
           padding: "10px 0",
           border: 0,
-          borderRadius: "14px",
+          "border-radius": "14px",
           background: "var(--color-accent-soft)",
           color: "var(--color-accent)",
           "font-size": "15px",
           "font-weight": 600,
           cursor: "pointer",
-          fontFamily: "inherit",
+          "font-family": "inherit",
         }}
       >
         Done

@@ -4,6 +4,10 @@ import { For } from "solid-js";
 // centered icon + label per tab, the active tab in system blue. Uses SF
 // Symbol-ish glyphs (we can't ship the SF font, so these are simple unicode
 // approximations) and the app's safe-area inset for the home indicator.
+//
+// NOTE: style objects use kebab-case keys only — the Solid transform bakes
+// them into DOM template strings verbatim, and the browser's CSS parser
+// ignores camelCase keys like `justifyContent`.
 
 const TABS = [
   { id: "/", label: "Chats", glyph: "💬", match: (p: string) => p === "/" || p.startsWith("/chat") },
@@ -24,16 +28,16 @@ export function IosTabBar(props: {
       style={{
         position: "fixed",
         inset: "auto 0 0 0",
-        zIndex: 30,
+        "z-index": 30,
         display: "flex",
-        alignItems: "stretch",
+        "align-items": "stretch",
         background: "rgba(246,246,246,0.78)",
-        backdropFilter: "blur(20px) saturate(180%)",
-        WebkitBackdropFilter: "blur(20px) saturate(180%)",
-        borderTop: "0.5px solid rgba(0,0,0,0.12)",
-        paddingTop: "8px",
-        paddingBottom: "max(var(--safe-bottom, 0px), 0px)",
-        boxShadow: "0 -0.5px 0 rgba(0,0,0,0.02)",
+        "backdrop-filter": "blur(20px) saturate(180%)",
+        "-webkit-backdrop-filter": "blur(20px) saturate(180%)",
+        "border-top": "0.5px solid rgba(0,0,0,0.12)",
+        "padding-top": "8px",
+        "padding-bottom": "max(var(--safe-bottom, 0px), 0px)",
+        "box-shadow": "0 -0.5px 0 rgba(0,0,0,0.02)",
       }}
     >
       <For each={TABS}>
@@ -47,28 +51,28 @@ export function IosTabBar(props: {
               style={{
                 flex: 1,
                 display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
+                "flex-direction": "column",
+                "align-items": "center",
+                "justify-content": "center",
                 gap: "3px",
                 padding: "4px 0 6px",
                 border: 0,
                 background: "transparent",
                 cursor: "pointer",
-                fontFamily: "inherit",
+                "font-family": "inherit",
               }}
             >
               <span
                 style={{
                   display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  "align-items": "center",
+                  "justify-content": "center",
                   width: "44px",
                   height: "29px",
-                  borderRadius: "999px",
+                  "border-radius": "999px",
                   background: active() ? "rgba(0,122,255,0.14)" : "transparent",
                   color: active() ? "var(--color-accent, #007aff)" : "var(--color-ink-muted, #6b6459)",
-                  fontSize: "18px",
+                  "font-size": "18px",
                   transition: "background-color 0.2s ease, color 0.2s ease",
                 }}
               >
@@ -76,8 +80,8 @@ export function IosTabBar(props: {
               </span>
               <span
                 style={{
-                  fontSize: "10px",
-                  fontWeight: active() ? 600 : 500,
+                  "font-size": "10px",
+                  "font-weight": active() ? 600 : 500,
                   color: active() ? "var(--color-accent, #007aff)" : "var(--color-ink-muted, #6b6459)",
                 }}
               >

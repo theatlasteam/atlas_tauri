@@ -9,6 +9,15 @@
   Desktop and mobile from one codebase.
 </p>
 
+<p align="center">
+  <a href="https://github.com/theatlasteam/atlas_tauri/actions/workflows/release.yml">
+    <img alt="Release builds" src="https://github.com/theatlasteam/atlas_tauri/actions/workflows/release.yml/badge.svg" />
+  </a>
+  <a href="https://github.com/theatlasteam/atlas_tauri/actions/workflows/canary.yml">
+    <img alt="Canary builds" src="https://github.com/theatlasteam/atlas_tauri/actions/workflows/canary.yml/badge.svg" />
+  </a>
+</p>
+
 ## Features
 
 - **Live typing** — opt in and the other side watches your message form as you write it, instead of a
@@ -100,6 +109,25 @@ bun run tauri android build
 ```
 
 See [`server/README.md`](server/README.md) for running the backend.
+
+## Example Plugins
+
+Atlas has a runtime plugin system: plugins are `.atp` archives of TypeScript
+that run against the plugin SDK (`atlas` and `atlas/ui` host modules) to add
+commands, message hooks, UI slots, and config screens. Ready-made examples live
+in [`examples/`](examples/), each with a ready-to-import `.atp`:
+
+| Plugin | What it does |
+| --- | --- |
+| [`switcheroo`](examples/switcheroo-plugin) | Restyle every switch in the app (pill, checkbox, capsule, minimal, radio, squircle, iOS) |
+| [`iosify`](examples/iosify-plugin) | Restyle the whole app like iOS — system colors, gradients, squircles, native dialogs/nav |
+| [`material-nav`](examples/material-nav-plugin) | Material 3 docked bottom bar + rail |
+| [`dialogify`](examples/dialogify-plugin) | Force centered modal dialogs instead of bottom sheets |
+| [`todo`](examples/todo-plugin) | A persistent todo list using plugin storage + shared UI components |
+| [`quotes`](examples/quotes-plugin) | Reply to "inspire me" with a quote + send a notification |
+
+Import a `.atp` from the **Plugins** screen (developer mode) or publish one
+from the [Developer panel](https://atlasmsg.app/plugins).
 
 ## Releases
 
