@@ -15,11 +15,15 @@
 
 use std::collections::BTreeMap;
 
-use axum::extract::{Path, State};
+use axum::body::{Body, Bytes};
+use axum::extract::{Path, Query, State};
+use axum::http::header;
+use axum::response::Response;
 use axum::Json;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json as SqlxJson;
+use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
 use crate::auth::AuthUser;
@@ -415,4 +419,106 @@ pub async fn install(
         return Err(AppError::NotFound);
     }
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub const MAX_ICON_BYTES: usize = 2 * 1024 * 1024;
+
+/// Upload a plugin icon. Raw bytes (same shape as /api/attachments) — the
+/// file goes to the shared attachment store and the manifest references the
+/// returned URL instead of inlining base64 into the workspace. Owner-only.
+pub async fn upload_icon(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(plugin_id): Path<Uuid>,
+    Query(query): Query<IconUploadQuery>,
+    body: Bytes,
+) -> ApiResult<Json<serde_json::Value>> {
+    let gate = update_gate(&state, plugin_id).await?;
+    if gate.owner_id != Some(auth.user_id) {
+        return Err(AppError::Forbidden);
+    }
+    if body.is_empty() || body.len() > MAX_ICON_BYTES {
+        return Err(AppError::BadRequest(
+            "icon must be 1 byte to 2 MiB".into(),
+        ));
+    }
+    let mime = query.mime.unwrap_or_else(|| "image/png".into());
+    if !mime.starts_with("image/") || mime.len() > 100 {
+        return Err(AppError::BadRequest("icon must be an image".into()));
+    }
+    let filename = query
+        .filename
+        .map(|f| {
+            f.chars()
+                .filter(|c| !matches!(c, '/' | '\\' | '\0'))
+                .take(120)
+                .collect::<String>()
+        })
+        .unwrap_or_else(|| "icon".into());
+
+    let id = Uuid::new_v4();
+    let dir = &state.cfg.attachments_dir;
+    tokio::fs::create_dir_all(dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("attachments dir: {e}")))?;
+    let path = std::path::Path::new(dir).join(id.to_string());
+    tokio::fs::write(&path, &body)
+        .await
+        .map_err(|e| AppError::Internal(format!("icon write: {e}")))?;
+
+    let res = sqlx::query(
+        "INSERT INTO attachments (id, owner_id, kind, mime, size_bytes, filename) \
+         VALUES ($1, $2, 'image', $3, $4, $5)",
+    )
+    .bind(id)
+    .bind(auth.user_id)
+    .bind(&mime)
+    .bind(body.len() as i64)
+    .bind(&filename)
+    .execute(&state.db)
+    .await;
+    if let Err(e) = res {
+        let _ = tokio::fs::remove_file(&path).await;
+        return Err(e.into());
+    }
+    Ok(Json(serde_json::json!({ "url": format!("/api/plugins/assets/{id}") })))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IconUploadQuery {
+    filename: Option<String>,
+    mime: Option<String>,
+}
+
+/// Public plugin-icon download. Unlike message attachments (chat-membership
+/// gated) and avatars (auth gated), store icons must load for anyone browsing
+/// the marketplace — the image bytes are the plugin's public listing art.
+/// Served with a safe `image/*` content type and no attachment disposition so
+/// `<img>` can render it cross-origin.
+pub async fn get_icon(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Response> {
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT mime FROM attachments WHERE id = $1 AND kind = 'image'")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
+    let (mime,) = row.ok_or(AppError::NotFound)?;
+    let path = std::path::Path::new(&state.cfg.attachments_dir).join(id.to_string());
+    let file = tokio::fs::File::open(&path)
+        .await
+        .map_err(|_| AppError::NotFound)?;
+    let len = file.metadata().await.ok().map(|m| m.len());
+
+    let mut builder = Response::builder()
+        .header(header::CONTENT_TYPE, mime)
+        .header("X-Content-Type-Options", "nosniff");
+    if let Some(len) = len {
+        builder = builder.header(header::CONTENT_LENGTH, len);
+    }
+    builder
+        .body(Body::from_stream(ReaderStream::new(file)))
+        .map_err(|e| AppError::Internal(format!("response build: {e}")))
 }

@@ -1125,6 +1125,7 @@ export default function PluginEditor() {
           <ProjectSettings
             manifest={manifest()}
             files={files()}
+            pluginId={editId()}
             lockId={!creating()}
             onApply={applySettings}
             onClose={() => setSettingsOpen(false)}

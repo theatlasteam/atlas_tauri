@@ -690,16 +690,22 @@ export function pluginIcon(record: PluginRecord): string | null {
 }
 
 /** Same as pluginIcon, but takes a raw workspace file map (e.g. a store
- *  plugin's files) instead of a persisted record. */
+ *  plugin's files) instead of a persisted record. Returns an absolute URL
+ *  the UI can put straight into an <img>. */
 export function pluginIconFromFiles(files: Record<string, string>): string | null {
   try {
     const manifest = JSON.parse(files?.["manifest.json"] ?? "{}") as { icon?: string };
-    const path = typeof manifest.icon === "string" ? manifest.icon : null;
-    if (!path) return null;
-    const content = files?.[path];
+    const icon = typeof manifest.icon === "string" ? manifest.icon : null;
+    if (!icon) return null;
+    // Server URL (relative) → absolute against the API base.
+    if (icon.startsWith("/api/")) return `${apiBase()}${icon}`;
+    // Absolute http(s) or data URL → as-is.
+    if (icon.startsWith("data:") || /^https?:\/\//.test(icon)) return icon;
+    // Legacy: a workspace filename with raw content → data URL.
+    const content = files?.[icon];
     if (!content) return null;
     if (content.startsWith("data:")) return content;
-    const ext = path.split(".").pop()?.toLowerCase();
+    const ext = icon.split(".").pop()?.toLowerCase();
     const mime =
       ext === "png" ? "image/png" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/svg+xml";
     return `data:${mime};charset=utf-8,${encodeURIComponent(content)}`;

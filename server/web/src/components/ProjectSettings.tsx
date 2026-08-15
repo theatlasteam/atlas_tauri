@@ -2,6 +2,7 @@ import { createSignal, For, Show, type JSX } from "solid-js";
 import { t } from "../lib/i18n";
 import { X } from "phosphor-solid-js";
 import Checkbox from "./Checkbox";
+import { uploadPluginIcon } from "../lib/api";
 
 /** Every permission the SDK understands, with a hint for the settings list. */
 const KNOWN_PERMISSIONS = [
@@ -32,6 +33,8 @@ export interface ManifestShape {
 interface ProjectSettingsProps {
   manifest: ManifestShape;
   files: Record<string, string>;
+  /** The plugin's store id (null when creating a brand-new plugin). */
+  pluginId?: string | null;
   /** Manifest id can't change after publish (disabled when editing). */
   lockId: boolean;
   onApply: (files: Record<string, string>) => void;
@@ -65,8 +68,14 @@ export default function ProjectSettings(props: ProjectSettingsProps) {
   const [main, setMain] = createSignal(props.manifest.main ?? "src/main.tsx");
   const [iconPath, setIconPath] = createSignal(props.manifest.icon ?? "");
   const [permissions, setPermissions] = createSignal<string[]>(props.manifest.permissions ?? []);
+  // Newly picked icon: keep the File (uploaded on apply for existing plugins)
+  // plus a data-URL preview; for brand-new plugins we fall back to writing
+  // the data URL into the workspace file so the icon ships with the create.
+  const [iconFile, setIconFile] = createSignal<File | null>(null);
   const [iconData, setIconData] = createSignal<string | null>(null);
   const [iconName, setIconName] = createSignal<string | null>(null);
+  const [uploading, setUploading] = createSignal(false);
+  const [uploadError, setUploadError] = createSignal<string | null>(null);
 
   const togglePermission = (perm: string) => {
     setPermissions((list) =>
@@ -76,12 +85,11 @@ export default function ProjectSettings(props: ProjectSettingsProps) {
 
   const onPickImage = (file: File | undefined) => {
     if (!file) return;
+    setIconFile(file);
+    setIconName(file.name);
+    setUploadError(null);
     const reader = new FileReader();
-    reader.onload = () => {
-      const data = String(reader.result ?? "");
-      setIconData(data);
-      setIconName(file.name);
-    };
+    reader.onload = () => setIconData(String(reader.result ?? ""));
     reader.readAsDataURL(file);
   };
 
@@ -89,6 +97,8 @@ export default function ProjectSettings(props: ProjectSettingsProps) {
     if (iconData()) return iconData()!;
     const path = iconPath();
     if (!path) return null;
+    // URL-based icon (server upload) or legacy workspace file.
+    if (path.startsWith("/api/") || /^https?:\/\//.test(path)) return path;
     const content = props.files[path];
     if (!content) return null;
     return content.startsWith("data:")
@@ -96,7 +106,9 @@ export default function ProjectSettings(props: ProjectSettingsProps) {
       : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`;
   };
 
-  const apply = () => {
+  const apply = async () => {
+    setUploading(true);
+    setUploadError(null);
     const nextManifest: ManifestShape = {
       id: id().trim(),
       name: name().trim(),
@@ -108,17 +120,32 @@ export default function ProjectSettings(props: ProjectSettingsProps) {
     };
     const nextFiles = { ...props.files };
 
-    // Newly uploaded icon: write the image into the workspace under the
-    // chosen path (default "icon.<ext>") and point the manifest at it.
-    if (iconData() && iconName()) {
-      const ext = iconName()!.split(".").pop()?.toLowerCase() ?? "png";
-      const path = iconPath().trim() || `icon.${ext}`;
-      nextFiles[path] = iconData()!;
-      setIconPath(path);
-      nextManifest.icon = path;
+    // Newly picked icon:
+    //  - existing plugin  -> upload to the server, reference the URL
+    //  - brand-new plugin -> write the data URL into the workspace so the
+    //    icon ships with the create (no server row to attach it to yet)
+    if (iconFile() && iconData() && iconName()) {
+      if (props.pluginId) {
+        try {
+          const url = await uploadPluginIcon(props.pluginId, iconFile()!);
+          setIconPath(url);
+          nextManifest.icon = url;
+        } catch (e) {
+          setUploading(false);
+          setUploadError(e instanceof Error ? e.message : t("pluginsEditor.settingsUploadError"));
+          return;
+        }
+      } else {
+        const ext = iconName()!.split(".").pop()?.toLowerCase() ?? "png";
+        const path = iconPath().trim() || `icon.${ext}`;
+        nextFiles[path] = iconData()!;
+        setIconPath(path);
+        nextManifest.icon = path;
+      }
     }
 
     nextFiles["manifest.json"] = JSON.stringify(nextManifest, null, 2);
+    setUploading(false);
     props.onApply(nextFiles);
   };
 
@@ -168,6 +195,9 @@ export default function ProjectSettings(props: ProjectSettingsProps) {
               <span class="truncate text-[11px] text-[#5c554a]">{iconName()}</span>
             </Show>
           </div>
+          <Show when={uploadError()}>
+            <p class="mt-2 text-[11px] text-red-400">{uploadError()}</p>
+          </Show>
         </section>
 
         {/* Manifest fields */}
@@ -263,10 +293,11 @@ export default function ProjectSettings(props: ProjectSettingsProps) {
         </button>
         <button
           type="button"
-          onClick={apply}
-          class="rounded-md bg-[#c9772e] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 active:scale-95"
+          onClick={() => void apply()}
+          disabled={uploading()}
+          class="rounded-md bg-[#c9772e] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 active:scale-95 disabled:opacity-50"
         >
-          {t("pluginsEditor.settingsApply")}
+          {uploading() ? t("pluginsEditor.settingsUploading") : t("pluginsEditor.settingsApply")}
         </button>
       </footer>
     </div>

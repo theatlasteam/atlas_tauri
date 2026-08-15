@@ -146,6 +146,26 @@ export async function getPlugin(id: string): Promise<PluginDto> {
   return res.json();
 }
 
+/** Upload a plugin icon image. Returns a server URL (not base64) that the
+ *  manifest's `icon` field should reference. */
+export async function uploadPluginIcon(id: string, file: File): Promise<string> {
+  const token = getPluginToken();
+  const mime = file.type || "image/png";
+  const res = await fetch(`${API_BASE}/api/plugins/${encodeURIComponent(id)}/icon?mime=${encodeURIComponent(mime)}&filename=${encodeURIComponent(file.name)}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: await file.arrayBuffer(),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    if (res.status === 401) throw new Error("Please sign in to publish plugins.");
+    if (res.status === 403) throw new Error("Only the developer who published this plugin can edit it.");
+    throw new Error(body?.error ?? "Couldn't upload the icon.");
+  }
+  const data = await res.json();
+  return data.url as string;
+}
+
 async function writePlugin(id: string | null, payload: PluginPayload): Promise<PluginDto> {
   const token = getPluginToken();
   const res = await fetch(`${API_BASE}/api/plugins${id ? `/${encodeURIComponent(id)}` : ""}`, {

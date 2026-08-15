@@ -167,6 +167,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(routes::plugins::get).put(routes::plugins::update).delete(routes::plugins::delete),
         )
         .route("/api/plugins/{id}/install", post(routes::plugins::install))
+        .route(
+            "/api/plugins/{id}/icon",
+            post(routes::plugins::upload_icon).layer(DefaultBodyLimit::max(
+                routes::plugins::MAX_ICON_BYTES + 1024,
+            )),
+        )
+        .route("/api/plugins/assets/{id}", get(routes::plugins::get_icon))
         // realtime
         .route("/ws", get(ws::ws_handler))
         // Everything the routes above didn't match. `/api/*` and `/ws` are

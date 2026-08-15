@@ -12,18 +12,23 @@ export function tileGradient(name: string): string {
   return `linear-gradient(135deg, hsl(${hueOf(name)} 72% 46%), hsl(${(hueOf(name) + 45) % 360} 72% 38%))`;
 }
 
-/** A plugin's icon as a data URL, from the manifest's "icon" file in its
- *  workspace, or null when the plugin has no icon. A file that's already a
- *  data URL (e.g. an uploaded image) is passed through as-is. */
+/** A plugin's icon source, or null. Three forms:
+ *  - a URL ("/api/plugins/assets/…" or "https://…") → used as-is
+ *  - an already-encoded data URL → used as-is
+ *  - a workspace filename (legacy: icon.svg with raw SVG/PNG content) →
+ *    wrapped as a data URL */
 export function pluginIconSource(files: Record<string, string>): string | null {
   try {
     const manifest = JSON.parse(files?.["manifest.json"] ?? "{}") as { icon?: string };
-    const path = typeof manifest.icon === "string" ? manifest.icon : null;
-    if (!path) return null;
-    const content = files?.[path];
+    const icon = typeof manifest.icon === "string" ? manifest.icon : null;
+    if (!icon) return null;
+    if (icon.startsWith("data:") || icon.startsWith("/api/") || /^https?:\/\//.test(icon)) {
+      return icon;
+    }
+    const content = files?.[icon];
     if (!content) return null;
     if (content.startsWith("data:")) return content;
-    const ext = path.split(".").pop()?.toLowerCase();
+    const ext = icon.split(".").pop()?.toLowerCase();
     const mime =
       ext === "png" ? "image/png" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/svg+xml";
     return `data:${mime};charset=utf-8,${encodeURIComponent(content)}`;
