@@ -35,14 +35,16 @@ export default defineConfig({
     minify: "esbuild",
     rollupOptions: {
       // Real per-language routes (/ru, /en) plus "/" (aliases /ru) and
-      // /privacy, each its own static HTML file with its own <title>,
-      // meta description, canonical and hreflang tags — see server/src/main.rs,
-      // which serves a directory's index.html when the request path matches it.
+      // /privacy, /oferta — each its own static HTML file with its own
+      // <title>, meta description, canonical and hreflang tags — see
+      // server/src/main.rs, which serves a directory's index.html when the
+      // request path matches it.
       input: {
         main: resolve(__dirname, "index.html"),
         ru: resolve(__dirname, "ru/index.html"),
         en: resolve(__dirname, "en/index.html"),
         privacy: resolve(__dirname, "privacy/index.html"),
+        oferta: resolve(__dirname, "oferta/index.html"),
       },
     },
   },
