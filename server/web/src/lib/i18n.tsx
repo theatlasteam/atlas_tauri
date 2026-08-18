@@ -62,6 +62,7 @@ const dict = {
     "footer.source": "Source on GitHub",
     "footer.built": "Built with Tauri, Solid.js and Rust.",
     "footer.privacy": "Privacy Policy",
+    "footer.oferta": "Public offer",
 
     "pluginsEditor.title": "Developer panel",
     "pluginsEditor.newTitle": "New plugin",
@@ -254,6 +255,7 @@ const dict = {
     "footer.source": "Исходный код на GitHub",
     "footer.built": "Сделано на Tauri, Solid.js и Rust.",
     "footer.privacy": "Политика конфиденциальности",
+    "footer.oferta": "Публичная оферта",
 
     "pluginsEditor.title": "Панель разработчика",
     "pluginsEditor.newTitle": "Новый плагин",

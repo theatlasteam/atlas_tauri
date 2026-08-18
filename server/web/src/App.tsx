@@ -390,6 +390,10 @@ export default function App() {
           <a href="/privacy" class="text-ink-subtle underline underline-offset-4 hover:text-ink">
             {t("footer.privacy")}
           </a>
+          {" · "}
+          <a href="/oferta" class="text-ink-subtle underline underline-offset-4 hover:text-ink">
+            {t("footer.oferta")}
+          </a>
         </p>
       </footer>
 
