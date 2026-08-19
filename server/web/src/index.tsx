@@ -12,7 +12,10 @@ initAnalytics();
 // unmatched paths to this same index.html (see server/src/main.rs), so a
 // plain pathname check is enough to pick which page renders.
 function Root() {
-  const path = window.location.pathname;
+  // Normalize trailing slashes: static file servers commonly redirect
+  // /oferta to /oferta/ when serving a directory's index.html, and an exact
+  // match would then fall through to the landing page.
+  const path = window.location.pathname.replace(/\/+$/, "") || "/";
   // /policy is a common guess for the privacy policy — used to fall through
   // to the landing page, so alias it to /privacy.
   if (path === "/privacy" || path === "/policy") return <PrivacyPolicy />;
