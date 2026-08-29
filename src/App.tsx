@@ -18,6 +18,7 @@ import CompassChat from "./screens/CompassChat";
 import Shell from "./components/Shell";
 import TitleBar from "./components/TitleBar";
 import Login from "./screens/Login";
+import Onboarding from "./screens/Onboarding";
 import { session } from "./store/session";
 import { SpinnerIcon } from "./icons";
 import "./App.css";
@@ -37,7 +38,7 @@ function App() {
           </Match>
           <Match when={session.status() === "signedOut"}>
             <div class="h-full bg-bg text-ink">
-              <Login />
+              <Onboarding />
             </div>
           </Match>
           <Match when={session.status() === "signedIn"}>

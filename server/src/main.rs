@@ -68,8 +68,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/health", get(health))
         // auth & sessions
         .route("/api/auth/register", post(auth::register))
+        .route("/api/auth/check-handle", post(auth::check_handle))
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/logout", post(auth::logout))
+        .route("/api/auth/delete-account", delete(auth::delete_account))
         .route("/api/sessions", get(auth::list_sessions))
         .route("/api/sessions/{id}", delete(auth::revoke_session))
         // users
@@ -145,6 +147,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/keys/identity", post(routes::keys::publish_identity))
         .route("/api/keys/identity/reset", post(routes::keys::reset_identity))
         .route("/api/keys/identity/{user_id}", get(routes::keys::get_identity))
+        .route("/api/keys/bundle", post(routes::keys::publish_bundle))
+        .route("/api/keys/bundle/reset", post(routes::keys::reset_bundle))
+        .route("/api/keys/bundle/{user_id}", get(routes::keys::get_bundle))
         .route("/api/keys/packages", post(routes::keys::upload_packages))
         .route("/api/keys/packages/count", get(routes::keys::package_count))
         .route("/api/keys/packages/{user_id}/claim", post(routes::keys::claim_package))

@@ -1,71 +1,105 @@
-// Peer identity-key cache. DMs are always encrypted when the platform
-// supports it (see e2eeAvailable) — there is no user-facing opt-out; all
-// private-key operations happen in the Rust core (see src-tauri/src/e2ee.rs).
+// E2EE v2 session store. Sessions are X3DH-established Double Ratchet
+// channels per peer (see src-tauri/src/e2ee2.rs). The webview keeps no
+// key material — it only orchestrates bundle fetches and session setup.
+//
+// Flow:
+//   - first send to a peer: fetch their prekey bundle + claim a one-time
+//     prekey, run X3DH in the Rust core, then encrypt
+//   - first receive: the ciphertext header carries the sender's X3DH
+//     payload; the Rust core reproduces the session from our prekeys
+//   - after that, both sides just ratchet
+//
+// "No bundle yet" is a normal, self-resolving race (the peer publishes
+// theirs on sign-in) and is deliberately not cached.
 
 import { api } from "../data/api";
-import { e2eeAvailable } from "../lib/tauri";
+import {
+  e2ee2Bundle,
+  e2ee2Decrypt,
+  e2ee2Encrypt,
+  e2ee2HasSession,
+  e2ee2NewPrekeys,
+  e2ee2StartSession,
+  e2eeAvailable,
+  type PrekeyBundle,
+} from "../lib/tauri";
 
-// A found key is cached, but not forever: "rotation requires re-registration"
-// is a real, if rare, supported operation (e.g. reinstalling the app clears
-// the on-device identity, and a fresh one gets published under the same
-// account). Without a TTL, any peer whose app process fetched the old key
-// before a rotation would keep encrypting to it for the rest of that
-// process's lifetime, with nothing to prompt a refetch. A few minutes bounds
-// how long that staleness window can last, at the cost of an occasional
-// extra lookup.
-const CACHE_TTL_MS = 5 * 60 * 1000;
-
-interface CacheEntry {
-  promise: Promise<string | null>;
-  fetchedAt: number;
-}
+const PREKEY_BATCH = 50;
+const PREKEY_LOW_WATER = 10;
 
 function createE2eeStore() {
-  const peerKeys = new Map<string, CacheEntry>();
+  /** Serialization guard: one session setup per peer at a time. */
+  const setups = new Map<string, Promise<boolean>>();
 
-  const fetchKey = (userId: string): Promise<string | null> => {
-    const fetch = api
-      .getIdentity(userId)
-      .then((r) => r.identityKey)
-      .catch(() => null);
-    fetch.then((key) => {
-      if (!key) peerKeys.delete(userId); // allow retry: not found or errored
+  /** Publish our bundle + top up one-time prekeys. Called at sign-in. */
+  const publishIdentity = async (): Promise<void> => {
+    if (!e2eeAvailable) return;
+    const bundle = await e2ee2Bundle();
+    await api.publishBundle(bundle).catch((e) => {
+      // A 404/405 here means the server predates E2EE v2 — nothing will
+      // work until it's updated; say so loudly instead of failing silently.
+      console.error("[atlas] prekey bundle publish failed (server too old?):", e);
+      throw e;
     });
-    peerKeys.set(userId, { promise: fetch, fetchedAt: Date.now() });
-    return fetch;
+    const { available } = await api.prekeyCount();
+    if (available < PREKEY_LOW_WATER) {
+      const pubs = await e2ee2NewPrekeys(PREKEY_BATCH);
+      await api.uploadPrekeys(pubs);
+    }
   };
 
   /**
-   * Peer's public identity key. A "not published yet" result is deliberately
-   * NOT cached: it's a normal, self-resolving race (the peer publishes
-   * theirs shortly after opening the app), and caching it would mean the
-   * very first message exchanged before that happens permanently poisons
-   * every later decrypt attempt for the rest of the session. A *found* key
-   * is cached for CACHE_TTL_MS, then re-checked on next use — see above.
-   *
-   * Pass `fresh: true` to force an immediate re-fetch, bypassing both the
-   * cache and its TTL — used after a decrypt failure, which is the one
-   * signal we get that a cached key might already be stale.
+   * Ensure a ratchet session exists with this peer. Returns false when the
+   * peer hasn't published a bundle yet (caller should retry shortly).
    */
-  const peerKey = (userId: string, opts?: { fresh?: boolean }): Promise<string | null> => {
-    const cached = peerKeys.get(userId);
-    if (cached && !opts?.fresh && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-      return cached.promise;
+  const ensureSession = async (peer: string): Promise<boolean> => {
+    if (!e2eeAvailable) return false;
+    if (await e2ee2HasSession(peer)) return true;
+    let pending = setups.get(peer);
+    if (!pending) {
+      pending = (async () => {
+        try {
+          const bundle: PrekeyBundle = await api.getBundle(peer);
+          // One-time prekeys are best-effort: if the pool is empty the
+          // session still establishes (3-DH instead of 4-DH).
+          const opk = await api.claimPrekey(peer).then((p) => p.package).catch(() => null);
+          await e2ee2StartSession(peer, bundle, opk);
+          return true;
+        } catch (e) {
+          console.error("[atlas] session setup failed (peer bundle missing?):", e);
+          return false;
+        } finally {
+          setups.delete(peer);
+        }
+      })();
+      setups.set(peer, pending);
     }
-    return fetchKey(userId);
+    return pending;
   };
 
-  /** Encryption is always on for DMs when the platform supports it — no per-chat opt-out. */
+  /** Encrypt for a peer with an established session. */
+  const seal = async (peer: string, plaintext: string): Promise<string> => {
+    const ok = await ensureSession(peer);
+    if (!ok) {
+      console.error(`[atlas] e2ee: no session with ${peer} — bundle fetch/X3DH failed (see error above)`);
+      throw new Error("Can't send yet: this contact hasn't set up encryption on their device.");
+    }
+    return e2ee2Encrypt(peer, plaintext).catch((e) => {
+      console.error(`[atlas] e2ee: encrypt failed for ${peer}:`, e);
+      throw e;
+    });
+  };
+
+  /** Decrypt a dr-v1 body from a peer. */
+  const open = (peer: string, body: string): Promise<string> => e2ee2Decrypt(peer, body);
+
+  /** Encryption is always on for DMs when the platform supports it. */
   const enabledFor = (_chatId: string) => e2eeAvailable;
 
-  /** Dev tool: drop every cached peer key, forcing the next lookup to hit the server. */
-  const clearPeerKeyCache = () => {
-    const count = peerKeys.size;
-    peerKeys.clear();
-    return count;
-  };
+  const hasSession = (peer: string): Promise<boolean> =>
+    e2eeAvailable ? e2ee2HasSession(peer) : Promise.resolve(false);
 
-  return { peerKey, enabledFor, clearPeerKeyCache };
+  return { publishIdentity, ensureSession, seal, open, enabledFor, hasSession };
 }
 
 export const e2ee = createE2eeStore();

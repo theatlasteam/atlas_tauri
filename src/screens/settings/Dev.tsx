@@ -3,14 +3,15 @@ import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
 import Appbar from "../../components/Appbar";
 import Switch from "../../ui/Switch";
 import { e2ee } from "../../store/e2ee";
+import { api } from "../../data/api";
 import { session } from "../../store/session";
 import { clearAvatarCache } from "../../data/avatarCache";
 import { getToken, apiBase } from "../../data/api";
 import { preferences, setPreferences } from "../../store/preferences";
 import {
   e2eeAvailable,
-  e2eePublicKey,
-  e2eeFingerprint,
+  e2ee2Bundle,
+  e2ee2Fingerprint,
   nativeExperimentalAvailable,
   launchNativeExperimental,
 } from "../../lib/tauri";
@@ -20,8 +21,8 @@ import { BroomIcon } from "../../icons";
 export default function Dev() {
   const [myFingerprint] = createResource(async () => {
     if (!e2eeAvailable) return null;
-    const key = await e2eePublicKey();
-    return e2eeFingerprint(key);
+    const bundle = await e2ee2Bundle();
+    return e2ee2Fingerprint(bundle);
   });
 
   const [identityReset, setIdentityReset] = createSignal<"idle" | "busy" | "done" | "error">("idle");
@@ -35,10 +36,16 @@ export default function Dev() {
     }
   };
 
-  const [clearedPeerKeys, setClearedPeerKeys] = createSignal<number | null>(null);
-  const clearE2eeCache = () => {
-    const count = e2ee.clearPeerKeyCache();
-    setClearedPeerKeys(count);
+  const [bundleReset, setBundleReset] = createSignal<"idle" | "busy" | "done" | "error">("idle");
+  const clearE2eeCache = async () => {
+    setBundleReset("busy");
+    try {
+      await api.resetBundle();
+      await e2ee.publishIdentity();
+      setBundleReset("done");
+    } catch {
+      setBundleReset("error");
+    }
   };
 
   const [avatarsCleared, setAvatarsCleared] = createSignal(false);
@@ -114,19 +121,22 @@ export default function Dev() {
 
       <SettingsSection title="Caches">
         <SettingsRow
-          label="E2EE peer-key cache"
+          label="E2EE prekey bundle"
           description={
-            clearedPeerKeys() === null
-              ? "Cached public keys for people you've messaged. Clear if messages won't decrypt after a key change."
-              : `Cleared ${clearedPeerKeys()} cached key${clearedPeerKeys() === 1 ? "" : "s"} — next lookup refetches from the server.`
+            bundleReset() === "done"
+              ? "Bundle reset and republished. Peers' sessions with you will re-establish on next send."
+              : bundleReset() === "error"
+                ? "Couldn't reset the bundle."
+                : "Drop this account's published bundle and one-time prekeys, then republish fresh ones. Use after a reinstall if messages show 'Unable to decrypt'."
           }
         >
           <button
             type="button"
-            onClick={clearE2eeCache}
-            class="flex shrink-0 items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 text-xs font-medium text-accent transition hover:opacity-80 active:scale-95"
+            onClick={() => void clearE2eeCache()}
+            disabled={bundleReset() === "busy"}
+            class="flex shrink-0 items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 text-xs font-medium text-accent transition hover:opacity-80 active:scale-95 disabled:opacity-50"
           >
-            <BroomIcon size={14} /> Clear
+            <BroomIcon size={14} /> {bundleReset() === "busy" ? "Resetting…" : "Reset"}
           </button>
         </SettingsRow>
         <SettingsRow

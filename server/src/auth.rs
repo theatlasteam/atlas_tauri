@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
+use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
 
 use crate::error::{ApiResult, AppError};
@@ -75,7 +76,8 @@ pub async fn authenticate(db: &PgPool, token: &str) -> Result<AuthUser, AppError
     let hash = token_hash(token);
     let row: Option<(Uuid, Uuid)> = sqlx::query_as(
         "SELECT s.id, s.user_id FROM sessions s
-         WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now()",
+         WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now()
+           AND EXISTS (SELECT 1 FROM users u WHERE u.id = s.user_id AND u.deleted_at IS NULL)",
     )
     .bind(&hash)
     .fetch_optional(db)
@@ -134,6 +136,46 @@ impl FromRequestParts<AppState> for AuthUser {
         }
         result
     }
+}
+
+#[derive(Deserialize)]
+pub struct CheckHandlePayload { pub handle: String }
+
+#[derive(Serialize)]
+pub struct CheckHandleResponse { pub exists: bool }
+
+pub async fn check_handle(
+    State(state): State<AppState>,
+    Json(payload): Json<CheckHandlePayload>,
+) -> ApiResult<Json<CheckHandleResponse>> {
+    let handle = payload.handle.trim().to_lowercase();
+    if !valid_handle(&handle) {
+        return Err(AppError::BadRequest("invalid handle".into()));
+    }
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE handle = $1 AND deleted_at IS NULL)")
+        .bind(handle).fetch_one(&state.db).await?;
+    Ok(Json(CheckHandleResponse { exists }))
+}
+
+// ---------- password policy ----------
+
+fn validate_password(password: &str) -> Result<(), AppError> {
+    let graphemes = password.graphemes(true).count();
+    let has_upper = password.chars().any(|c| c.is_uppercase());
+    let has_lower = password.chars().any(|c| c.is_lowercase());
+    let has_digit = password.chars().any(|c| c.is_numeric());
+    let has_symbol = password.chars().any(|c| !c.is_alphanumeric() && !c.is_whitespace());
+
+    if password.len() > 1024 {
+        return Err(AppError::BadRequest("password must be at most 1024 bytes".into()));
+    }
+    if graphemes < 8 {
+        return Err(AppError::BadRequest("password must contain at least 8 characters".into()));
+    }
+    if !has_upper || !has_lower || !has_digit || !has_symbol {
+        return Err(AppError::BadRequest("password must contain uppercase, lowercase, digit, and symbol".into()));
+    }
+    Ok(())
 }
 
 // ---------- handlers ----------
@@ -200,9 +242,7 @@ pub async fn register(
             "handle must be 3-32 chars of a-z, 0-9, _".into(),
         ));
     }
-    if payload.password.len() < 8 {
-        return Err(AppError::BadRequest("password must be at least 8 characters".into()));
-    }
+    validate_password(&payload.password)?;
     let name = payload.name.trim();
     if name.is_empty() || name.len() > 80 {
         return Err(AppError::BadRequest("name must be 1-80 characters".into()));
@@ -275,6 +315,23 @@ pub async fn login(
 
     let token = create_session(&state, row.user.id, payload.device_name).await?;
     Ok(Json(AuthResponse { token, user: row.user.into() }))
+}
+
+pub async fn delete_account(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> ApiResult<Json<serde_json::Value>> {
+    let mut tx = state.db.begin().await?;
+    sqlx::query("UPDATE users SET handle = $1, name = 'Deleted user', bio = '', status = '', avatar_color = '#64748b', avatar_initial = '?', password_hash = $2, identity_key = NULL, deleted_at = now() WHERE id = $3 AND deleted_at IS NULL")
+        .bind(format!("deleted_{}", auth.user_id))
+        .bind("deleted-account-disabled")
+        .bind(auth.user_id)
+        .execute(&mut *tx).await?;
+    sqlx::query("UPDATE sessions SET revoked_at = now() WHERE user_id = $1")
+        .bind(auth.user_id).execute(&mut *tx).await?;
+    tx.commit().await?;
+    state.hub.disconnect_session(auth.session_id);
+    Ok(Json(json!({ "ok": true })))
 }
 
 pub async fn logout(

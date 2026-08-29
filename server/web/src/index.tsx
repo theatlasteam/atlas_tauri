@@ -7,6 +7,17 @@ import { initAnalytics } from "./lib/analytics";
 
 initAnalytics();
 
+// Register the offline shell after the page has loaded. The service worker
+// caches the built app shell and keeps the PWA from becoming a blank screen
+// when the network disappears.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
+      // Offline support is best-effort and must never break app startup.
+    });
+  });
+}
+
 // No router dependency for a small site: the server already falls back
 // unmatched paths to this same index.html (see server/src/main.rs), so a
 // plain pathname check is enough to pick which page renders.

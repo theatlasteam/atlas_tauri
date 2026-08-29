@@ -5,10 +5,17 @@ import { SettingsSection, SettingsRow, SettingsLinkRow } from "../../components/
 import Appbar from "../../components/Appbar";
 import Switch from "../../ui/Switch";
 import { ProhibitIcon } from "../../icons";
+import Button from "../../ui/Button";
+import Dialog from "../../ui/Dialog";
 import { t } from "../../lib/i18n";
 
 export default function Privacy() {
   const [error, setError] = createSignal<string | null>(null);
+  const [deleting, setDeleting] = createSignal(false);
+  const [deleteProgress, setDeleteProgress] = createSignal(0);
+  const [deleteDialogOpen, setDeleteDialogOpen] = createSignal(false);
+  const [deleteStep, setDeleteStep] = createSignal<1 | 2 | 3>(1);
+  const [deletePhrase, setDeletePhrase] = createSignal("");
   const me = () => session.user();
 
   /**
@@ -23,6 +30,34 @@ export default function Privacy() {
       await session.setPrivacy(patch);
     } catch {
       setError(t("settingsPrivacy.saveError"));
+    }
+  };
+
+  const openDeleteDialog = () => {
+    if (deleting()) return;
+    setDeleteStep(1);
+    setDeletePhrase("");
+    setDeleteDialogOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (deletePhrase() !== "DELETE") return;
+    setDeleting(true);
+    setDeleteProgress(10);
+    setError(null);
+    try {
+      setDeleteProgress(35);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setDeleteProgress(65);
+      await session.deleteAccount();
+      setDeleteProgress(90);
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      setDeleteProgress(100);
+    } catch {
+      setError(t("settingsPrivacy.saveError"));
+      setDeleting(false);
+      setDeleteProgress(0);
+      setDeleteDialogOpen(false);
     }
   };
 
@@ -74,6 +109,41 @@ export default function Privacy() {
           icon={ProhibitIcon}
         />
       </SettingsSection>
+
+      <SettingsSection title={t("settingsPrivacy.dangerZone")}>
+        <SettingsRow
+          label={t("settingsPrivacy.deleteAccount")}
+          description={t("settingsPrivacy.deleteAccountDesc")}
+        >
+          <Button variant="danger" size="sm" disabled={deleting()} onClick={openDeleteDialog}>
+            {deleting() ? t("settingsPrivacy.deletingAccount") : t("settingsPrivacy.deleteAccount")}
+          </Button>
+        </SettingsRow>
+      </SettingsSection>
+
+      <Dialog open={deleteDialogOpen()} onOpenChange={setDeleteDialogOpen} title={t("settingsPrivacy.deleteAccount")}>
+        <Show when={!deleting()} fallback={
+          <div role="status" aria-live="polite">
+            <p class="mb-3 text-sm text-ink-subtle">{t("settingsPrivacy.deletingAccount")}</p>
+            <div class="mb-2 flex justify-between text-xs font-semibold text-danger"><span>{deleteProgress()}%</span></div>
+            <div class="h-2 overflow-hidden rounded-full bg-danger/15"><div class="h-full rounded-full bg-danger transition-all duration-500" style={{ width: `${deleteProgress()}%` }} /></div>
+          </div>
+        }>
+          <Show when={deleteStep() === 1}>
+            <p class="mb-5 text-sm text-ink-subtle">{t("settingsPrivacy.deleteAccountWarning")}</p>
+            <div class="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={() => setDeleteDialogOpen(false)}>{t("settingsPrivacy.cancel")}</Button><Button variant="danger" size="sm" onClick={() => setDeleteStep(2)}>{t("settingsPrivacy.continue")}</Button></div>
+          </Show>
+          <Show when={deleteStep() === 2}>
+            <p class="mb-5 text-sm text-ink-subtle">{t("settingsPrivacy.deleteAccountFinalWarning")}</p>
+            <div class="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={() => setDeleteDialogOpen(false)}>{t("settingsPrivacy.cancel")}</Button><Button variant="danger" size="sm" onClick={() => setDeleteStep(3)}>{t("settingsPrivacy.continue")}</Button></div>
+          </Show>
+          <Show when={deleteStep() === 3}>
+            <p class="mb-2 text-sm text-ink-subtle">{t("settingsPrivacy.deleteAccountTypePrompt")}</p>
+            <input value={deletePhrase()} onInput={(e) => setDeletePhrase(e.currentTarget.value)} class="mb-5 w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-ink outline-none focus:border-danger focus:ring-2 focus:ring-danger/15" autocomplete="off" spellcheck={false} />
+            <div class="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={() => setDeleteDialogOpen(false)}>{t("settingsPrivacy.cancel")}</Button><Button variant="danger" size="sm" disabled={deletePhrase() !== "DELETE"} onClick={() => void executeDelete()}>{t("settingsPrivacy.deleteAccount")}</Button></div>
+          </Show>
+        </Show>
+      </Dialog>
     </div>
   );
 }

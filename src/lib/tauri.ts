@@ -61,6 +61,48 @@ export function e2eeOpen(peerPublicKey: string, body: string): Promise<string> {
   return invoke<string>("e2ee_open", { peerPublicKey, body });
 }
 
+// ---------- E2EE v2 (X3DH + Double Ratchet, scheme "dr-v1") ----------
+
+export interface PrekeyBundle {
+  identityKey: string;
+  signingKey: string;
+  signedPrekey: string;
+  signedPrekeyId: number;
+  signedPrekeySig: string;
+}
+
+export function e2ee2Bundle(): Promise<PrekeyBundle> {
+  return invoke<PrekeyBundle>("e2ee2_bundle");
+}
+
+export function e2ee2NewPrekeys(count: number): Promise<string[]> {
+  return invoke<string[]>("e2ee2_new_prekeys", { count });
+}
+
+export function e2ee2StartSession(
+  peer: string,
+  bundle: PrekeyBundle,
+  oneTimePrekey: string | null,
+): Promise<void> {
+  return invoke("e2ee2_start_session", { peer, bundle, oneTimePrekey });
+}
+
+export function e2ee2Encrypt(peer: string, plaintext: string): Promise<string> {
+  return invoke<string>("e2ee2_encrypt", { peer, plaintext });
+}
+
+export function e2ee2Decrypt(peer: string, body: string): Promise<string> {
+  return invoke<string>("e2ee2_decrypt", { peer, body });
+}
+
+export function e2ee2HasSession(peer: string): Promise<boolean> {
+  return invoke<boolean>("e2ee2_has_session", { peer });
+}
+
+export function e2ee2Fingerprint(bundle: PrekeyBundle): Promise<string> {
+  return invoke<string>("e2ee2_fingerprint", { bundle });
+}
+
 // ---------- Native Experimental (Android-only prototype) ----------
 //
 // A plain-Views chat list + chat screen (src-tauri/gen/android/.../native/)

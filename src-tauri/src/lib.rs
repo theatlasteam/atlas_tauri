@@ -1,4 +1,5 @@
 mod e2ee;
+mod e2ee2;
 mod plugins;
 mod secure;
 
@@ -22,6 +23,13 @@ pub fn run() {
             e2ee::e2ee_fingerprint,
             e2ee::e2ee_seal,
             e2ee::e2ee_open,
+            e2ee2::e2ee2_bundle,
+            e2ee2::e2ee2_new_prekeys,
+            e2ee2::e2ee2_start_session,
+            e2ee2::e2ee2_encrypt,
+            e2ee2::e2ee2_decrypt,
+            e2ee2::e2ee2_has_session,
+            e2ee2::e2ee2_fingerprint,
             plugins::plugin_list,
             plugins::plugin_save,
             plugins::plugin_remove,

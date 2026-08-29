@@ -9,7 +9,8 @@ import { connectSocket, disconnectSocket } from "../data/socket";
 import { toUser } from "../data/mapping";
 import type { UserDto } from "../data/generated";
 import type { User } from "../data/types";
-import { e2eeAvailable, e2eePublicKey, isTauri, secretDelete, secretGet, secretSet } from "../lib/tauri";
+import { e2eeAvailable, isTauri, secretDelete, secretGet, secretSet } from "../lib/tauri";
+import { e2ee } from "./e2ee";
 import { requestNotificationPermission } from "../lib/notify";
 import { preferences } from "./preferences";
 
@@ -40,10 +41,9 @@ function deviceName(): string {
 async function publishIdentity() {
   if (!e2eeAvailable) return;
   try {
-    const key = await e2eePublicKey();
-    await api.publishIdentity(key);
+    await e2ee.publishIdentity();
   } catch (e) {
-    console.warn("[atlas] identity key publish skipped:", e);
+    console.warn("[atlas] identity bundle publish skipped:", e);
   }
 }
 
@@ -123,6 +123,15 @@ function createSessionStore() {
     setStatus("signedOut");
   };
 
+  const deleteAccount = async () => {
+    await api.deleteAccount();
+    disconnectSocket();
+    setToken(null);
+    await secretDelete(TOKEN_KEY).catch(() => {});
+    setUser(null);
+    setStatus("signedOut");
+  };
+
   const updateProfile = async (patch: Partial<Pick<User, "name" | "bio" | "status" | "avatarColor" | "avatarInitial">>) => {
     const updated = await api.updateMe(patch);
     setUser(toUser(updated));
@@ -175,6 +184,7 @@ function createSessionStore() {
     login,
     register,
     logout,
+    deleteAccount,
     updateProfile,
     setPrivacy,
     setAvatar,

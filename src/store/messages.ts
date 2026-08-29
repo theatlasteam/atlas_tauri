@@ -13,7 +13,7 @@ import { api } from "../data/api";
 import type { MessageDto } from "../data/generated";
 import { toMessage } from "../data/mapping";
 import type { Message } from "../data/types";
-import { e2eeAvailable, e2eeOpen, e2eeSeal } from "../lib/tauri";
+import { e2eeAvailable, e2eeOpen } from "../lib/tauri";
 import { mentionsCompass } from "../lib/compassMention";
 import { emitMessageReceived, emitMessageSent, transformBeforeSend } from "../plugins/runtime";
 import { e2ee } from "./e2ee";
@@ -50,46 +50,46 @@ function createMessagesStore() {
    * fetch shouldn't be a permanent, unrecoverable "Unable to decrypt".
    */
   const decrypt = (chatId: string, messageId: string, scheme: string, body: string, peerUserId?: string) => {
-    if (!e2eeAvailable || scheme !== "x25519-v1") {
+    if (!e2eeAvailable || (scheme !== "dr-v1" && scheme !== "x25519-v1")) {
       patch(chatId, messageId, { text: "🔒 Encrypted message (unsupported here)", decrypting: false });
       return;
     }
+    // Legacy x25519-v1 bodies (pre-ratchet history) still open through the
+    // old static-DH path; new traffic is dr-v1 only.
+    if (scheme === "x25519-v1") {
+      const otherId = peerUserId ?? "";
+      void (async () => {
+        try {
+          const { identityKey } = await api.getIdentity(otherId);
+          if (!identityKey) throw new Error("no key");
+          const text = await e2eeOpen(identityKey, body);
+          patch(chatId, messageId, { text, decrypting: false, decryptFailed: false });
+        } catch {
+          patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
+        }
+      })();
+      return;
+    }
     const otherId = peerUserId ?? "";
+    if (!otherId) {
+      patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
+      return;
+    }
     void (async () => {
-      // A brand-new conversation's very first message can easily race the
-      // peer's identity-key publish on their end (a real network round trip
-      // on their side, not just ours) — this needs to be generous, not just
-      // "the local dev LAN was fast enough". Anything that still fails after
-      // this gets a second chance via retryFailedDecryptions, next time the
-      // chat is opened.
+      // The first message of a new conversation carries the sender's X3DH
+      // payload and establishes the session on open; a brand-new peer's
+      // prekey bundle can still race its own sign-in publish, so retry a
+      // few times before surfacing a real failure.
       const attempts = [0, 1000, 3000, 6000, 12000];
-      let retriedWithFreshKey = false;
       for (let i = 0; i < attempts.length; i++) {
         if (attempts[i]) await sleep(attempts[i]);
         try {
-          const key = otherId ? await e2ee.peerKey(otherId) : null;
-          if (!key) continue; // peer hasn't published yet — worth another try
-          const text = await e2eeOpen(key, body);
+          const text = await e2ee.open(otherId, body);
           patch(chatId, messageId, { text, decrypting: false, decryptFailed: false });
           return;
         } catch {
-          // Our cached copy of the peer's key might be stale (e.g. they
-          // reinstalled and rotated it) — bypass the cache once and retry
-          // with whatever the server has on file right now before giving up.
-          if (!retriedWithFreshKey && otherId) {
-            retriedWithFreshKey = true;
-            try {
-              const freshKey = await e2ee.peerKey(otherId, { fresh: true });
-              if (freshKey) {
-                const text = await e2eeOpen(freshKey, body);
-                patch(chatId, messageId, { text, decrypting: false, decryptFailed: false });
-                return;
-              }
-            } catch {
-              // Genuinely undecryptable even with a fresh key — stop.
-            }
-          }
-          break;
+          // Likely a prekey/session race — the next attempt may succeed once
+          // the peer's bundle has propagated.
         }
       }
       patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
@@ -288,7 +288,7 @@ function createMessagesStore() {
       chatId,
       authorId: myId(),
       text,
-      scheme: mustEncrypt ? "x25519-v1" : "plain",
+      scheme: mustEncrypt ? "dr-v1" : "plain",
       sentAt: now,
       mine: true,
       reactions: [],
@@ -315,12 +315,8 @@ function createMessagesStore() {
       let scheme = "plain";
       let body = text;
       if (mustEncrypt) {
-        const key = await e2ee.peerKey(opts!.peerUserId!);
-        if (!key) {
-          throw new Error("Can't send yet: this contact hasn't set up encryption on their device.");
-        }
-        body = await e2eeSeal(key, text);
-        scheme = "x25519-v1";
+        body = await e2ee.seal(opts!.peerUserId!, text);
+        scheme = "dr-v1";
       }
 
       const dto = await api.sendMessage(chatId, {
@@ -358,6 +354,7 @@ function createMessagesStore() {
       // server to post under Compass's identity.
       if (mentioned && mustEncrypt) void replyAsCompass(chatId);
     } catch (e) {
+      console.error("[atlas] send failed:", e);
       patch(chatId, `pending-${clientTag}`, { pending: false, failed: true });
       throw e;
     }
@@ -405,10 +402,8 @@ function createMessagesStore() {
       let scheme = "plain";
       let body = trimmed;
       if (peerUserId && e2ee.enabledFor(chatId)) {
-        const key = await e2ee.peerKey(peerUserId);
-        if (!key) throw new Error("Can't edit yet: this contact hasn't set up encryption.");
-        body = await e2eeSeal(key, trimmed);
-        scheme = "x25519-v1";
+        body = await e2ee.seal(peerUserId, trimmed);
+        scheme = "dr-v1";
       }
       const dto = await api.editMessage(message.id, { scheme, body });
       // The echoed DTO carries ciphertext we already know the plaintext of.

@@ -146,11 +146,13 @@ export interface IceServer {
 
 export const api = {
   // auth
+  checkHandle: (handle: string) => request<{ exists: boolean }>("POST", "/api/auth/check-handle", { handle }),
   register: (handle: string, name: string, password: string, deviceName: string) =>
     request<AuthResponse>("POST", "/api/auth/register", { handle, name, password, deviceName }),
   login: (handle: string, password: string, deviceName: string) =>
     request<AuthResponse>("POST", "/api/auth/login", { handle, password, deviceName }),
   logout: () => request<{ ok: boolean }>("POST", "/api/auth/logout"),
+  deleteAccount: () => request<{ ok: boolean }>("DELETE", "/api/auth/delete-account"),
   listSessions: () => request<SessionDto[]>("GET", "/api/sessions"),
   revokeSession: (id: string) => request<{ ok: boolean }>("DELETE", `/api/sessions/${id}`),
 
@@ -300,6 +302,33 @@ export const api = {
   /** Clears the published identity key so a mismatched device (reinstall,
    * factory reset) can publish its real one instead of 409ing forever. */
   resetIdentity: () => request<{ ok: boolean }>("POST", "/api/keys/identity/reset"),
+
+  // E2EE v2 prekey bundles (X3DH + Double Ratchet)
+  publishBundle: (bundle: {
+    identityKey: string;
+    signingKey: string;
+    signedPrekey: string;
+    signedPrekeyId: number;
+    signedPrekeySig: string;
+  }) => request<{ ok: boolean }>("POST", "/api/keys/bundle", bundle),
+  getBundle: (userId: string) =>
+    request<{
+      userId: string;
+      identityKey: string;
+      signingKey: string;
+      signedPrekey: string;
+      signedPrekeyId: number;
+      signedPrekeySig: string;
+    }>("GET", `/api/keys/bundle/${userId}`),
+  resetBundle: () => request<{ ok: boolean }>("POST", "/api/keys/bundle/reset"),
+  uploadPrekeys: (packages: string[]) =>
+    request<{ ok: boolean }>("POST", "/api/keys/packages", { deviceId: "primary", packages }),
+  prekeyCount: () => request<{ available: number }>("GET", "/api/keys/packages/count"),
+  claimPrekey: (userId: string) =>
+    request<{ userId: string; deviceId: string; package: string }>(
+      "POST",
+      `/api/keys/packages/${userId}/claim`,
+    ),
 
   // calls
   iceServers: () => request<{ iceServers: IceServer[]; ttl: number }>("GET", "/api/calls/ice-servers"),
