@@ -29,10 +29,10 @@ export default function Avatar(props: {
           </div>
         }
       >
-        <img src={photo()} alt="" class="h-full w-full rounded-full object-cover" />
+        <img src={photo()} alt="" class="avatar-pop h-full w-full rounded-full object-cover" />
       </Show>
       {props.online && (
-        <span class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface bg-emerald-400" />
+        <span class="pulse-dot absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface bg-emerald-400" />
       )}
     </div>
   );

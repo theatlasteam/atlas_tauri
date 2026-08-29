@@ -22,6 +22,7 @@ export default {
         sans: "var(--font-sans)",
         heading: "var(--font-heading)",
         script: "var(--font-script)",
+        accent: "var(--font-accent)",
       },
       borderRadius: {
         pill: "999px",

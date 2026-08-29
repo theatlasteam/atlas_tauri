@@ -51,7 +51,7 @@ dependencies = [
 
 [[package]]
 name = "atlas-server"
-version = "0.1.0"
+version = "0.1.0-beta.1"
 dependencies = [
  "argon2",
  "axum",
@@ -79,6 +79,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ts-rs",
+ "unicode-segmentation",
  "uuid",
 ]
 
@@ -2666,6 +2667,12 @@ name = "unicode-properties"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7df058c713841ad818f1dc5d3fd88063241cc61f49f5fbea4b951e8cf5a8d71d"
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8"
 
 [[package]]
 name = "untrusted"

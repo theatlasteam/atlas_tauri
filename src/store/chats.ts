@@ -9,6 +9,7 @@ import { previewText, toChat, toMessage } from "../data/mapping";
 import { onResync, onServerEvent, wsSend } from "../data/socket";
 import type { Chat, Folder } from "../data/types";
 import { e2eeAvailable, e2eeOpen, e2eeSeal } from "../lib/tauri";
+import { api } from "../data/api";
 import { notifyIncoming } from "../lib/notify";
 import { preferences } from "./preferences";
 import { e2ee } from "./e2ee";
@@ -120,12 +121,15 @@ function createChatsStore() {
       return;
     }
     try {
-      const key = await e2ee.peerKey(peerUserId);
-      if (!key) return; // no key published yet — nothing safe to send
+      // Draft previews seal against the peer's identity key directly (not the
+      // message ratchet — a draft isn't a message, and ratcheting it would
+      // desync message-key counters). Fresh identity-key lookup each time.
+      const { identityKey } = await api.getIdentity(peerUserId);
+      if (!identityKey) return; // no key published yet — nothing safe to send
       wsSend({
         type: "typing",
         chat_id: chatId,
-        preview: await e2eeSeal(key, draft),
+        preview: await e2eeSeal(identityKey, draft),
         scheme: "x25519-v1",
       });
     } catch {
@@ -221,9 +225,9 @@ function createChatsStore() {
     }
     if (!e2eeAvailable || scheme !== "x25519-v1") return;
     try {
-      const key = await e2ee.peerKey(userId);
-      if (!key) return;
-      const text = await e2eeOpen(key, preview);
+      const { identityKey } = await api.getIdentity(userId);
+      if (!identityKey) return;
+      const text = await e2eeOpen(identityKey, preview);
       // A slow decrypt can land after the typist already stopped; don't
       // resurrect a preview whose indicator has already expired.
       if (state.typing[chatId]?.includes(userId)) setPreview(chatId, userId, text);

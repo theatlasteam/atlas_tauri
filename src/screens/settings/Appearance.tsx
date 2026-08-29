@@ -67,7 +67,7 @@ export default function Appearance() {
   ];
 
   const fontOptions = () => [
-    { value: "inter" as FontId, label: "Inter" },
+    { value: "inter" as FontId, label: "Manrope" },
     { value: "system" as FontId, label: t("appearance.fontSystem") },
     { value: "serif" as FontId, label: "Serif" },
     { value: "mono" as FontId, label: "Mono" },

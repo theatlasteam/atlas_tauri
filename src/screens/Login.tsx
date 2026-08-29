@@ -1,5 +1,6 @@
-import { createSignal, Show } from "solid-js";
+import { createMemo, createSignal, Show } from "solid-js";
 import { session } from "../store/session";
+import { api } from "../data/api";
 import { SpinnerIcon } from "../icons";
 import logo from "../assets/logo.svg";
 import ServerConfigDialog from "../components/ServerConfigDialog";
@@ -17,6 +18,18 @@ export default function Login() {
   const [error, setError] = createSignal<string | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [serverConfigOpen, setServerConfigOpen] = createSignal(false);
+  const [handleChecked, setHandleChecked] = createSignal(false);
+  const [checkingHandle, setCheckingHandle] = createSignal(false);
+  const passwordRequirements = createMemo(() => {
+    const value = password();
+    return {
+      length: [...value].length >= 8,
+      upper: /\p{Lu}/u.test(value),
+      lower: /\p{Ll}/u.test(value),
+      digit: /\p{N}/u.test(value),
+      symbol: [...value].some((char) => /[^\p{L}\p{N}\s]/u.test(char)),
+    };
+  });
 
   // Tap the logo 7 times to reveal the server URL override — an escape hatch
   // for pointing at a dev/staging/self-hosted backend, not everyday UI.
@@ -41,6 +54,13 @@ export default function Login() {
     setError(null);
     setBusy(true);
     try {
+      if (!handleChecked()) {
+        setCheckingHandle(true);
+        const result = await api.checkHandle(handle().trim());
+        setHandleChecked(true);
+        setMode(result.exists ? "login" : "register");
+        return;
+      }
       if (mode() === "login") {
         await session.login(handle().trim(), password());
       } else {
@@ -49,6 +69,7 @@ export default function Login() {
     } catch (err: any) {
       setError(err?.message ?? t("login.genericError"));
     } finally {
+      setCheckingHandle(false);
       setBusy(false);
     }
   };
@@ -83,7 +104,7 @@ export default function Login() {
             />
           </label>
 
-          <Show when={mode() === "register"}>
+          <Show when={handleChecked() && mode() === "register"}>
             <label class="flex flex-col gap-1.5">
               <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("login.displayName")}</span>
               <input
@@ -96,7 +117,8 @@ export default function Login() {
             </label>
           </Show>
 
-          <label class="flex flex-col gap-1.5">
+          <Show when={handleChecked()}>
+            <label class="flex flex-col gap-1.5">
             <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("login.password")}</span>
             <input
               type="password"
@@ -106,7 +128,17 @@ export default function Login() {
               autocomplete={mode() === "login" ? "current-password" : "new-password"}
               class={inputClass}
             />
-          </label>
+            <Show when={mode() === "register"}>
+              <ul class="mt-1 flex flex-col gap-1 text-xs text-ink-subtle" aria-live="polite">
+                <li class={passwordRequirements().length ? "text-success" : ""}>{passwordRequirements().length ? "✓" : "○"} {t("login.passwordMinLength")}</li>
+                <li class={passwordRequirements().upper ? "text-success" : ""}>{passwordRequirements().upper ? "✓" : "○"} {t("login.passwordUpper")}</li>
+                <li class={passwordRequirements().lower ? "text-success" : ""}>{passwordRequirements().lower ? "✓" : "○"} {t("login.passwordLower")}</li>
+                <li class={passwordRequirements().digit ? "text-success" : ""}>{passwordRequirements().digit ? "✓" : "○"} {t("login.passwordNumber")}</li>
+                <li class={passwordRequirements().symbol ? "text-success" : ""}>{passwordRequirements().symbol ? "✓" : "○"} {t("login.passwordSymbol")}</li>
+              </ul>
+            </Show>
+            </label>
+          </Show>
 
           <Show when={error()}>
             <p role="alert" class="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
@@ -116,20 +148,22 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={busy() || !handle().trim() || !password() || (mode() === "register" && !name().trim())}
+            disabled={busy() || !handle().trim() || (handleChecked() && (!password() || (mode() === "register" && !name().trim())))}
             class="mt-1 flex min-h-12 items-center justify-center gap-2 rounded-pill bg-accent py-3 font-semibold text-accent-ink transition-[transform,opacity] duration-150 hover:brightness-105 active:scale-95 disabled:opacity-40"
           >
             <Show when={busy()}>
               <SpinnerIcon size={18} class="animate-spin" />
             </Show>
-            {mode() === "login" ? t("login.signIn") : t("login.createAccountBtn")}
+            {!handleChecked() ? t("login.continue") : mode() === "login" ? t("login.signIn") : t("login.createAccountBtn")}
           </button>
         </form>
 
         <button
           type="button"
           onClick={() => {
-            setMode(mode() === "login" ? "register" : "login");
+            setHandleChecked(false);
+            setPassword("");
+            setName("");
             setError(null);
           }}
           class="mt-5 w-full text-center text-sm text-ink-muted underline-offset-4 hover:underline"

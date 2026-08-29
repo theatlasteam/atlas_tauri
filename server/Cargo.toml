@@ -1,6 +1,6 @@
 [package]
 name = "atlas-server"
-version = "0.1.0"
+version = "0.1.0-beta.1"
 edition = "2021"
 description = "Standalone backend for the Atlas messenger: HTTP API, realtime WebSocket, call signaling"
 license = "MIT"
@@ -44,6 +44,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Crypto / auth
 argon2 = "0.5"
+unicode-segmentation = "1.12"
 rand = "0.8"
 sha2 = "0.10"
 sha1 = "0.10"

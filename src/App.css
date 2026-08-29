@@ -38,10 +38,10 @@
   /* Wallpaper: gradient tokens so wallpaper picker can swap without touching layout */
   --wallpaper: none;
 
-  --font-sans: "Inter var", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-heading: "Inter var", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
-  --font-size-base: 15px;
+  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-heading: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-size-base: 16px;
 }
 
 :root[data-theme="dark"] {
@@ -167,7 +167,7 @@
 
 /* Font family presets */
 :root[data-font="inter"] {
-  --font-sans: "Inter var", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
 }
 :root[data-font="system"] {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -526,4 +526,80 @@ main {
 .markdown-body td {
   border: 1px solid var(--color-border);
   padding: 0.3em 0.55em;
+}
+
+/* ---------- richer micro-motion ---------- */
+
+/* New message bubble: springy rise with a tiny overshoot. */
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
+  70% {
+    transform: translateY(-1px) scale(1.005);
+  }
+}
+.bubble-in {
+  animation: bubble-in 260ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+/* Avatar/icon pop when it enters. */
+@keyframes avatar-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+}
+.avatar-pop {
+  animation: avatar-pop 280ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+/* Buttons and tappable rows get a soft physical press everywhere. */
+button,
+[role="button"],
+a {
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+button:active,
+[role="button"]:active {
+  transform: scale(0.97);
+}
+
+/* Chat-list rows gently lift on hover. */
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+.row-in {
+  animation: row-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Status/typing dots breathe instead of sitting static. */
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
+}
+.pulse-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble-in,
+  .avatar-pop,
+  .row-in,
+  .pulse-dot {
+    animation: none;
+  }
 }

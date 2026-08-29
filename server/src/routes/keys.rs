@@ -189,6 +189,137 @@ pub async fn claim_package(
     Ok(Json(ClaimedPackage { user_id, device_id, package: B64.encode(package) }))
 }
 
+// ---------- E2EE v2 prekey bundles ----------
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishBundlePayload {
+    /// base64 X25519 identity public key.
+    identity_key: String,
+    /// base64 Ed25519 identity public key.
+    signing_key: String,
+    /// base64 X25519 signed prekey public.
+    signed_prekey: String,
+    signed_prekey_id: i32,
+    /// base64 Ed25519 signature over the signed prekey bytes.
+    signed_prekey_sig: String,
+}
+
+fn decode_bounded(b64: &str, max: usize, what: &str) -> Result<Vec<u8>, AppError> {
+    let bytes = B64
+        .decode(b64)
+        .map_err(|_| AppError::BadRequest(format!("{what} must be base64")))?;
+    if bytes.is_empty() || bytes.len() > max {
+        return Err(AppError::BadRequest(format!("{what} size out of range")));
+    }
+    Ok(bytes)
+}
+
+/// Publish (or refresh) the caller's prekey bundle. Unlike the raw identity
+/// key, a bundle refresh is normal operation: the signed prekey rotates and
+/// the new one is authenticated by the long-term Ed25519 signing key, so an
+/// attacker with a session token still cannot substitute it silently — the
+/// signature check on the client would fail.
+pub async fn publish_bundle(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(payload): Json<PublishBundlePayload>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let identity_key = decode_bounded(&payload.identity_key, 64, "identityKey")?;
+    let signing_key = decode_bounded(&payload.signing_key, 64, "signingKey")?;
+    let signed_prekey = decode_bounded(&payload.signed_prekey, 64, "signedPrekey")?;
+    let signed_prekey_sig = decode_bounded(&payload.signed_prekey_sig, 128, "signedPrekeySig")?;
+
+    // Long-term signing identity is immutable once set (same rule as the v1
+    // identity key) — rotation is an explicit reset, not a silent overwrite.
+    let res = sqlx::query(
+        "INSERT INTO prekey_bundles (user_id, identity_key, signing_key, signed_prekey, signed_prekey_id, signed_prekey_sig, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,now())
+         ON CONFLICT (user_id) DO UPDATE SET
+            identity_key = EXCLUDED.identity_key,
+            signing_key = EXCLUDED.signing_key,
+            signed_prekey = EXCLUDED.signed_prekey,
+            signed_prekey_id = EXCLUDED.signed_prekey_id,
+            signed_prekey_sig = EXCLUDED.signed_prekey_sig,
+            updated_at = now()
+         WHERE prekey_bundles.identity_key = EXCLUDED.identity_key
+            OR prekey_bundles.signing_key = EXCLUDED.signing_key",
+    )
+    .bind(auth.user_id)
+    .bind(&identity_key)
+    .bind(&signing_key)
+    .bind(&signed_prekey)
+    .bind(payload.signed_prekey_id)
+    .bind(&signed_prekey_sig)
+    .execute(&state.db)
+    .await?;
+    if res.rows_affected() == 0 {
+        return Err(AppError::Conflict(
+            "identity already published with different keys; rotation requires a reset".into(),
+        ));
+    }
+    // Keep the legacy v1 identity column populated from the bundle so older
+    // builds at least see a key exists.
+    sqlx::query("UPDATE users SET identity_key = $2 WHERE id = $1 AND identity_key IS NULL")
+        .bind(auth.user_id)
+        .bind(&identity_key)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleResponse {
+    user_id: Uuid,
+    identity_key: String,
+    signing_key: String,
+    signed_prekey: String,
+    signed_prekey_id: i32,
+    signed_prekey_sig: String,
+}
+
+pub async fn get_bundle(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Path(user_id): Path<Uuid>,
+) -> ApiResult<Json<BundleResponse>> {
+    let row: Option<(Vec<u8>, Vec<u8>, Vec<u8>, i32, Vec<u8>)> = sqlx::query_as(
+        "SELECT identity_key, signing_key, signed_prekey, signed_prekey_id, signed_prekey_sig
+         FROM prekey_bundles WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?;
+    let (ik, sk, spk, spk_id, sig) = row.ok_or(AppError::NotFound)?;
+    Ok(Json(BundleResponse {
+        user_id,
+        identity_key: B64.encode(ik),
+        signing_key: B64.encode(sk),
+        signed_prekey: B64.encode(spk),
+        signed_prekey_id: spk_id,
+        signed_prekey_sig: B64.encode(sig),
+    }))
+}
+
+/// Explicit reset of the caller's bundle (reinstall/lost device). Noisy for
+/// the same reason as reset_identity: peers' sessions break until they
+/// re-establish with the new identity.
+pub async fn reset_bundle(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> ApiResult<Json<serde_json::Value>> {
+    sqlx::query("DELETE FROM prekey_bundles WHERE user_id = $1")
+        .bind(auth.user_id)
+        .execute(&state.db)
+        .await?;
+    sqlx::query("DELETE FROM key_packages WHERE user_id = $1")
+        .bind(auth.user_id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(json!({ "ok": true })))
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageCount {

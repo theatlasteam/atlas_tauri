@@ -320,7 +320,7 @@ export default function MessageBubble(props: {
         "mb-2": hasReactions(),
       }}
     >
-      <div class="group flex w-full items-end gap-1" classList={{ "justify-end": mine(), "justify-start": !mine() }}>
+      <div class="bubble-in group flex w-full items-end gap-1" classList={{ "justify-end": mine(), "justify-start": !mine() }}>
         {/* Hover affordances (desktop) */}
         <Show when={mine()}>
           <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />

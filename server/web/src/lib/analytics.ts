@@ -25,8 +25,28 @@ function send(session: string, path: string, type: EventKind) {
   });
 }
 
+// crypto.randomUUID exists only in secure contexts (https/localhost); the
+// site also gets opened over plain http on LANs, so fall back to a
+// getRandomValues-based v4 UUID there.
+function newSessionId(): string {
+  const cryptoApi = typeof globalThis !== "undefined" ? globalThis.crypto : undefined;
+  if (cryptoApi && typeof cryptoApi.randomUUID === "function") {
+    return cryptoApi.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  if (cryptoApi && typeof cryptoApi.getRandomValues === "function") {
+    cryptoApi.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
+}
+
 export function initAnalytics() {
-  const session = crypto.randomUUID();
+  const session = newSessionId();
   const path = window.location.pathname;
 
   send(session, path, "pageview");
