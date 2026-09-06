@@ -1,11 +1,10 @@
+@import "../server/web/design-system/tokens.css";
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
 /*
-  Atlas design system.
-  Palette: deep teal / amber accent — deliberately not Telegram-blue or WhatsApp-green.
-  Runtime-switchable: theme (light/dark), accent color, font family/size, wallpaper —
-  all exposed as CSS custom properties so JS can flip them without a rebuild.
+  App-only tokens (fonts the user can pick, wallpapers, transitions).
+  Color ramp, accents, and radii live in the shared design-system tokens.
 */
 
 :root {
@@ -189,6 +188,10 @@
 html {
   font-size: var(--font-size-base);
   overflow-x: hidden; /* the page-transition slide briefly exceeds viewport width */
+  /* iOS: allow pinch-zoom, but not the double-tap-to-zoom that fights taps. */
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -199,6 +202,7 @@ body {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+  touch-action: manipulation;
 }
 
 input,

@@ -15,6 +15,7 @@ import { MessageListSkeleton } from "../components/Skeleton";
 import VerifiedBadge from "../components/VerifiedBadge";
 import Popover from "../ui/Popover";
 import { Menu, MenuItem } from "../ui/Menu";
+import { Composer } from "@atlas/ui";
 import { useIsDesktopLayout } from "../lib/platform";
 import {
   ArrowDownIcon,
@@ -25,18 +26,15 @@ import {
   ChatIcon,
   CloseIcon,
   ChevronDownIcon,
-  CheckIcon,
   EditIcon,
   EyeIcon,
   HourglassIcon,
   LockIcon,
-  MicIcon,
   PhoneIcon,
   ProhibitIcon,
   ReplyIcon,
   SendIcon,
   SpinnerIcon,
-  StopIcon,
   TrashIcon,
   VideoIcon,
 } from "../icons";
@@ -246,8 +244,8 @@ export default function ChatView() {
   const encrypted = () => e2eeAvailable && !!chat()?.peerUserId;
   const blocked = () => !!chat()?.blockedByMe || !!chat()?.blockedMe;
 
-  const submit = async (e: Event) => {
-    e.preventDefault();
+  const submit = async (e?: Event) => {
+    e?.preventDefault();
     // The press that opened the capsule picker still ends in a click on a
     // submit button. Swallow exactly that one.
     if (holdOpenedPicker) {
@@ -465,6 +463,7 @@ export default function ChatView() {
                   online={c().online}
                   userId={c().peerUserId}
                   hasPhoto={c().peerHasAvatar}
+                  atlasLogo={c().kind === "broadcast"}
                 />
                 <div class="min-w-0 flex-1">
                   <p class="flex items-center gap-1.5 truncate font-semibold leading-tight">
@@ -720,18 +719,25 @@ export default function ChatView() {
           )}
         </Show>
 
+        <Show when={chat()?.kind === "broadcast"}>
+          <div class="flex items-center justify-center gap-2 px-4 pb-[max(var(--safe-bottom),1rem)] pt-3 text-sm text-ink-subtle">
+            {t("broadcast.cantReply")}
+          </div>
+        </Show>
         <Show
-          when={!blocked()}
+          when={!blocked() && chat()?.kind !== "broadcast"}
           fallback={
+            <Show when={chat()?.kind !== "broadcast"}>
             <div class="flex items-center justify-center gap-2 px-4 pb-[max(var(--safe-bottom),1rem)] pt-3 text-sm text-ink-subtle">
               <ProhibitIcon size={16} />
               {chat()?.blockedByMe ? t("chatView.blockedByMe") : t("chatView.cantMessage")}
             </div>
+            </Show>
           }
         >
         <form
-          onSubmit={submit}
-          class="flex gap-2 px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5"
+          onSubmit={(e) => void submit(e)}
+          class="px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5"
         >
           <input
             ref={fileInput}
@@ -743,25 +749,12 @@ export default function ChatView() {
               e.currentTarget.value = "";
             }}
           />
-          {/* An edit replaces text only — the attachment stays as it was. */}
-          <Show when={!editing()}>
-          <button
-            type="button"
-            onClick={pickFile}
-            disabled={uploading()}
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface disabled:opacity-40"
-            aria-label={t("chatView.attachFileAria")}
-          >
-            <Show when={!uploading()} fallback={<SpinnerIcon size={19} class="animate-spin" />}>
-              <AttachIcon size={20} />
-            </Show>
-          </button>
-          </Show>
-          <input
-            type="text"
+          <Composer
             value={draft()}
-            onInput={(e) => onDraftInput(e.currentTarget.value)}
-            onKeyDown={(e) => e.key === "Escape" && editing() && cancelEdit()}
+            onChange={onDraftInput}
+            disabled={sending() || uploading()}
+            recording={recording()}
+            forceSend={!!pendingAttachment()}
             placeholder={
               editing()
                 ? t("chatView.editPlaceholder")
@@ -775,65 +768,15 @@ export default function ChatView() {
                         ? t("chatView.encryptedPlaceholder")
                         : t("chatView.messagePlaceholder")
             }
-            disabled={recording()}
-            class="min-w-0 flex-1 rounded-pill border border-border bg-surface px-4 py-2.5 text-ink placeholder-ink-subtle outline-none transition-[border-color,box-shadow] duration-150 focus:border-accent focus:ring-2 focus:ring-accent/15"
+            onAdd={editing() ? undefined : pickFile}
+            addIcon={uploading() ? <SpinnerIcon size={19} class="animate-spin" /> : undefined}
+            addLabel={t("chatView.attachFileAria")}
+            onVoice={() => (recording() ? stopRecording() : void startRecording())}
+            onSubmit={() => void submit()}
+            actionRef={(el) => (sendBtn = el)}
+            onActionPointerDown={() => !editing() && startHold()}
+            onActionPointerUp={cancelHold}
           />
-          <Show
-            when={draft().trim() || pendingAttachment() || editing()}
-            fallback={
-              <button
-                type="button"
-                onClick={() => (recording() ? stopRecording() : void startRecording())}
-                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-[background-color,transform] duration-150 hover:brightness-105 active:scale-95"
-                classList={{
-                  "bg-danger text-white animate-pulse": recording(),
-                  "bg-accent text-accent-ink": !recording(),
-                }}
-                aria-label={recording() ? t("chatView.stopRecordingAria") : t("chatView.recordVoiceAria")}
-              >
-                <Show when={recording()} fallback={<MicIcon size={19} />}>
-                  <StopIcon size={19} />
-                </Show>
-              </button>
-            }
-          >
-            {/* Tap sends. Hold opens the time-capsule picker — the same
-                press-and-hold that already reveals reactions on a bubble,
-                rather than a third permanent button in the composer.
-                While editing it is a plain Save: there is nothing to schedule,
-                the message has already been sent once. */}
-            <button
-              ref={sendBtn}
-              type="submit"
-              disabled={sending() || (!!editing() && !draft().trim())}
-              onPointerDown={() => !editing() && startHold()}
-              onPointerUp={cancelHold}
-              onPointerLeave={cancelHold}
-              onPointerCancel={cancelHold}
-              onContextMenu={(e) => e.preventDefault()}
-              class="flex h-11 w-11 shrink-0 select-none items-center justify-center rounded-full bg-accent text-accent-ink transition-transform duration-150 hover:brightness-105 disabled:opacity-40 active:scale-95"
-              aria-label={
-                editing()
-                  ? t("chatView.saveEditAria")
-                  : capsuleAt()
-                    ? t("chatView.sealAndSendAria")
-                    : t("chatView.sendMessageAria")
-              }
-              title={
-                editing()
-                  ? t("chatView.saveTitle")
-                  : capsuleAt()
-                    ? t("chatView.holdToChangeTitle")
-                    : t("chatView.holdToSendLaterTitle")
-              }
-            >
-              <Show when={!editing()} fallback={<CheckIcon size={19} />}>
-                <Show when={!capsuleAt()} fallback={<HourglassIcon size={18} />}>
-                  <SendIcon size={18} />
-                </Show>
-              </Show>
-            </button>
-          </Show>
         </form>
         </Show>
       </div>

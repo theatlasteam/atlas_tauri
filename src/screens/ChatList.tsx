@@ -11,6 +11,7 @@ import VerifiedBadge from "../components/VerifiedBadge";
 import { formatRelativeTime } from "../lib/time";
 import { t } from "../lib/i18n";
 import { BellSlashIcon, ChatIcon, CompassIcon, PlusIcon, SearchIcon } from "../icons";
+import { IconButton } from "@atlas/ui";
 
 export default function ChatList() {
   const params = useParams<{ id?: string }>();
@@ -35,24 +36,21 @@ export default function ChatList() {
   // who was typing in a group — the list flatly said "typing…" whoever it was.
   const typingLine = (chatId: string) => typingLabel(chatId);
 
-  const headerBtn =
-    "flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface";
-
   return (
     <div class="flex h-full flex-col">
       <div class="shrink-0 border-b border-border bg-appbar">
       <header class="flex items-center justify-between px-5 pb-1 pt-[max(var(--safe-top),1.5rem)]">
         <h1 class="font-heading text-2xl font-bold">{t("chatList.title")}</h1>
         <div class="flex items-center gap-1">
-          <button type="button" onClick={() => navigate("/compass")} class={headerBtn} aria-label={t("compass.title")}>
+          <IconButton ariaLabel={t("compass.title")} onClick={() => navigate("/compass")}>
             <CompassIcon size={21} />
-          </button>
-          <button type="button" onClick={() => setSearchOpen(true)} class={headerBtn} aria-label={t("chatList.searchAria")}>
+          </IconButton>
+          <IconButton ariaLabel={t("chatList.searchAria")} onClick={() => setSearchOpen(true)}>
             <SearchIcon size={21} />
-          </button>
-          <button type="button" onClick={() => navigate("/new-chat")} class={headerBtn} aria-label={t("chatList.newChatAria")}>
+          </IconButton>
+          <IconButton ariaLabel={t("chatList.newChatAria")} onClick={() => navigate("/new-chat")}>
             <PlusIcon size={21} />
-          </button>
+          </IconButton>
         </div>
       </header>
 
@@ -115,6 +113,7 @@ export default function ChatList() {
                         online={chat.online}
                         userId={chat.peerUserId}
                         hasPhoto={chat.peerHasAvatar}
+                        atlasLogo={chat.kind === "broadcast"}
                       />
                       <div class="min-w-0 flex-1">
                         <div class="flex items-baseline justify-between gap-2">

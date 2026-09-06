@@ -34,7 +34,7 @@ export default function Appbar(props: AppbarProps) {
     props.back ? (
       <A
         href={props.back}
-        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
+        class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-muted transition hover:bg-bg hover:text-ink"
         aria-label="Back"
       >
         <BackIcon size={22} />

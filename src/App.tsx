@@ -1,4 +1,4 @@
-import { Match, Switch } from "solid-js";
+import { Match, Switch, lazy } from "solid-js";
 import { Router, Route } from "@solidjs/router";
 import ChatLayout from "./components/ChatLayout";
 import Profile from "./screens/Profile";
@@ -17,17 +17,25 @@ import CompassList from "./screens/CompassList";
 import CompassChat from "./screens/CompassChat";
 import Shell from "./components/Shell";
 import TitleBar from "./components/TitleBar";
-import Login from "./screens/Login";
+import SecurityGate from "./components/SecurityGate";
+import UpdateBanner from "./components/UpdateBanner";
 import Onboarding from "./screens/Onboarding";
 import { session } from "./store/session";
 import { SpinnerIcon } from "./icons";
 import "./App.css";
+
+const DesignSystem = lazy(() => import("./screens/settings/DesignSystem"));
+
+const routerBase =
+  typeof window !== "undefined" && window.location.pathname.startsWith("/app") ? "/app" : "";
 
 function App() {
   return (
     <div class="flex h-screen flex-col">
       {/* Above auth state on purpose — a window needs its chrome (or nothing,
           on mobile/web) regardless of whether anyone's signed in yet. */}
+      <SecurityGate />
+      <UpdateBanner />
       <TitleBar />
       <div class="min-h-0 flex-1">
         <Switch>
@@ -42,7 +50,7 @@ function App() {
             </div>
           </Match>
           <Match when={session.status() === "signedIn"}>
-            <Router root={Shell}>
+            <Router root={Shell} base={routerBase}>
               <Route path="/" component={ChatLayout} />
               <Route path="/chat/:id" component={ChatLayout} />
               <Route path="/settings" component={SettingsHome} />
@@ -53,6 +61,7 @@ function App() {
               <Route path="/settings/privacy" component={Privacy} />
               <Route path="/settings/blocked" component={BlockedUsers} />
               <Route path="/settings/dev" component={Dev} />
+              <Route path="/settings/design-system" component={DesignSystem} />
               <Route path="/settings/verification" component={Verification} />
               <Route path="/profile" component={Profile} />
               <Route path="/user/:id" component={UserProfile} />

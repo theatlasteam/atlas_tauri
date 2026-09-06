@@ -242,6 +242,9 @@ pub async fn register(
             "handle must be 3-32 chars of a-z, 0-9, _".into(),
         ));
     }
+    if handle == "compass" || handle == "atlasnews" {
+        return Err(AppError::Conflict("handle already taken".into()));
+    }
     validate_password(&payload.password)?;
     let name = payload.name.trim();
     if name.is_empty() || name.len() > 80 {
@@ -267,6 +270,7 @@ pub async fn register(
     .ok_or_else(|| AppError::Conflict("handle already taken".into()))?;
 
     let token = create_session(&state, user.id, payload.device_name).await?;
+    let _ = crate::broadcast::add_member(&state, user.id).await;
     Ok(Json(AuthResponse { token, user: user.into() }))
 }
 

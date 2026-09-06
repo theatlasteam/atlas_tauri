@@ -1,5 +1,6 @@
 mod ai_proxy;
 mod auth;
+mod broadcast;
 mod compass;
 mod config;
 mod error;
@@ -45,6 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("database ready, migrations applied");
 
     let compass_user_id = compass::ensure_user(&db).await?;
+    let official = broadcast::ensure(&db, &cfg.attachments_dir).await?;
 
     let allow_origin = match &cfg.cors_origins {
         Some(origins) => AllowOrigin::list(origins.iter().filter_map(|o| o.parse::<HeaderValue>().ok())),
@@ -56,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
 
     let bind_addr = cfg.bind_addr.clone();
-    let state = AppState::new(db, cfg, compass_user_id);
+    let state = AppState::new(db, cfg, compass_user_id, official.user_id, official.chat_id);
 
     // Collects call state that no socket can clean up (see the doc comment) —
     // without it a leaked entry makes a user permanently "busy".
@@ -87,6 +89,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Atlas-only: full user list backing the verification screen. Kept off
         // /api/users so it can't be confused with the public search endpoint.
         .route("/api/admin/users", get(routes::users::list_all_users))
+        .route("/api/admin/broadcast", post(broadcast::post_broadcast))
+        .route(
+            "/api/admin/broadcast/image",
+            post(broadcast::upload_image).layer(DefaultBodyLimit::max(
+                routes::attachments::MAX_ATTACHMENT_BYTES + 1024,
+            )),
+        )
         // Push notification device tokens (FCM).
         .route("/api/devices", post(routes::devices::register_device))
         .route("/api/devices/{token}", delete(routes::devices::unregister_device))
@@ -225,6 +234,20 @@ async fn static_or_api_only(State(state): State<AppState>, req: Request) -> Resp
     };
     if is_api_only {
         return StatusCode::NOT_FOUND.into_response();
+    }
+
+    let path = req.uri().path();
+    // The messenger PWA lives at /app. Client-side routes (/app/chat/…,
+    // /app/settings, …) must still get app/index.html — not the marketing
+    // site's index.html, which is the default SPA fallback below.
+    if path == "/app" || path == "/app/" || path.starts_with("/app/") {
+        // Existing files (hashed JS/CSS under /assets, /app/manifest, …)
+        // are served as usual; unknown /app/* routes get the PWA shell.
+        let serve_dir = ServeDir::new(dir).fallback(ServeFile::new(format!("{dir}/app/index.html")));
+        return match serve_dir.oneshot(req).await {
+            Ok(resp) => resp.map(Body::new).into_response(),
+            Err(err) => match err {},
+        };
     }
 
     let index = ServeFile::new(format!("{dir}/index.html"));

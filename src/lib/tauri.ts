@@ -1,15 +1,24 @@
-// Bridge to the Tauri Rust core. Everything here degrades gracefully when the
-// app runs as a plain web page (vite dev in a browser): secrets fall back to
-// localStorage WITH a loud warning, and E2EE reports itself unavailable so the
-// UI disables encrypted mode instead of pretending.
+// Bridge to the Tauri Rust core, or to the in-browser E2EE implementation
+// when the app is running as a PWA at /app.
 
-import { invoke } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import {
+  wasmE2ee2Bundle,
+  wasmE2ee2Decrypt,
+  wasmE2ee2Encrypt,
+  wasmE2ee2Fingerprint,
+  wasmE2ee2HasSession,
+  wasmE2ee2NewPrekeys,
+  wasmE2ee2StartSession,
+  wasmE2eeFingerprint,
+  wasmE2eeOpen,
+  wasmE2eePublicKey,
+  wasmE2eeSeal,
+} from "./e2ee-wasm";
+import { inspectSessionSecurity, hasBlockingSecurityIssue } from "./secure-context";
+import { webSecretDelete, webSecretGet, webSecretSet } from "./web-secrets";
 import { isAndroid } from "./platform";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-
-// ---------- secure secret storage ----------
 
 const DEV_PREFIX = "atlas.devsecret.";
 let warned = false;
@@ -17,51 +26,67 @@ function devWarn() {
   if (!warned) {
     warned = true;
     console.warn(
-      "[atlas] Tauri not detected — secrets are in localStorage. This is a DEV-ONLY fallback; " +
-        "packaged builds use the OS keychain / app-sandboxed storage.",
+      "[atlas] Tauri not detected — secrets are in IndexedDB (PWA) or localStorage. " +
+        "Packaged builds use the OS keychain.",
     );
   }
 }
 
+async function invokeTauri<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<T>(cmd, args);
+}
+
 export async function secretGet(key: string): Promise<string | null> {
-  if (isTauri) return (await invoke<string | null>("secret_get", { key })) ?? null;
+  if (isTauri) return (await invokeTauri<string | null>("secret_get", { key })) ?? null;
   devWarn();
-  return localStorage.getItem(DEV_PREFIX + key);
+  const fromIdb = await webSecretGet(key);
+  if (fromIdb !== null) return fromIdb;
+  try {
+    return localStorage.getItem(DEV_PREFIX + key);
+  } catch {
+    return null;
+  }
 }
 
 export async function secretSet(key: string, value: string): Promise<void> {
-  if (isTauri) return invoke("secret_set", { key, value });
+  if (isTauri) return invokeTauri("secret_set", { key, value });
   devWarn();
-  localStorage.setItem(DEV_PREFIX + key, value);
+  await webSecretSet(key, value);
 }
 
 export async function secretDelete(key: string): Promise<void> {
-  if (isTauri) return invoke("secret_delete", { key });
-  devWarn();
+  if (isTauri) return invokeTauri("secret_delete", { key });
   localStorage.removeItem(DEV_PREFIX + key);
+  await webSecretDelete(key);
 }
 
-// ---------- E2EE (private keys never leave the Rust core) ----------
-
-export const e2eeAvailable = isTauri;
+/** True when we can actually run E2EE (Tauri core, or a secure browser context). */
+export const e2eeAvailable =
+  isTauri ||
+  (typeof window !== "undefined" &&
+    !!globalThis.crypto?.subtle &&
+    !hasBlockingSecurityIssue(inspectSessionSecurity()));
 
 export function e2eePublicKey(): Promise<string> {
-  return invoke<string>("e2ee_public_key");
+  if (isTauri) return invokeTauri<string>("e2ee_public_key");
+  return wasmE2eePublicKey();
 }
 
 export function e2eeFingerprint(publicKey: string): Promise<string> {
-  return invoke<string>("e2ee_fingerprint", { publicKey });
+  if (isTauri) return invokeTauri<string>("e2ee_fingerprint", { publicKey });
+  return wasmE2eeFingerprint(publicKey);
 }
 
 export function e2eeSeal(peerPublicKey: string, plaintext: string): Promise<string> {
-  return invoke<string>("e2ee_seal", { peerPublicKey, plaintext });
+  if (isTauri) return invokeTauri<string>("e2ee_seal", { peerPublicKey, plaintext });
+  return wasmE2eeSeal(peerPublicKey, plaintext);
 }
 
 export function e2eeOpen(peerPublicKey: string, body: string): Promise<string> {
-  return invoke<string>("e2ee_open", { peerPublicKey, body });
+  if (isTauri) return invokeTauri<string>("e2ee_open", { peerPublicKey, body });
+  return wasmE2eeOpen(peerPublicKey, body);
 }
-
-// ---------- E2EE v2 (X3DH + Double Ratchet, scheme "dr-v1") ----------
 
 export interface PrekeyBundle {
   identityKey: string;
@@ -72,11 +97,13 @@ export interface PrekeyBundle {
 }
 
 export function e2ee2Bundle(): Promise<PrekeyBundle> {
-  return invoke<PrekeyBundle>("e2ee2_bundle");
+  if (isTauri) return invokeTauri<PrekeyBundle>("e2ee2_bundle");
+  return wasmE2ee2Bundle();
 }
 
 export function e2ee2NewPrekeys(count: number): Promise<string[]> {
-  return invoke<string[]>("e2ee2_new_prekeys", { count });
+  if (isTauri) return invokeTauri<string[]>("e2ee2_new_prekeys", { count });
+  return wasmE2ee2NewPrekeys(count);
 }
 
 export function e2ee2StartSession(
@@ -84,37 +111,34 @@ export function e2ee2StartSession(
   bundle: PrekeyBundle,
   oneTimePrekey: string | null,
 ): Promise<void> {
-  return invoke("e2ee2_start_session", { peer, bundle, oneTimePrekey });
+  if (isTauri) return invokeTauri("e2ee2_start_session", { peer, bundle, oneTimePrekey });
+  return wasmE2ee2StartSession(peer, bundle, oneTimePrekey);
 }
 
 export function e2ee2Encrypt(peer: string, plaintext: string): Promise<string> {
-  return invoke<string>("e2ee2_encrypt", { peer, plaintext });
+  if (isTauri) return invokeTauri<string>("e2ee2_encrypt", { peer, plaintext });
+  return wasmE2ee2Encrypt(peer, plaintext);
 }
 
 export function e2ee2Decrypt(peer: string, body: string): Promise<string> {
-  return invoke<string>("e2ee2_decrypt", { peer, body });
+  if (isTauri) return invokeTauri<string>("e2ee2_decrypt", { peer, body });
+  return wasmE2ee2Decrypt(peer, body);
 }
 
 export function e2ee2HasSession(peer: string): Promise<boolean> {
-  return invoke<boolean>("e2ee2_has_session", { peer });
+  if (isTauri) return invokeTauri<boolean>("e2ee2_has_session", { peer });
+  return wasmE2ee2HasSession(peer);
 }
 
 export function e2ee2Fingerprint(bundle: PrekeyBundle): Promise<string> {
-  return invoke<string>("e2ee2_fingerprint", { bundle });
+  if (isTauri) return invokeTauri<string>("e2ee2_fingerprint", { bundle });
+  return wasmE2ee2Fingerprint(bundle);
 }
-
-// ---------- Native Experimental (Android-only prototype) ----------
-//
-// A plain-Views chat list + chat screen (src-tauri/gen/android/.../native/)
-// that talks to the REST API directly, bypassing the WebView entirely.
-// Plaintext only, no live updates — see NativeChatListActivity's in-app
-// banner. Launched via a custom-scheme deep link rather than a Tauri
-// plugin/JNI bridge, so no native Rust glue is needed: Android's intent
-// resolver routes atlas-native://open straight back into our own app.
 
 export const nativeExperimentalAvailable = isTauri && isAndroid();
 
 export async function launchNativeExperimental(serverUrl: string, token: string): Promise<void> {
   const url = `atlas-native://open?serverUrl=${encodeURIComponent(serverUrl)}&token=${encodeURIComponent(token)}`;
+  const { openUrl } = await import("@tauri-apps/plugin-opener");
   await openUrl(url);
 }

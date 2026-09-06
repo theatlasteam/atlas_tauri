@@ -15,7 +15,10 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@atlas/ui": ["./design-system/index.ts"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "design-system"]
 }

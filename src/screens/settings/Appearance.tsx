@@ -5,7 +5,6 @@ import type { AccentId, FontId, FontSize, ThemeMode } from "../../data/types";
 import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
 import Appbar from "../../components/Appbar";
 import Picker from "../../ui/Picker";
-import Switch from "../../ui/Switch";
 import Slider from "../../ui/Slider";
 import { CheckIcon } from "../../icons";
 import { LOCALE_OPTIONS, setLocale, t, type TranslationKey } from "../../lib/i18n";
@@ -184,16 +183,6 @@ export default function Appearance() {
       <SettingsSection title={t("appearance.language")}>
         <SettingsRow label={t("appearance.language")} description={t("appearance.languageDesc")}>
           <Picker value={preferences.locale} onChange={(v) => setLocale(v as "en" | "ru")} options={LOCALE_OPTIONS} />
-        </SettingsRow>
-      </SettingsSection>
-
-      <SettingsSection title={t("appearance.navigation")}>
-        <SettingsRow label={t("appearance.compactNavbar")} description={t("appearance.compactNavbarDesc")}>
-          <Switch
-            checked={preferences.compactNavbar}
-            onChange={(v) => setPreferences("compactNavbar", v)}
-            label={t("appearance.compactNavbar")}
-          />
         </SettingsRow>
       </SettingsSection>
 

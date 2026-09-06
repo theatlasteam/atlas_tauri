@@ -48,6 +48,15 @@ function createE2eeStore() {
     }
   };
 
+  /** Republish identity + always mint a fresh batch of one-time prekeys. */
+  const replenishKeys = async (): Promise<void> => {
+    if (!e2eeAvailable) throw new Error("E2EE unavailable");
+    const bundle = await e2ee2Bundle();
+    await api.publishBundle(bundle);
+    const pubs = await e2ee2NewPrekeys(PREKEY_BATCH);
+    if (pubs.length) await api.uploadPrekeys(pubs);
+  };
+
   /**
    * Ensure a ratchet session exists with this peer. Returns false when the
    * peer hasn't published a bundle yet (caller should retry shortly).
@@ -63,6 +72,10 @@ function createE2eeStore() {
           // One-time prekeys are best-effort: if the pool is empty the
           // session still establishes (3-DH instead of 4-DH).
           const opk = await api.claimPrekey(peer).then((p) => p.package).catch(() => null);
+          if (!opk) {
+            console.error("[atlas] olm: peer has no one-time prekeys yet");
+            return false;
+          }
           await e2ee2StartSession(peer, bundle, opk);
           return true;
         } catch (e) {
@@ -99,7 +112,7 @@ function createE2eeStore() {
   const hasSession = (peer: string): Promise<boolean> =>
     e2eeAvailable ? e2ee2HasSession(peer) : Promise.resolve(false);
 
-  return { publishIdentity, ensureSession, seal, open, enabledFor, hasSession };
+  return { publishIdentity, replenishKeys, ensureSession, seal, open, enabledFor, hasSession };
 }
 
 export const e2ee = createE2eeStore();

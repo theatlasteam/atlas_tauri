@@ -1,3 +1,4 @@
+import { MessageSurface } from "@atlas/ui";
 import { createEffect, createResource, createSignal, For, on, onCleanup, Show } from "solid-js";
 import { api } from "../data/api";
 import Avatar from "./Avatar";
@@ -30,6 +31,7 @@ import {
   VideoIcon,
 } from "../icons";
 import { t } from "../lib/i18n";
+import MarkdownContent from "./MarkdownContent";
 
 /**
  * How long a press has to be held to count as "hold for more".
@@ -294,6 +296,7 @@ export default function MessageBubble(props: {
    * just the reaction row.
    */
   const startPress = () => {
+    if (props.chat?.kind === "broadcast") return;
     pressTimer = setTimeout(() => props.onActions(m(), bubbleRef!), HOLD_MS);
   };
   const cancelPress = () => pressTimer && clearTimeout(pressTimer);
@@ -322,7 +325,7 @@ export default function MessageBubble(props: {
     >
       <div class="bubble-in group flex w-full items-end gap-1" classList={{ "justify-end": mine(), "justify-start": !mine() }}>
         {/* Hover affordances (desktop) */}
-        <Show when={mine()}>
+        <Show when={mine() && props.chat?.kind !== "broadcast"}>
           <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
         </Show>
 
@@ -343,7 +346,8 @@ export default function MessageBubble(props: {
         </Show>
 
         <div class="relative w-fit max-w-[75%] shrink-0 sm:max-w-[65%]">
-          <div
+          <MessageSurface
+            side={mine() ? "sent" : "received"}
             ref={bubbleRef}
             onDblClick={() => props.onReply(m())}
             onTouchStart={startPress}
@@ -354,7 +358,7 @@ export default function MessageBubble(props: {
             // the text-selection toolbar and iOS the callout, over the sheet.
             // Selection still works on desktop, where the gesture doesn't exist.
             onContextMenu={(e) => e.preventDefault()}
-            class="rounded-[1.1rem] px-3.5 py-2 shadow-sm transition-opacity [-webkit-touch-callout:none]"
+            class="shadow-sm transition-opacity [-webkit-touch-callout:none]"
             classList={{
               "bg-bubble-sent text-bubble-sent-ink": mine(),
               "bg-bubble-received text-bubble-received-ink": !mine(),
@@ -398,7 +402,7 @@ export default function MessageBubble(props: {
                 </Show>
               </Show>
             </Show>
-          </div>
+          </MessageSurface>
 
           {/* Reactions overlap the bottom edge of the bubble, like every
               messenger worth its salt — kept outside the bubble so they don't
@@ -425,7 +429,7 @@ export default function MessageBubble(props: {
           </Show>
         </div>
 
-        <Show when={!mine()}>
+        <Show when={!mine() && props.chat?.kind !== "broadcast"}>
           <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
         </Show>
       </div>
@@ -486,6 +490,9 @@ function MessageBody(props: { message: Message }) {
           <div class="-mx-1 mb-1 mt-0.5 overflow-hidden rounded-xl" classList={{ "mb-0": !m().text }}>
             <Show when={att().kind === "image"}>
               <ImageAttachment id={att().id} width={att().width} height={att().height} />
+              <Show when={att().title}>
+                <p class="mt-1 px-1 text-xs font-medium text-ink">{att().title}</p>
+              </Show>
             </Show>
             <Show when={att().kind === "voice"}>
               <VoiceAttachment id={att().id} durationMs={att().durationMs} />
@@ -496,13 +503,33 @@ function MessageBody(props: { message: Message }) {
           </div>
         )}
       </Show>
-      <Show when={m().text}>
-        <p
-          class="whitespace-pre-wrap break-words text-[0.95em] leading-snug"
-          classList={{ "italic opacity-70": m().decrypting }}
+      <Show when={m().text && m().text.trim()}>
+        <Show
+          when={!m().decrypting}
+          fallback={
+            <p class="whitespace-pre-wrap break-words text-[0.95em] italic leading-snug opacity-70">
+              {t("messageBubble.decrypting")}
+            </p>
+          }
         >
-          {m().decrypting ? t("messageBubble.decrypting") : m().text}
-        </p>
+          <MarkdownContent text={m().text} class="text-[0.95em] leading-snug" />
+        </Show>
+      </Show>
+      <Show when={m().buttons && m().buttons!.length > 0}>
+        <div class="mt-2 flex flex-col gap-1.5">
+          <For each={m().buttons}>
+            {(btn) => (
+              <a
+                href={btn.url}
+                target={btn.url.startsWith("/") ? undefined : "_blank"}
+                rel="noopener noreferrer"
+                class="block rounded-full bg-accent px-3 py-1.5 text-center text-xs font-semibold text-accent-ink"
+              >
+                {btn.label}
+              </a>
+            )}
+          </For>
+        </div>
       </Show>
     </>
   );

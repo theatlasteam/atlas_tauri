@@ -1,5 +1,4 @@
 import { createSignal, createMemo, For, onMount, Show } from "solid-js";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
 import Appbar from "../../components/Appbar";
 import Dialog from "../../ui/Dialog";
@@ -200,7 +199,7 @@ export default function Plugins() {
   const createPlugin = () => {
     const url = pluginEditorUrl();
     if (isTauri) {
-      void openUrl(url);
+      void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url));
     } else {
       window.open(url, "_blank", "noopener");
     }

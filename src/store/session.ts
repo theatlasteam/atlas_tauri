@@ -25,8 +25,9 @@ const SERVER_URL_KEY = "server_url";
 export type SessionStatus = "loading" | "signedOut" | "signedIn";
 
 function deviceName(): string {
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  if (/iphone|ipad|ipod/i.test(ua)) return "ios";
   if (!isTauri) return "web";
-  const ua = navigator.userAgent;
   if (/android/i.test(ua)) return "android";
   if (/iphone|ipad/i.test(ua)) return "ios";
   if (/mac/i.test(ua)) return "macos";
@@ -75,8 +76,8 @@ function createSessionStore() {
 
   /** Restore a persisted session on app start. */
   const bootstrap = async () => {
+    const token = await secretGet(TOKEN_KEY);
     try {
-      const token = await secretGet(TOKEN_KEY);
       if (!token) {
         setStatus("signedOut");
         return;
@@ -91,11 +92,16 @@ function createSessionStore() {
       connectSocket();
       void publishIdentity();
       ensureNotificationPermission();
-    } catch (e: any) {
-      // 401 = token revoked/expired; anything else (server down) still lands
-      // on the login screen, which shows the error on the next attempt.
-      setToken(null);
-      await secretDelete(TOKEN_KEY).catch(() => {});
+    } catch (e: unknown) {
+      const status = typeof e === "object" && e && "status" in e ? Number((e as { status: number }).status) : 0;
+      // Only a real auth rejection should forget the token. A blip on
+      // refresh (timeout, 5xx, cookie-header noise) used to wipe login.
+      if (status === 401 || status === 403) {
+        setToken(null);
+        await secretDelete(TOKEN_KEY).catch(() => {});
+        setStatus("signedOut");
+        return;
+      }
       setStatus("signedOut");
     }
   };

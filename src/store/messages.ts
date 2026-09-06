@@ -10,10 +10,11 @@
 import { createRoot } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { api } from "../data/api";
+import { allPlaintexts, cacheForChat, cachePut, forgetPlaintext, loadPlaintextsSync, putPlaintext } from "../data/messageCache";
 import type { MessageDto } from "../data/generated";
 import { toMessage } from "../data/mapping";
 import type { Message } from "../data/types";
-import { e2eeAvailable, e2eeOpen } from "../lib/tauri";
+import { e2eeAvailable, e2eeOpen, isTauri } from "../lib/tauri";
 import { mentionsCompass } from "../lib/compassMention";
 import { emitMessageReceived, emitMessageSent, transformBeforeSend } from "../plugins/runtime";
 import { e2ee } from "./e2ee";
@@ -30,8 +31,29 @@ interface ChatMessages {
 
 function createMessagesStore() {
   const [state, setState] = createStore<Record<string, ChatMessages>>({});
+  /** Survives loadInitial wiping the in-memory list: a ciphertext must only
+   *  be opened once (the ratchet advances). Live events decrypt in the
+   *  background; opening the chat later must reuse this, not decrypt again. */
+  const openedPlaintext = new Map<string, string>(Object.entries(loadPlaintextsSync()));
 
+  const plaintextVersions = new Map<string, string>();
+  const syncs = new Map<string, Promise<void>>();
+  const decryptingVersions = new Set<string>();
   const myId = () => session.user()?.id ?? "";
+  const forget = (id: string) => {
+    openedPlaintext.delete(id);
+    plaintextVersions.delete(id);
+    void forgetPlaintext(id);
+  };
+
+  const rememberPlaintext = (messageId: string, text: string, seed?: Message) => {
+    if (text && text !== "🔒 Encrypted message" && !text.startsWith("🔒 ")) {
+      openedPlaintext.set(messageId, text);
+      if (seed?.contentVersion) plaintextVersions.set(messageId, seed.contentVersion);
+      void putPlaintext(messageId, seed?.chatId ?? "", text);
+      if (seed) void cachePut({ ...seed, text, decrypting: false, decryptFailed: false, sourceText: text });
+    }
+  };
 
   const ensure = (chatId: string) => {
     if (!state[chatId]) {
@@ -50,7 +72,19 @@ function createMessagesStore() {
    * fetch shouldn't be a permanent, unrecoverable "Unable to decrypt".
    */
   const decrypt = (chatId: string, messageId: string, scheme: string, body: string, peerUserId?: string) => {
-    if (!e2eeAvailable || (scheme !== "dr-v1" && scheme !== "x25519-v1")) {
+    const version = state[chatId]?.messages.find((m) => m.id === messageId)?.contentVersion;
+    const isCurrent = () => {
+      const row = state[chatId]?.messages.find((m) => m.id === messageId);
+      return !!row && !row.deleted && row.contentVersion === version;
+    };
+    const decryptKey = JSON.stringify([chatId, messageId, version]);
+    if (decryptingVersions.has(decryptKey)) return;
+    const already = openedPlaintext.get(messageId);
+    if (already && !already.startsWith("🔒 ")) {
+      patch(chatId, messageId, { text: already, decrypting: false, decryptFailed: false, sourceText: already });
+      return;
+    }
+    if (!e2eeAvailable || (scheme !== "olm-v1" && scheme !== "dr-v1" && scheme !== "x25519-v1")) {
       patch(chatId, messageId, { text: "🔒 Encrypted message (unsupported here)", decrypting: false });
       return;
     }
@@ -58,16 +92,21 @@ function createMessagesStore() {
     // old static-DH path; new traffic is dr-v1 only.
     if (scheme === "x25519-v1") {
       const otherId = peerUserId ?? "";
+      decryptingVersions.add(decryptKey);
       void (async () => {
         try {
           const { identityKey } = await api.getIdentity(otherId);
           if (!identityKey) throw new Error("no key");
           const text = await e2eeOpen(identityKey, body);
+          if (!isCurrent()) return;
+          const row = state[chatId]?.messages.find((m) => m.id === messageId);
+          rememberPlaintext(messageId, text, row ? { ...row, text } : undefined);
           patch(chatId, messageId, { text, decrypting: false, decryptFailed: false });
         } catch {
+          if (!isCurrent()) return;
           patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
         }
-      })();
+      })().finally(() => decryptingVersions.delete(decryptKey));
       return;
     }
     const otherId = peerUserId ?? "";
@@ -75,6 +114,7 @@ function createMessagesStore() {
       patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
       return;
     }
+    decryptingVersions.add(decryptKey);
     void (async () => {
       // The first message of a new conversation carries the sender's X3DH
       // payload and establishes the session on open; a brand-new peer's
@@ -83,17 +123,30 @@ function createMessagesStore() {
       const attempts = [0, 1000, 3000, 6000, 12000];
       for (let i = 0; i < attempts.length; i++) {
         if (attempts[i]) await sleep(attempts[i]);
+        if (!isCurrent()) return;
+        const hit = openedPlaintext.get(messageId);
+        if (hit && !hit.startsWith("🔒 ")) {
+          patch(chatId, messageId, { text: hit, decrypting: false, decryptFailed: false, sourceText: hit });
+          return;
+        }
         try {
-          const text = await e2ee.open(otherId, body);
+          const text = await Promise.race([
+            e2ee.open(otherId, body),
+            sleep(8000).then(() => {
+              throw new Error("decrypt timeout");
+            }),
+          ]);
+          if (!isCurrent()) return;
+          const row = state[chatId]?.messages.find((m) => m.id === messageId);
+          rememberPlaintext(messageId, text, row ? { ...row, text } : undefined);
           patch(chatId, messageId, { text, decrypting: false, decryptFailed: false });
           return;
-        } catch {
-          // Likely a prekey/session race — the next attempt may succeed once
-          // the peer's bundle has propagated.
+        } catch (e) {
+          console.warn("[atlas] decrypt attempt failed", messageId, e);
         }
       }
-      patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
-    })();
+      if (isCurrent()) patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
+    })().finally(() => decryptingVersions.delete(decryptKey));
   };
 
   /**
@@ -137,6 +190,8 @@ function createMessagesStore() {
       (m) => m.id === messageId,
       (m) => ({ ...m, ...changes }),
     );
+    const row = state[chatId]?.messages.find((m) => m.id === messageId);
+    if (row) void cachePut(row);
   };
 
   /**
@@ -160,7 +215,21 @@ function createMessagesStore() {
       produce((chat) => {
         const existing = chat.messages.findIndex((m) => m.id === message.id);
         if (existing >= 0) {
-          chat.messages[existing] = { ...chat.messages[existing], ...message };
+          const prev = chat.messages[existing]!;
+          if (prev.deleted && !message.deleted) return;
+          if (!message.deleted && prev.editedAt && (!message.editedAt || prev.editedAt > message.editedAt)) return;
+          const sameVersion = !!message.contentVersion && prev.contentVersion === message.contentVersion;
+          const keepText = !message.deleted && message.decrypting && sameVersion
+            ? (openedPlaintext.get(message.id) ?? (!prev.decrypting && !prev.decryptFailed ? prev.text : undefined))
+            : undefined;
+          chat.messages[existing] = {
+            ...prev,
+            ...message,
+            sourceText: message.sourceText,
+            ...(keepText
+              ? { text: keepText, decrypting: false, decryptFailed: false, sourceText: keepText }
+              : null),
+          };
           return;
         }
 
@@ -185,17 +254,65 @@ function createMessagesStore() {
         chat.messages.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       }),
     );
+    const written = state[chatId]?.messages.find((m) => m.id === message.id) ?? message;
+    if (!written.pending && !written.decrypting) void cachePut(written);
   };
 
   const ingestDto = (dto: MessageDto, opts?: { peerUserId?: string }) => {
     const message = toMessage(dto, myId());
+    const previous = state[dto.chatId]?.messages.find((m) => m.id === dto.id);
+    if (previous?.deleted && !message.deleted) return previous;
+    if (!message.deleted && previous?.editedAt && (!message.editedAt || previous.editedAt > message.editedAt)) return previous;
+    if (message.deleted) {
+      forget(dto.id);
+      upsert(dto.chatId, { ...message, sourceText: undefined, attachment: undefined });
+      return message;
+    }
+    const knownVersion = plaintextVersions.get(dto.id) ?? previous?.contentVersion;
+    // Legacy unversioned caches are only safe for never-edited messages.
+    if ((knownVersion && knownVersion !== message.contentVersion) || (!knownVersion && message.editedAt)) forget(dto.id);
+    const cached = openedPlaintext.get(dto.id);
+    // Double Ratchet cannot open our own ciphertext after send() already
+    // advanced the sending chain. Feeding the echo into decrypt() poisons
+    // the session (it looks like a new DH from the peer). Keep the plaintext
+    // we already had on the optimistic row.
+    if (message.mine && message.decrypting) {
+      ensure(dto.chatId);
+      const pending = state[dto.chatId]?.messages.find(
+        (m) => (message.clientTag && m.clientTag === message.clientTag && m.pending) || (m.pending && m.mine),
+      );
+      const kept = cached ?? (!message.editedAt ? pending?.sourceText ?? pending?.text : undefined);
+      if (kept && kept !== "🔒 Encrypted message" && !kept.startsWith("🔒 ")) {
+        rememberPlaintext(dto.id, kept, { ...message, text: kept, decrypting: false });
+        message.text = kept;
+        message.decrypting = false;
+        message.sourceText = kept;
+        upsert(dto.chatId, message);
+        return message;
+      }
+      message.decrypting = false;
+      upsert(dto.chatId, message);
+      return message;
+    }
+    if (cached && message.decrypting) {
+      if (message.contentVersion) plaintextVersions.set(dto.id, message.contentVersion);
+      message.text = cached;
+      message.decrypting = false;
+      message.decryptFailed = false;
+      upsert(dto.chatId, message);
+      return message;
+    }
+    const already = state[dto.chatId]?.messages.find((m) => m.id === dto.id);
+    if (message.decrypting && already && already.contentVersion === message.contentVersion && !already.decrypting && !already.decryptFailed && already.text && !already.text.startsWith("🔒 ")) {
+      rememberPlaintext(dto.id, already.text, already);
+      message.text = already.text;
+      message.decrypting = false;
+      upsert(dto.chatId, message);
+      return message;
+    }
     upsert(dto.chatId, message);
     if (message.decrypting) {
-      // Sealing is symmetric, so the key to open a body with is always the
-      // *other* end of the conversation: the DM peer for something we sent,
-      // the author for something we received.
-      const counterparty = message.mine ? opts?.peerUserId : message.authorId;
-      decrypt(dto.chatId, dto.id, dto.scheme, dto.body, counterparty);
+      decrypt(dto.chatId, dto.id, dto.scheme, dto.body, message.authorId || opts?.peerUserId);
     }
     // Plugins observe messages that reached this device (never our own echo,
     // and not the still-sealed bodies). Fire-and-forget by design.
@@ -226,9 +343,43 @@ function createMessagesStore() {
 
   const loadInitial = async (chatId: string, peerUserId?: string) => {
     ensure(chatId);
-    if (state[chatId].loaded) return;
+    if (!isTauri) {
+      const { loadE2eeWasm } = await import("../lib/e2ee-wasm");
+      await loadE2eeWasm();
+    }
+    for (const [id, text] of Object.entries(await allPlaintexts())) {
+      openedPlaintext.set(id, text);
+    }
+    const local = await cacheForChat(chatId);
+    for (const row of local) {
+      if (row.deleted) { forget(row.id); continue; }
+      if (row.text && !row.decrypting && !row.decryptFailed) {
+        openedPlaintext.set(row.id, row.text);
+        if (row.contentVersion) plaintextVersions.set(row.id, row.contentVersion);
+      }
+    }
+    if (state[chatId].loaded) {
+      for (const row of local) {
+        if (!state[chatId].messages.some((m) => m.id === row.id)) upsert(chatId, row);
+      }
+      await resync(chatId, peerUserId);
+      return;
+    }
+    if (local.length > 0) {
+      setState(chatId, {
+        messages: local.map((m) => ({ ...m, mine: m.authorId === myId() || m.mine })),
+        reachedStart: false,
+        loaded: true,
+      });
+    }
     const dtos = await api.listMessages(chatId, { limit: PAGE_SIZE });
-    setState(chatId, { messages: [], reachedStart: dtos.length < PAGE_SIZE, loaded: true });
+    const hadLive = (state[chatId].messages?.length ?? 0) > 0;
+    if (!hadLive) {
+      setState(chatId, { messages: [], reachedStart: dtos.length < PAGE_SIZE, loaded: true });
+    } else {
+      setState(chatId, "loaded", true);
+      setState(chatId, "reachedStart", dtos.length < PAGE_SIZE);
+    }
     for (const dto of dtos) ingestDto(dto, { peerUserId });
   };
 
@@ -244,14 +395,25 @@ function createMessagesStore() {
   };
 
   /** Refetch anything newer than the last known message (reconnect resync). */
-  const resync = async (chatId: string, peerUserId?: string) => {
-    const chat = state[chatId];
-    if (!chat?.loaded) return;
-    const newest = [...chat.messages].reverse().find((m) => !m.pending);
-    const dtos = newest
-      ? await api.listMessages(chatId, { after: newest.id, limit: 200 })
-      : await api.listMessages(chatId, { limit: PAGE_SIZE });
-    for (const dto of dtos) ingestDto(dto, { peerUserId });
+  const resync = (chatId: string, peerUserId?: string): Promise<void> => {
+    const running = syncs.get(chatId);
+    if (running) return running;
+    const task = (async () => {
+      const chat = state[chatId];
+      if (!chat?.loaded) return;
+      let cursor = [...chat.messages].reverse().find((m) => !m.pending && !m.failed)?.id;
+      while (true) {
+        const dtos = await api.listMessages(chatId, cursor ? { after: cursor, limit: 200 } : { limit: PAGE_SIZE });
+        for (const dto of dtos) ingestDto(dto, { peerUserId });
+        if (!cursor || dtos.length < 200) break;
+        const next = dtos[dtos.length - 1]?.id;
+        if (!next || next <= cursor) break;
+        cursor = next;
+      }
+    })();
+    syncs.set(chatId, task);
+    void task.finally(() => { if (syncs.get(chatId) === task) syncs.delete(chatId); }).catch(() => {});
+    return task;
   };
 
   const send = async (
@@ -288,7 +450,7 @@ function createMessagesStore() {
       chatId,
       authorId: myId(),
       text,
-      scheme: mustEncrypt ? "dr-v1" : "plain",
+      scheme: mustEncrypt ? "olm-v1" : "plain",
       sentAt: now,
       mine: true,
       reactions: [],
@@ -316,7 +478,7 @@ function createMessagesStore() {
       let body = text;
       if (mustEncrypt) {
         body = await e2ee.seal(opts!.peerUserId!, text);
-        scheme = "dr-v1";
+        scheme = "olm-v1";
       }
 
       const dto = await api.sendMessage(chatId, {
@@ -335,6 +497,7 @@ function createMessagesStore() {
         message.text = text;
         message.decrypting = false;
       }
+      rememberPlaintext(message.id, text, { ...message, text });
       upsert(chatId, message);
 
       // Plugins observe messages that actually made it out (their own sends
@@ -397,13 +560,14 @@ function createMessagesStore() {
     if (!trimmed || trimmed === message.text) return;
 
     const previous = message.text;
-    patch(chatId, message.id, { text: trimmed, editedAt: new Date().toISOString() });
+    const previousEditedAt = message.editedAt;
+    patch(chatId, message.id, { text: trimmed });
     try {
       let scheme = "plain";
       let body = trimmed;
       if (peerUserId && e2ee.enabledFor(chatId)) {
         body = await e2ee.seal(peerUserId, trimmed);
-        scheme = "dr-v1";
+        scheme = "olm-v1";
       }
       const dto = await api.editMessage(message.id, { scheme, body });
       // The echoed DTO carries ciphertext we already know the plaintext of.
@@ -412,9 +576,10 @@ function createMessagesStore() {
         updated.text = trimmed;
         updated.decrypting = false;
       }
+      rememberPlaintext(updated.id, trimmed, { ...updated, text: trimmed, sourceText: trimmed });
       upsert(chatId, updated);
     } catch (e) {
-      patch(chatId, message.id, { text: previous, editedAt: message.editedAt });
+      patch(chatId, message.id, { text: previous, editedAt: previousEditedAt });
       throw e;
     }
   };
@@ -422,10 +587,12 @@ function createMessagesStore() {
   /** Unsend for everyone. Optimistic: the tombstone is what the server will
    *  send back anyway, and rolling it back on failure keeps that honest. */
   const unsend = async (chatId: string, message: Message) => {
-    const before = { text: message.text, deleted: message.deleted, attachment: message.attachment };
-    patch(chatId, message.id, { text: "Message deleted", deleted: true, attachment: undefined });
+    const before = { text: message.text, sourceText: message.sourceText, deleted: message.deleted, attachment: message.attachment };
+    patch(chatId, message.id, { text: "Message deleted", sourceText: undefined, deleted: true, attachment: undefined });
     try {
       await api.deleteMessage(message.id);
+      forget(message.id);
+      patch(chatId, message.id, { contentVersion: undefined, sourceText: undefined });
     } catch (e) {
       patch(chatId, message.id, before);
       throw e;

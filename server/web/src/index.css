@@ -1,3 +1,4 @@
+@import "../design-system/tokens.css";
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
@@ -10,40 +11,10 @@
 }
 
 :root {
-  /* Referenced by the fixed header's padding-top (App.tsx) so it clears a
-     phone's notch/status bar. Browsers support env(safe-area-inset-*)
-     outside a native shell too — this isn't Tauri-only. Needs its own
-     fallback: an undefined custom property inside max() makes the whole
-     declaration invalid, silently dropping the padding rather than just
-     using 0. */
-  --safe-top: env(safe-area-inset-top, 0px);
-
-  --color-accent: #c9772e;
-  --color-accent-soft: #f2decb;
-  --color-accent-ink: #fffaf3;
-
-  --color-bg: color-mix(in oklab, var(--color-accent) 6%, #f7f5f1);
-  --color-surface: color-mix(in oklab, var(--color-accent) 2%, #ffffff);
-  --color-surface-raised: #ffffff;
-  --color-border: color-mix(in oklab, var(--color-accent) 12%, #e7e3db);
-  --color-ink: color-mix(in oklab, var(--color-accent) 10%, #201c16);
-  --color-ink-muted: color-mix(in oklab, var(--color-accent) 10%, #6b6459);
-  --color-ink-subtle: color-mix(in oklab, var(--color-accent) 8%, #9c9587);
-
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-heading: "Manrope", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-accent: "Playpen Sans", "Caveat", cursive;
   --font-script: "Caveat", cursive;
-}
-
-:root[data-theme="dark"] {
-  --color-bg: color-mix(in oklab, var(--color-accent) 6%, #131110);
-  --color-surface: color-mix(in oklab, var(--color-accent) 7%, #1c1916);
-  --color-surface-raised: color-mix(in oklab, var(--color-accent) 10%, #26221d);
-  --color-border: color-mix(in oklab, var(--color-accent) 14%, #322e27);
-  --color-ink: color-mix(in oklab, var(--color-accent) 6%, #f2ede2);
-  --color-ink-muted: color-mix(in oklab, var(--color-accent) 8%, #b8b0a0);
-  --color-ink-subtle: color-mix(in oklab, var(--color-accent) 8%, #837a6a);
 }
 
 html,
@@ -213,6 +184,21 @@ body {
 .pop-exit {
   opacity: 1;
   transform: scale(1) translateY(0);
+}
+
+.toast-enter,
+.toast-exit-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(14px) scale(0.96);
+}
+.toast-enter-active,
+.toast-exit-active {
+  transition: opacity 180ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.toast-enter-to,
+.toast-exit {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
 }
 
 /* Basic legal-document typography — headings/lists/links for pages like

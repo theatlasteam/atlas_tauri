@@ -3,6 +3,7 @@ import "./index.css";
 import App from "./App";
 import PrivacyPolicy from "./components/PrivacyPolicy";
 import PluginEditor from "./screens/PluginEditor";
+import DesignSystem from "./screens/DesignSystem";
 import { initAnalytics } from "./lib/analytics";
 
 initAnalytics();
@@ -23,8 +24,13 @@ if ("serviceWorker" in navigator) {
 // plain pathname check is enough to pick which page renders.
 function Root() {
   const path = window.location.pathname;
+  if (path === "/app" || path === "/app/") {
+    window.location.replace("/app/index.html");
+    return null;
+  }
   if (path === "/privacy") return <PrivacyPolicy />;
   if (path === "/plugins" || path.startsWith("/plugins/")) return <PluginEditor />;
+  if (path === "/design" || path.startsWith("/design/")) return <DesignSystem />;
   return <App />;
 }
 

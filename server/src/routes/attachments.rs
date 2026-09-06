@@ -78,7 +78,7 @@ pub async fn upload(
     let row: AttachmentRow = match sqlx::query_as(
         "INSERT INTO attachments (id, owner_id, kind, mime, size_bytes, filename, duration_ms, width, height)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING id, kind, mime, size_bytes, filename, duration_ms, width, height",
+         RETURNING id, kind, mime, size_bytes, filename, duration_ms, width, height, title",
     )
     .bind(id)
     .bind(auth.user_id)

@@ -1,9 +1,10 @@
+import { AiMessage, MessageBubble, PromptInput } from "@atlas/ui";
 import { createEffect, createSignal, For, on, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
 import { compassChat } from "../store/compassChat";
 import EmptyState from "../components/EmptyState";
 import MarkdownContent from "../components/MarkdownContent";
-import { BackIcon, CompassIcon, SendIcon, SpinnerIcon } from "../icons";
+import { BackIcon, CompassIcon } from "../icons";
 import { useIsDesktopLayout } from "../lib/platform";
 import { t } from "../lib/i18n";
 
@@ -47,8 +48,7 @@ export default function CompassChat() {
     ),
   );
 
-  const submit = async (e: Event) => {
-    e.preventDefault();
+  const submit = async () => {
     const text = draft().trim();
     if (!text || sending() || !thread()) return;
     setDraft("");
@@ -91,57 +91,23 @@ export default function CompassChat() {
           <div class="flex flex-col gap-2.5">
             <For each={turns()}>
               {(turn) => (
-                <div class="flex" classList={{ "justify-end": turn.role === "user", "justify-start": turn.role === "assistant" }}>
-                  <div
-                    class="max-w-[80%] rounded-[1.1rem] px-3.5 py-2 text-[0.95em] leading-snug sm:max-w-[70%]"
-                    classList={{
-                      "bg-bubble-sent text-bubble-sent-ink": turn.role === "user",
-                      "bg-bubble-received text-bubble-received-ink": turn.role === "assistant",
-                      "opacity-60": !!turn.pending,
-                      "outline outline-1 outline-danger/50": !!turn.failed,
-                    }}
-                  >
-                    <Show
-                      when={turn.role === "assistant"}
-                      fallback={<p class="whitespace-pre-wrap break-words">{turn.content}</p>}
-                    >
-                      <Show when={turn.content} fallback={<SpinnerIcon size={14} class="animate-spin opacity-60" />}>
-                        <MarkdownContent text={turn.content} />
-                      </Show>
-                    </Show>
-                    <Show when={turn.streaming && turn.content}>
-                      <span class="ml-0.5 inline-block h-[0.9em] w-[2px] animate-pulse bg-current align-text-bottom" />
-                    </Show>
-                  </div>
-                </div>
+                <Show when={turn.role === "assistant"} fallback={
+                  <MessageBubble side="sent" class={turn.failed ? "opacity-60" : undefined}>{turn.content}</MessageBubble>
+                }>
+                  <AiMessage name={t("compass.title")} thinking={!turn.content && (!!turn.pending || !!turn.streaming)} thinkingLabel={t("compass.title") + "…"} class={turn.failed ? "rounded-xl border border-danger p-3" : undefined}>
+                    <MarkdownContent text={turn.content} />
+                    <Show when={turn.streaming && turn.content}><span class="ml-0.5 inline-block h-[0.9em] w-[2px] animate-pulse bg-current align-text-bottom" /></Show>
+                  </AiMessage>
+                </Show>
               )}
             </For>
           </div>
         </Show>
       </div>
 
-      <form
-        onSubmit={submit}
-        class="flex shrink-0 gap-2 border-t border-border bg-surface/95 px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5 backdrop-blur"
-      >
-        <input
-          type="text"
-          value={draft()}
-          onInput={(e) => setDraft(e.currentTarget.value)}
-          placeholder={t("compass.placeholder")}
-          class="min-w-0 flex-1 rounded-pill border border-border bg-surface px-4 py-2.5 text-ink placeholder-ink-subtle outline-none transition-[border-color,box-shadow] duration-150 focus:border-accent focus:ring-2 focus:ring-accent/15"
-        />
-        <button
-          type="submit"
-          disabled={sending() || !draft().trim()}
-          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink transition-transform duration-150 hover:brightness-105 disabled:opacity-40 active:scale-95"
-          aria-label={t("compass.send")}
-        >
-          <Show when={!sending()} fallback={<SpinnerIcon size={18} class="animate-spin" />}>
-            <SendIcon size={18} />
-          </Show>
-        </button>
-      </form>
+      <div class="shrink-0 border-t border-border bg-surface/95 px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5 backdrop-blur">
+        <PromptInput value={draft()} onChange={setDraft} onSubmit={() => void submit()} disabled={sending()} placeholder={t("compass.placeholder")} sendLabel={t("compass.send")} />
+      </div>
     </div>
   );
 }

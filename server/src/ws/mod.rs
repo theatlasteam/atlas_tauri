@@ -200,6 +200,7 @@ async fn handle_client_msg(state: &AppState, user_id: Uuid, conn_id: u64, msg: C
                 attachment_id,
                 unlock_at,
                 mentions_compass,
+                buttons: None,
             };
             match persist_and_fanout(state, user_id, chat_id, new).await {
                 Ok(message) => state.hub.send_to_conn(

@@ -1,6 +1,7 @@
 import { createSignal, Show } from "solid-js";
 import { Transition } from "solid-transition-group";
 import { X } from "phosphor-solid-js";
+import Checkbox from "./Checkbox";
 import { joinWaitlist } from "../lib/api";
 import { t } from "../lib/i18n";
 
@@ -76,43 +77,21 @@ export default function WaitlistModal(props: WaitlistModalProps) {
                 onInput={(e) => setEmail(e.currentTarget.value)}
                 class="rounded-xl border border-border bg-base px-4 py-2.5 text-sm outline-none focus:border-accent"
               />
-              <label class="group flex items-start gap-2.5 text-xs text-ink-muted">
-                <span class="relative mt-px inline-flex h-[18px] w-[18px] shrink-0 transition-transform duration-150 active:scale-90">
-                  <input
-                    type="checkbox"
-                    required
-                    checked={consent()}
-                    onChange={(e) => setConsent(e.currentTarget.checked)}
-                    class="peer absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-md border border-border bg-base outline-none transition-[background-color,border-color] duration-150 checked:border-accent checked:bg-accent focus-visible:ring-2 focus-visible:ring-accent/40"
-                  />
-                  {/* pathLength="1" normalizes the checkmark's real length to 1
-                      unit, so stroke-dasharray/dashoffset can just be 1/0 —
-                      no measuring the actual path in pixels. Drawn on check,
-                      un-drawn (not just faded) on uncheck, so toggling fast
-                      reverses the stroke instead of crossfading. */}
-                  <svg
-                    viewBox="0 0 16 16"
-                    class="pointer-events-none absolute inset-0 h-full w-full p-[3px] text-white peer-checked:[&_path]:[stroke-dashoffset:0]"
-                    fill="none"
-                  >
-                    <path
-                      d="M3 8.2L6.5 11.7L13 4.3"
-                      pathLength="1"
-                      stroke="currentColor"
-                      stroke-width="2.2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="[stroke-dasharray:1] [stroke-dashoffset:1] transition-[stroke-dashoffset] duration-300 ease-out"
-                    />
-                  </svg>
-                </span>
-                <span class="cursor-pointer">
-                  {t("waitlist.consentPrefix")}{" "}
-                  <a href="/privacy" target="_blank" class="text-accent underline" onClick={(e) => e.stopPropagation()}>
-                    {t("waitlist.consentLink")}
-                  </a>
-                </span>
-              </label>
+              <div class="text-xs text-ink-muted">
+                <Checkbox
+                  checked={consent()}
+                  onChange={setConsent}
+                  required
+                  label={
+                    <span>
+                      {t("waitlist.consentPrefix")}{" "}
+                      <a href="/privacy" target="_blank" class="text-accent underline" onClick={(e) => e.stopPropagation()}>
+                        {t("waitlist.consentLink")}
+                      </a>
+                    </span>
+                  }
+                />
+              </div>
               <button
                 type="submit"
                 disabled={status() === "loading" || !consent()}

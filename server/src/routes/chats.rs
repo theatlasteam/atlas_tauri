@@ -105,6 +105,7 @@ fn row_to_dto(row: ChatListRow, folder_ids: Vec<Uuid>, online: bool) -> ChatDto 
                     unlock_at: row.lm_unlock_at,
                     edited_at: row.lm_edited_at,
                     deleted_at: row.lm_deleted_at,
+                    buttons: None,
                 })
                 .seal(Utc::now()),
             )
@@ -112,10 +113,11 @@ fn row_to_dto(row: ChatListRow, folder_ids: Vec<Uuid>, online: bool) -> ChatDto 
         _ => None,
     };
     let is_dm = row.kind == "dm";
+    let is_broadcast = row.kind == "broadcast";
     let name = if is_dm {
         row.peer_name.unwrap_or_else(|| "Deleted user".into())
     } else {
-        row.name.unwrap_or_else(|| "Group".into())
+        row.name.unwrap_or_else(|| if is_broadcast { "Atlas".into() } else { "Group".into() })
     };
     let avatar_color = if is_dm { row.peer_avatar_color } else { row.avatar_color }
         .unwrap_or_else(|| "#94a3b8".into());
@@ -139,7 +141,7 @@ fn row_to_dto(row: ChatListRow, folder_ids: Vec<Uuid>, online: bool) -> ChatDto 
         member_count: row.member_count,
         peer_read_up_to: row.peer_read_up_to,
         peer_has_avatar: is_dm && row.peer_avatar_attachment_id.is_some(),
-        peer_verified: is_dm && row.peer_verified.unwrap_or(false),
+        peer_verified: is_broadcast || (is_dm && row.peer_verified.unwrap_or(false)),
         peer_last_seen_at: row
             .peer_last_seen_at
             .filter(|_| is_dm && row.peer_last_seen_visible.unwrap_or(false)),

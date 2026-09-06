@@ -10,6 +10,8 @@ export default defineConfig(async () => ({
   plugins: [solid()],
 
   resolve: {
+    // Shared UI is outside the app root; never bundle a second reactive runtime.
+    dedupe: ["solid-js", "@solidjs/router"],
     alias: {
       // babel-plugin-jsx-dom-expressions -> @babel/helper-module-imports does
       // `require("assert")`; Node's assert doesn't exist in the webview, so
@@ -18,6 +20,7 @@ export default defineConfig(async () => ({
       // object by Vite's interop, and helper-module-imports calls it directly.
       assert: fileURLToPath(new URL("./src/lib/assert-polyfill.cjs", import.meta.url)),
       "node:assert": fileURLToPath(new URL("./src/lib/assert-polyfill.cjs", import.meta.url)),
+      "@atlas/ui": fileURLToPath(new URL("./server/web/design-system/index.ts", import.meta.url)),
     },
   },
 

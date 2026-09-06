@@ -98,6 +98,7 @@ export function toMessage(dto: MessageDto, myUserId: string): Message {
     chatId: dto.chatId,
     authorId: dto.authorId,
     text: initialText(dto),
+    contentVersion: JSON.stringify([dto.scheme, dto.body, dto.editedAt, dto.deleted, dto.sealed]),
     scheme: dto.scheme,
     sentAt: dto.sentAt,
     mine: dto.authorId === myUserId,
@@ -110,6 +111,7 @@ export function toMessage(dto: MessageDto, myUserId: string): Message {
     editedAt: dto.editedAt ?? undefined,
     deleted: dto.deleted,
     decrypting: isE2ee,
+    buttons: dto.buttons && dto.buttons.length ? dto.buttons : undefined,
   };
 }
 

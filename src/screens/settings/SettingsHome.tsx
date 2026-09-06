@@ -1,9 +1,10 @@
-import { Show } from "solid-js";
+import { Show, createSignal } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { SettingsSection, SettingsLinkRow } from "../../components/SettingsSection";
+import { SettingsSection, SettingsLinkRow, SettingsRow } from "../../components/SettingsSection";
 import Appbar from "../../components/Appbar";
 import { session } from "../../store/session";
 import { t } from "../../lib/i18n";
+import { applyAppUpdate, isWebApp } from "../../lib/app-update";
 import { BellIcon, FolderIcon, PaletteIcon, PluginsIcon, ProfileIcon, ShieldIcon, VerifiedIcon } from "../../icons";
 
 const SECRET_TAP_COUNT = 7;
@@ -15,6 +16,7 @@ export default function SettingsHome() {
   // session's user carries the raw handle (no leading "@" — unlike
   // repository.toUser), and handles are lowercased at registration.
   const isAtlas = () => session.user()?.handle === "atlas";
+  const [reloading, setReloading] = createSignal(false);
 
   // Tap the "Settings" title 7 times to reach the hidden dev tools page —
   // not everyday UI, so it isn't linked from the regular settings list.
@@ -76,6 +78,24 @@ export default function SettingsHome() {
 
       {/* Only the "atlas" account can grant checkmarks, so the entry point is
           hidden for everyone else — the server enforces it either way. */}
+      <Show when={isWebApp()}>
+        <SettingsSection title={t("settings.reload")}>
+          <SettingsRow label={t("settings.reload")} description={t("settings.reloadDesc")}>
+            <button
+              type="button"
+              class="shrink-0 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-accent-ink disabled:opacity-50"
+              disabled={reloading()}
+              onClick={() => {
+                setReloading(true);
+                void applyAppUpdate();
+              }}
+            >
+              {t("update.reload")}
+            </button>
+          </SettingsRow>
+        </SettingsSection>
+      </Show>
+
       <Show when={isAtlas()}>
         <SettingsSection title={t("settings.admin")}>
           <SettingsLinkRow

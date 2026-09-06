@@ -4,4 +4,4 @@ export type AttachmentDto = { id: string,
 /**
  * "image" | "voice" | "file"
  */
-kind: string, mime: string, sizeBytes: number, filename: string, durationMs: number | null, width: number | null, height: number | null, };
+kind: string, mime: string, sizeBytes: number, filename: string, durationMs: number | null, width: number | null, height: number | null, title?: string, };

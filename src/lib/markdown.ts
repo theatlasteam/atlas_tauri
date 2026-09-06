@@ -2,6 +2,14 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 
 marked.setOptions({ breaks: true, gfm: true });
+marked.use({
+  renderer: {
+    link({ href, title, text }) {
+      const t = title ? ` title="${title}"` : "";
+      return `<a href="${href}"${t} target="_blank" rel="noopener noreferrer">${text}</a>`;
+    },
+  },
+});
 
 /** Compass replies are model output, not from a trusted human — sanitize
  * before it ever reaches innerHTML, same as any other untrusted-HTML path. */

@@ -10,11 +10,6 @@
 // tones are a few lines of WebAudio, and generating them keeps the bundle free
 // of binary assets that have to be licensed, cached and version-controlled.
 
-import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
 import { preferences } from "../store/preferences";
 import { isTauri, isMobilePlatform } from "./platform";
 
@@ -88,8 +83,10 @@ export function playNotificationSound(soundId: string) {
 /** Ask for permission once, at sign-in, rather than mid-conversation. */
 export function requestNotificationPermission() {
   if (useNativeNotifications) {
-    void isPermissionGranted().then((granted) => {
-      if (!granted) void requestPermission();
+    void import("@tauri-apps/plugin-notification").then(({ isPermissionGranted, requestPermission }) => {
+      void isPermissionGranted().then((granted) => {
+        if (!granted) void requestPermission();
+      });
     });
     return;
   }
@@ -125,9 +122,11 @@ export function notifyIncoming(notification: IncomingNotification) {
     // path's onClick does — wiring that up needs the plugin's action-channel
     // API, a bigger addition than this pass; falls back to "just open the
     // app" rather than nothing.
-    void isPermissionGranted().then((granted) => {
-      if (!granted) return;
-      sendNotification({ title: notification.title, body: notification.body });
+    void import("@tauri-apps/plugin-notification").then(({ isPermissionGranted, sendNotification }) => {
+      void isPermissionGranted().then((granted) => {
+        if (!granted) return;
+        sendNotification({ title: notification.title, body: notification.body });
+      });
     });
     return;
   }
@@ -160,9 +159,11 @@ export function notifyIncoming(notification: IncomingNotification) {
  */
 export function sendPluginNotification(title: string, body: string) {
   if (useNativeNotifications) {
-    void isPermissionGranted().then((granted) => {
-      if (!granted) return;
-      sendNotification({ title, body });
+    void import("@tauri-apps/plugin-notification").then(({ isPermissionGranted, sendNotification }) => {
+      void isPermissionGranted().then((granted) => {
+        if (!granted) return;
+        sendNotification({ title, body });
+      });
     });
     return;
   }

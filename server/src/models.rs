@@ -41,6 +41,7 @@ pub struct MessageRow {
     /// Unsent by its author. The row survives as a tombstone so reply chains
     /// and read cursors stay valid; the body is wiped on write, not on read.
     pub deleted_at: Option<DateTime<Utc>>,
+    pub buttons: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -53,6 +54,7 @@ pub struct AttachmentRow {
     pub duration_ms: Option<i32>,
     pub width: Option<i32>,
     pub height: Option<i32>,
+    pub title: String,
 }
 
 // ---------- API DTOs (camelCase, mirrored to TypeScript via ts-rs) ----------
@@ -122,6 +124,9 @@ pub struct AttachmentDto {
     pub duration_ms: Option<i32>,
     pub width: Option<i32>,
     pub height: Option<i32>,
+    /// Optional caption shown under a broadcast (or any) image.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub title: String,
 }
 
 impl From<AttachmentRow> for AttachmentDto {
@@ -135,6 +140,7 @@ impl From<AttachmentRow> for AttachmentDto {
             duration_ms: a.duration_ms,
             width: a.width,
             height: a.height,
+            title: a.title,
         }
     }
 }
@@ -195,6 +201,8 @@ pub struct MessageDto {
     /// Unsent by its author. `body` and `attachment` are empty; the row is
     /// kept so replies pointing at it, and read cursors past it, still resolve.
     pub deleted: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub buttons: Vec<crate::broadcast::BroadcastButton>,
 }
 
 impl From<MessageRow> for MessageDto {
@@ -218,6 +226,10 @@ impl From<MessageRow> for MessageDto {
             sealed: false, // decided by seal(), once the clock is known
             edited_at: m.edited_at,
             deleted,
+            buttons: m
+                .buttons
+                .and_then(|v| serde_json::from_value(v).ok())
+                .unwrap_or_default(),
         }
     }
 }

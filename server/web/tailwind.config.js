@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ["./index.html", "./src/**/*.{tsx,ts,jsx,js}"],
+  content: ["./index.html", "./src/**/*.{tsx,ts,jsx,js}", "./design-system/**/*.{tsx,ts}"],
   darkMode: "class",
   theme: {
     extend: {
@@ -8,6 +8,7 @@ export default {
         bg: "var(--color-bg)",
         surface: "var(--color-surface)",
         "surface-raised": "var(--color-surface-raised)",
+        appbar: "var(--color-appbar)",
         border: "var(--color-border)",
         ink: "var(--color-ink)",
         "ink-muted": "var(--color-ink-muted)",
@@ -17,6 +18,10 @@ export default {
           soft: "var(--color-accent-soft)",
           ink: "var(--color-accent-ink)",
         },
+        "bubble-sent": "var(--color-bubble-sent)",
+        "bubble-sent-ink": "var(--color-bubble-sent-ink)",
+        "bubble-received": "var(--color-bubble-received)",
+        "bubble-received-ink": "var(--color-bubble-received-ink)",
       },
       fontFamily: {
         sans: "var(--font-sans)",

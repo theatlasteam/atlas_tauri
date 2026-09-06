@@ -29,10 +29,18 @@ pub struct AppState {
     /// Compass's real `users.id`, resolved once at startup (compass::ensure_user)
     /// so every request doesn't re-query it by handle.
     pub compass_user_id: Uuid,
+    pub official_user_id: Uuid,
+    pub broadcast_chat_id: Uuid,
 }
 
 impl AppState {
-    pub fn new(db: PgPool, cfg: Config, compass_user_id: Uuid) -> Self {
+    pub fn new(
+        db: PgPool,
+        cfg: Config,
+        compass_user_id: Uuid,
+        official_user_id: Uuid,
+        broadcast_chat_id: Uuid,
+    ) -> Self {
         let push = Arc::new(Push::new(cfg.fcm_service_account.clone()));
         let (waitlist_tx, _) = broadcast::channel(64);
         let http = reqwest::Client::builder()
@@ -48,6 +56,8 @@ impl AppState {
             metrics: Arc::new(Tracker::new()),
             http,
             compass_user_id,
+            official_user_id,
+            broadcast_chat_id,
         }
     }
 }

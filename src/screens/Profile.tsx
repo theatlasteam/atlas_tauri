@@ -1,3 +1,4 @@
+import { TextField, TextArea } from "@atlas/ui";
 import { createSignal, For, Show } from "solid-js";
 import { api } from "../data/api";
 import { session } from "../store/session";
@@ -210,32 +211,10 @@ export default function Profile() {
       when={!editing()}
       fallback={
         <form id="profile-edit-form" onSubmit={save} class="mt-3 flex w-full flex-col gap-5">
-        <div class="overflow-hidden rounded-2xl border border-border bg-surface">
-        <Field label={t("profile.name")}>
-        <input
-        value={draft().name}
-        onInput={(e) => setDraft((d) => ({ ...d, name: e.currentTarget.value }))}
-        placeholder={t("profile.namePlaceholder")}
-        class="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
-        />
-        </Field>
-        <Field label={t("profile.status")}>
-        <input
-        value={draft().status}
-        onInput={(e) => setDraft((d) => ({ ...d, status: e.currentTarget.value }))}
-        placeholder={t("profile.statusPlaceholder")}
-        class="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
-        />
-        </Field>
-        <Field label={t("profile.bio")} align="start">
-        <textarea
-        rows="3"
-        value={draft().bio}
-        onInput={(e) => setDraft((d) => ({ ...d, bio: e.currentTarget.value }))}
-        placeholder={t("profile.bioPlaceholder")}
-        class="w-full resize-none bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
-        />
-        </Field>
+        <div class="flex flex-col gap-4 rounded-2xl border border-border bg-surface-raised p-4">
+          <TextField label={t("profile.name")} value={draft().name} onInput={(e) => setDraft((d) => ({ ...d, name: e.currentTarget.value }))} placeholder={t("profile.namePlaceholder")} />
+          <TextField label={t("profile.status")} value={draft().status} onInput={(e) => setDraft((d) => ({ ...d, status: e.currentTarget.value }))} placeholder={t("profile.statusPlaceholder")} />
+          <TextArea label={t("profile.bio")} rows={3} value={draft().bio} onInput={(e) => setDraft((d) => ({ ...d, bio: e.currentTarget.value }))} placeholder={t("profile.bioPlaceholder")} />
         </div>
 
         <div class="rounded-2xl border border-border bg-surface p-4">
@@ -306,23 +285,6 @@ export default function Profile() {
       </div>
     )}
     </Show>
-    </div>
-  );
-}
-
-function Field(props: { label: string; align?: "start" | "center"; children: any }) {
-  return (
-    <div
-    class="flex gap-3 border-b border-border px-4 py-3 last:border-b-0"
-    classList={{ "items-start": props.align === "start", "items-center": props.align !== "start" }}
-    >
-    <span
-    class="w-16 shrink-0 text-xs font-semibold uppercase tracking-wide text-ink-subtle"
-    classList={{ "pt-1": props.align === "start" }}
-    >
-    {props.label}
-    </span>
-    {props.children}
     </div>
   );
 }

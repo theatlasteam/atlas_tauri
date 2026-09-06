@@ -7,6 +7,7 @@ import Switch from "../../ui/Switch";
 import { ProhibitIcon } from "../../icons";
 import Button from "../../ui/Button";
 import Dialog from "../../ui/Dialog";
+import { Progress } from "@atlas/ui";
 import { t } from "../../lib/i18n";
 
 export default function Privacy() {
@@ -125,8 +126,7 @@ export default function Privacy() {
         <Show when={!deleting()} fallback={
           <div role="status" aria-live="polite">
             <p class="mb-3 text-sm text-ink-subtle">{t("settingsPrivacy.deletingAccount")}</p>
-            <div class="mb-2 flex justify-between text-xs font-semibold text-danger"><span>{deleteProgress()}%</span></div>
-            <div class="h-2 overflow-hidden rounded-full bg-danger/15"><div class="h-full rounded-full bg-danger transition-all duration-500" style={{ width: `${deleteProgress()}%` }} /></div>
+            <Progress value={deleteProgress()} />
           </div>
         }>
           <Show when={deleteStep() === 1}>

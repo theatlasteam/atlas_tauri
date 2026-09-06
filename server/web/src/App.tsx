@@ -14,7 +14,8 @@ import {
   WindowsLogo,
 } from "phosphor-solid-js";
 import logo from "./assets/logo.svg";
-import EmberShader from "./components/EmberShader";
+import { Navbar, NavbarBrand, NavbarLink, NavbarLinks } from "@atlas/ui";
+import HeroGlass from "./components/HeroGlass";
 import HeroTextField from "./components/HeroTextField";
 import LanguageSwitcher from "./components/LanguageSwitcher";
 import Reveal from "./components/Reveal";
@@ -111,36 +112,28 @@ export default function App() {
 
       {/* ============================= HERO ============================= */}
       <section class="relative flex min-h-screen flex-col overflow-hidden bg-[#0e0c0a] text-[#f2ede2]">
-        <HeroTextField />
+        <HeroGlass />
         <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0e0c0a] via-[#0e0c0a]/40 to-[#0e0c0a]/70" />
 
-        {/* Minimal pill nav, floating top-center */}
-        <header
-          class="fixed inset-x-0 top-0 z-40 flex justify-center px-4 transition-[padding-top] duration-300"
-          style={{ "padding-top": "max(var(--safe-top), 1rem)" }}
-        >
-          <nav
-            class="flex items-center gap-1 rounded-full border px-2 py-1.5 text-sm transition-all duration-300"
-            classList={{
-              "border-white/10 bg-[#14110d]/70 shadow-lg shadow-black/20 backdrop-blur-md": scrolled(),
-              "border-white/8 bg-white/[0.03] backdrop-blur-sm": !scrolled(),
-            }}
-          >
-            <a href="#top" class="flex items-center gap-2 rounded-full py-1 pl-2 pr-3 font-heading font-semibold">
+        <Navbar variant="pill" scrolled={scrolled()}>
+            <NavbarBrand href="#top" class="text-[#f2ede2]">
               <img src={logo} alt="" width="20" height="15" />
               Atlas
-            </a>
-            <div class="hidden items-center sm:flex">
-              <a href="#privacy" class="rounded-full px-3 py-1 text-[#f2ede2]/70 transition hover:text-[#f2ede2]">
+            </NavbarBrand>
+            <NavbarLinks>
+              <NavbarLink href="#privacy" class="text-[#f2ede2]/70 hover:text-[#f2ede2]">
                 {t("privacy.kicker")}
-              </a>
-              <a href="#features" class="rounded-full px-3 py-1 text-[#f2ede2]/70 transition hover:text-[#f2ede2]">
+              </NavbarLink>
+              <NavbarLink href="#features" class="text-[#f2ede2]/70 hover:text-[#f2ede2]">
                 {t("nav.features")}
-              </a>
-              <a href="/plugins" class="rounded-full px-3 py-1 text-[#f2ede2]/70 transition hover:text-[#f2ede2]">
+              </NavbarLink>
+              <NavbarLink href="/plugins" class="text-[#f2ede2]/70 hover:text-[#f2ede2]">
                 {t("nav.plugins")}
-              </a>
-            </div>
+              </NavbarLink>
+              <NavbarLink href="/design" class="text-[#f2ede2]/70 hover:text-[#f2ede2]">
+                Design
+              </NavbarLink>
+            </NavbarLinks>
             <div class="mx-1 h-4 w-px bg-white/10" />
             <LanguageSwitcher compact />
             <button
@@ -158,8 +151,7 @@ export default function App() {
               {t("nav.getStarted")}
               <ArrowUpRight size={13} weight="bold" />
             </a>
-          </nav>
-        </header>
+        </Navbar>
 
         {/* Hero content pinned to the bottom, split left/right */}
         <div
@@ -185,6 +177,13 @@ export default function App() {
           <div class="flex flex-col gap-6 lg:items-end lg:text-right">
             <p class="max-w-sm text-[15px] leading-relaxed text-[#f2ede2]/65">{t("hero.lede")}</p>
             <div class="flex flex-wrap items-center gap-3">
+              <a
+                href="/app/"
+                class="flex items-center gap-1.5 rounded-full bg-[#f5c98a] px-6 py-3 text-sm font-medium text-[#0e0c0a] transition hover:bg-white"
+              >
+                {t("nav.webApp")}
+                <ArrowUpRight size={15} weight="bold" />
+              </a>
               <a
                 href={primaryAsset()?.asset.browser_download_url ?? "#download"}
                 class="flex items-center gap-1.5 rounded-full bg-[#f2ede2] px-6 py-3 text-sm font-medium text-[#0e0c0a] transition hover:bg-white"
@@ -387,7 +386,7 @@ export default function App() {
 
         {/* ============================= FINAL CTA ============================= */}
         <section class="relative scroll-mt-24 overflow-hidden bg-[#0e0c0a] text-[#f2ede2]">
-          <EmberShader />
+          <HeroTextField />
           <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0e0c0a] via-transparent to-[#0e0c0a]" />
           <div class="relative z-10 grid items-end gap-10 px-6 py-32 sm:px-10 lg:grid-cols-[1.3fr_1fr]">
             <Reveal>
@@ -432,6 +431,7 @@ export default function App() {
             <p class="mb-3 font-heading text-sm font-semibold">{t("footer.product")}</p>
             <ul class="space-y-2 text-sm text-ink-muted">
               <li><a href="#features" class="transition hover:text-ink">{t("nav.features")}</a></li>
+              <li><a href="/app/" class="transition hover:text-ink">{t("nav.webApp")}</a></li>
               <li><a href="#download" class="transition hover:text-ink">{t("nav.download")}</a></li>
               <li><a href="/plugins" class="transition hover:text-ink">{t("nav.plugins")}</a></li>
             </ul>

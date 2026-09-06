@@ -1,5 +1,4 @@
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isMobilePlatform, isTauri } from "../lib/platform";
 import logo from "../assets/logo.svg";
 import { CloseIcon, MaximizeIcon, MinimizeIcon, RestoreIcon } from "../icons";
@@ -14,15 +13,18 @@ import { CloseIcon, MaximizeIcon, MinimizeIcon, RestoreIcon } from "../icons";
 export default function TitleBar() {
   if (!isTauri() || isMobilePlatform()) return null;
 
-  const win = getCurrentWindow();
   const [maximized, setMaximized] = createSignal(false);
+  let win: Awaited<ReturnType<typeof import("@tauri-apps/api/window").getCurrentWindow>> | null = null;
 
   onMount(() => {
-    void win.isMaximized().then(setMaximized);
-    const unlisten = win.onResized(() => {
+    void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+      win = getCurrentWindow();
       void win.isMaximized().then(setMaximized);
+      const unlisten = win.onResized(() => {
+        void win?.isMaximized().then(setMaximized);
+      });
+      onCleanup(() => void unlisten.then((f) => f()));
     });
-    onCleanup(() => void unlisten.then((f) => f()));
   });
 
   const btn =
@@ -39,12 +41,12 @@ export default function TitleBar() {
         <span class="pointer-events-none text-xs font-medium text-ink-muted">Atlas</span>
       </div>
       <div class="flex h-full shrink-0 items-center">
-        <button type="button" onClick={() => void win.minimize()} class={btn} aria-label="Minimize">
+        <button type="button" onClick={() => void win?.minimize()} class={btn} aria-label="Minimize">
           <MinimizeIcon size={14} />
         </button>
         <button
           type="button"
-          onClick={() => void win.toggleMaximize()}
+          onClick={() => void win?.toggleMaximize()}
           class={btn}
           aria-label={maximized() ? "Restore" : "Maximize"}
         >
@@ -54,7 +56,7 @@ export default function TitleBar() {
         </button>
         <button
           type="button"
-          onClick={() => void win.close()}
+          onClick={() => void win?.close()}
           class={`${btn} hover:bg-danger hover:text-white`}
           aria-label="Close"
         >

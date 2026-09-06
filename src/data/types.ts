@@ -38,6 +38,8 @@ export interface Message {
   /** Display text: plaintext, decrypted E2EE text, or a placeholder. */
   text: string;
   scheme: string;
+  /** Exact server content revision associated with cached plaintext. */
+  contentVersion?: string;
   sentAt: string; // ISO timestamp
   mine: boolean;
   replyTo?: { id: string; authorId: string; text: string };
@@ -72,11 +74,13 @@ export interface Message {
   pending?: boolean;
   failed?: boolean;
   clientTag?: string;
+  /** Official announcement actions (https or in-app path). */
+  buttons?: { label: string; url: string }[];
 }
 
 export interface Chat {
   id: string;
-  kind: "dm" | "group";
+  kind: "dm" | "group" | "broadcast";
   name: string;
   avatarColor: string;
   avatarInitial: string;

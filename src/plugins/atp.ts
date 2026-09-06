@@ -9,7 +9,7 @@
 // Import parses it, validates the workspace (manifest + entry), and installs
 // it through the normal runtime pipeline.
 
-import { save, open } from "@tauri-apps/plugin-dialog";
+import { isTauri } from "../lib/tauri";
 import type { PluginRecord } from "./runtime";
 import { installPlugin } from "./runtime";
 import { pushToast } from "./toasts";
@@ -60,7 +60,19 @@ export function parseAtp(text: string): PluginRecord {
 
 /** Export a plugin to disk via the native save dialog. */
 export async function exportAtp(record: PluginRecord): Promise<boolean> {
+  if (!isTauri) {
+    const blob = new Blob([serializeAtp(record)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${record.pluginId || "plugin"}.atp`;
+    a.click();
+    URL.revokeObjectURL(url);
+    pushToast(`Exported ${record.name}.atp`, "success");
+    return true;
+  }
   try {
+    const { save } = await import("@tauri-apps/plugin-dialog");
     const path = await save({
       defaultPath: `${record.pluginId || "plugin"}.atp`,
       filters: [{ name: "Atlas plugin", extensions: ["atp"] }],
@@ -79,7 +91,35 @@ export async function exportAtp(record: PluginRecord): Promise<boolean> {
 
 /** Import a plugin from disk via the native open dialog, then install it. */
 export async function importAtp(): Promise<boolean> {
+  if (!isTauri) {
+    try {
+      const text = await new Promise<string | null>((resolve) => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".atp,application/json";
+        input.onchange = () => {
+          const file = input.files?.[0];
+          if (!file) {
+            resolve(null);
+            return;
+          }
+          void file.text().then(resolve);
+        };
+        input.click();
+      });
+      if (!text) return false;
+      const record = parseAtp(text);
+      await installPlugin(record);
+      pushToast(`Imported ${record.name}.`, "success");
+      return true;
+    } catch (e) {
+      console.error("[atlas] import plugin failed:", e);
+      pushToast(e instanceof Error ? e.message : "Couldn't import the plugin.", "error");
+      return false;
+    }
+  }
   try {
+    const { open } = await import("@tauri-apps/plugin-dialog");
     const path = await open({
       multiple: false,
       directory: false,

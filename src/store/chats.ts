@@ -9,10 +9,8 @@ import { previewText, toChat, toMessage } from "../data/mapping";
 import { onResync, onServerEvent, wsSend } from "../data/socket";
 import type { Chat, Folder } from "../data/types";
 import { e2eeAvailable, e2eeOpen, e2eeSeal } from "../lib/tauri";
-import { api } from "../data/api";
 import { notifyIncoming } from "../lib/notify";
 import { preferences } from "./preferences";
-import { e2ee } from "./e2ee";
 import { messagesStore } from "./messages";
 import { session } from "./session";
 

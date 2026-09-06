@@ -1,11 +1,10 @@
 import { For } from "solid-js";
+import { Skeleton as UiSkeleton } from "@atlas/ui";
 
-/** A single pulsing placeholder block. Compose with layout classes via `class`. */
 export function Skeleton(props: { class?: string }) {
-  return <div class={`animate-pulse rounded-lg bg-border/70 ${props.class ?? ""}`} />;
+  return <UiSkeleton class={props.class} />;
 }
 
-/** Placeholder rows shaped like ChatList entries. */
 export function ChatListSkeleton(props: { count?: number }) {
   return (
     <div class="flex flex-col gap-1 px-3">
@@ -24,7 +23,6 @@ export function ChatListSkeleton(props: { count?: number }) {
   );
 }
 
-/** Placeholder bubbles shaped like ChatView messages. */
 export function MessageListSkeleton() {
   const widths = ["w-40", "w-56", "w-32", "w-48", "w-28"];
   return (

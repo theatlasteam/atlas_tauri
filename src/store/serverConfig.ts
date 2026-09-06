@@ -9,10 +9,18 @@ import { createRoot, createSignal } from "solid-js";
 const STORAGE_KEY = "atlas.server.override";
 
 function defaultApiBase(): string {
-  return (
-    (import.meta.env.VITE_ATLAS_API as string | undefined) ??
-    "https://s.atlasmsg.app"
-  );
+  const env = import.meta.env.VITE_ATLAS_API as string | undefined;
+  if (env) return env;
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "atlasmsg.app" || host === "www.atlasmsg.app") {
+      return "https://s.atlasmsg.app";
+    }
+    if (window.location.pathname.startsWith("/app")) {
+      return window.location.origin;
+    }
+  }
+  return "https://s.atlasmsg.app";
 }
 
 function normalize(url: string): string {

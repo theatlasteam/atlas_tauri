@@ -23,7 +23,7 @@ const MAX_BODY_BYTES: usize = 64 * 1024;
 /// can read.
 const MAX_CAPSULE_AHEAD_DAYS: i64 = 365;
 pub const MESSAGE_COLUMNS: &str = "id, chat_id, author_id, scheme, body, sent_at, reply_to_id, \
-     attachment_id, unlock_at, edited_at, deleted_at";
+     attachment_id, unlock_at, edited_at, deleted_at, buttons";
 
 fn valid_scheme(scheme: &str) -> bool {
     !scheme.is_empty()
@@ -41,7 +41,7 @@ async fn require_membership(state: &AppState, chat_id: Uuid, user_id: Uuid) -> R
     // caller of compass_reply already had their own membership checked
     // before Compass's message is posted, so this isn't skipping
     // authorization, just which identity performs the write.
-    if user_id == state.compass_user_id {
+    if user_id == state.compass_user_id || user_id == state.official_user_id {
         return Ok(());
     }
     let is_member: bool = sqlx::query_scalar(
@@ -128,7 +128,7 @@ pub async fn hydrate(state: &AppState, rows: Vec<MessageRow>) -> Result<Vec<Mess
     let mut attachments: HashMap<Uuid, AttachmentRow> = HashMap::new();
     if !attachment_ids.is_empty() {
         let rows: Vec<AttachmentRow> = sqlx::query_as(
-            "SELECT id, kind, mime, size_bytes, filename, duration_ms, width, height
+            "SELECT id, kind, mime, size_bytes, filename, duration_ms, width, height, title
              FROM attachments WHERE id = ANY($1)",
         )
         .bind(&attachment_ids)
@@ -182,6 +182,7 @@ pub struct NewMessage<'a> {
     /// — the server can't parse this out of an E2EE DM itself. See
     /// compass.rs's module doc for what does and doesn't happen with it.
     pub mentions_compass: bool,
+    pub buttons: Option<Vec<crate::broadcast::BroadcastButton>>,
 }
 
 /// The single write path for messages (WS + REST + server-generated call
@@ -220,6 +221,18 @@ pub async fn persist_and_fanout(
         }
     }
 
+    let chat_kind: String = sqlx::query_scalar("SELECT kind FROM chats WHERE id = $1")
+        .bind(chat_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    if chat_kind == "broadcast" && author_id != state.official_user_id {
+        return Err(AppError::Forbidden);
+    }
+    if new.reply_to_id.is_some() && chat_kind == "broadcast" {
+        return Err(AppError::BadRequest("can't reply to an announcement".into()));
+    }
+
     require_membership(state, chat_id, author_id).await?;
     require_not_blocked(state, chat_id, author_id).await?;
 
@@ -256,8 +269,8 @@ pub async fn persist_and_fanout(
     }
 
     let inserted: Option<MessageRow> = sqlx::query_as(&format!(
-        "INSERT INTO messages (id, chat_id, author_id, scheme, body, client_tag, reply_to_id, attachment_id, unlock_at, compass_mentioned)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        "INSERT INTO messages (id, chat_id, author_id, scheme, body, client_tag, reply_to_id, attachment_id, unlock_at, compass_mentioned, buttons)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (author_id, client_tag) WHERE client_tag IS NOT NULL DO NOTHING
          RETURNING {MESSAGE_COLUMNS}"
     ))
@@ -271,6 +284,7 @@ pub async fn persist_and_fanout(
     .bind(new.attachment_id)
     .bind(new.unlock_at)
     .bind(new.mentions_compass)
+    .bind(new.buttons.as_ref().and_then(|b| serde_json::to_value(b).ok()))
     .fetch_optional(&state.db)
     .await?;
 
@@ -507,6 +521,7 @@ pub async fn send_message(
             attachment_id: payload.attachment_id,
             unlock_at: payload.unlock_at,
             mentions_compass: payload.mentions_compass,
+            buttons: None,
         },
     )
     .await?;
@@ -550,6 +565,7 @@ pub async fn compass_reply(
             attachment_id: None,
             unlock_at: None,
             mentions_compass: false,
+            buttons: None,
         },
     )
     .await?;

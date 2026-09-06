@@ -54,6 +54,9 @@ pub struct Config {
     /// server making unauthenticated requests that will just fail.
     pub compass_api_key: Option<String>,
     pub compass_model: String,
+    /// Bearer / x-admin-token for official broadcasts. Falls back to
+    /// `waitlist_admin_token` when unset.
+    pub broadcast_admin_token: Option<String>,
 }
 
 fn var(key: &str) -> Option<String> {
@@ -115,6 +118,7 @@ impl Config {
             api_only_hostname: var("API_ONLY_HOSTNAME").map(|h| h.to_lowercase()),
             compass_api_key: var("COMPASS_API_KEY"),
             compass_model: var("COMPASS_MODEL").unwrap_or_else(|| "gpt-5".into()),
+            broadcast_admin_token: var("BROADCAST_ADMIN_TOKEN"),
         })
     }
 }

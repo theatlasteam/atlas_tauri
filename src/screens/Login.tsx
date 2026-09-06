@@ -4,6 +4,7 @@ import { api } from "../data/api";
 import { SpinnerIcon } from "../icons";
 import logo from "../assets/logo.svg";
 import ServerConfigDialog from "../components/ServerConfigDialog";
+import { Alert, Button, TextField } from "@atlas/ui";
 import { t } from "../lib/i18n";
 
 const SECRET_TAP_COUNT = 7;
@@ -19,7 +20,7 @@ export default function Login() {
   const [busy, setBusy] = createSignal(false);
   const [serverConfigOpen, setServerConfigOpen] = createSignal(false);
   const [handleChecked, setHandleChecked] = createSignal(false);
-  const [checkingHandle, setCheckingHandle] = createSignal(false);
+  const [, setCheckingHandle] = createSignal(false);
   const passwordRequirements = createMemo(() => {
     const value = password();
     return {
@@ -74,9 +75,6 @@ export default function Login() {
     }
   };
 
-  const inputClass =
-    "rounded-xl border border-border bg-surface px-3.5 py-2.5 text-ink placeholder-ink-subtle outline-none transition-[border-color,box-shadow] duration-150 focus:border-accent focus:ring-2 focus:ring-accent/15";
-
   return (
     <div class="flex h-full flex-col items-center justify-center px-6 pb-[max(var(--safe-bottom),1.5rem)] pt-[max(var(--safe-top),1.5rem)]">
       <div class="w-full max-w-sm">
@@ -91,42 +89,34 @@ export default function Login() {
         </div>
 
         <form onSubmit={submit} class="flex flex-col gap-3">
-          <label class="flex flex-col gap-1.5">
-            <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("login.handle")}</span>
-            <input
-              value={handle()}
-              onInput={(e) => setHandle(e.currentTarget.value)}
-              placeholder={t("login.handlePlaceholder")}
-              autocomplete="username"
-              autocapitalize="none"
-              spellcheck={false}
-              class={inputClass}
-            />
-          </label>
+          <TextField
+            label={t("login.handle")}
+            value={handle()}
+            onInput={(e) => setHandle(e.currentTarget.value)}
+            placeholder={t("login.handlePlaceholder")}
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck={false}
+          />
 
           <Show when={handleChecked() && mode() === "register"}>
-            <label class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("login.displayName")}</span>
-              <input
-                value={name()}
-                onInput={(e) => setName(e.currentTarget.value)}
-                placeholder={t("login.namePlaceholder")}
-                autocomplete="name"
-                class={inputClass}
-              />
-            </label>
+            <TextField
+              label={t("login.displayName")}
+              value={name()}
+              onInput={(e) => setName(e.currentTarget.value)}
+              placeholder={t("login.namePlaceholder")}
+              autocomplete="name"
+            />
           </Show>
 
           <Show when={handleChecked()}>
-            <label class="flex flex-col gap-1.5">
-            <span class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("login.password")}</span>
-            <input
+            <TextField
+              label={t("login.password")}
               type="password"
               value={password()}
               onInput={(e) => setPassword(e.currentTarget.value)}
               placeholder={mode() === "register" ? t("login.passwordPlaceholderRegister") : t("login.passwordPlaceholder")}
               autocomplete={mode() === "login" ? "current-password" : "new-password"}
-              class={inputClass}
             />
             <Show when={mode() === "register"}>
               <ul class="mt-1 flex flex-col gap-1 text-xs text-ink-subtle" aria-live="polite">
@@ -137,25 +127,22 @@ export default function Login() {
                 <li class={passwordRequirements().symbol ? "text-success" : ""}>{passwordRequirements().symbol ? "✓" : "○"} {t("login.passwordSymbol")}</li>
               </ul>
             </Show>
-            </label>
           </Show>
 
           <Show when={error()}>
-            <p role="alert" class="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
-              {error()}
-            </p>
+            <Alert tone="danger">{error()}</Alert>
           </Show>
 
-          <button
+          <Button
             type="submit"
             disabled={busy() || !handle().trim() || (handleChecked() && (!password() || (mode() === "register" && !name().trim())))}
-            class="mt-1 flex min-h-12 items-center justify-center gap-2 rounded-pill bg-accent py-3 font-semibold text-accent-ink transition-[transform,opacity] duration-150 hover:brightness-105 active:scale-95 disabled:opacity-40"
+            class="mt-1 min-h-12 w-full"
           >
             <Show when={busy()}>
               <SpinnerIcon size={18} class="animate-spin" />
             </Show>
             {!handleChecked() ? t("login.continue") : mode() === "login" ? t("login.signIn") : t("login.createAccountBtn")}
-          </button>
+          </Button>
         </form>
 
         <button

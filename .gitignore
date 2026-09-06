@@ -26,6 +26,7 @@ src-tauri/gen/android/*.jks
 
 # Server
 server/target/
+server/web/wasm/atlas-e2ee/target/
 server/.env
 server/data/attachments/*
 !server/data/attachments/.gitkeep
@@ -36,3 +37,6 @@ server/data/attachments/*
 
 # Local scratch tests — never committed.
 .test/
+
+# Local promo/ad renders — huge binaries, not part of the app.
+promo/

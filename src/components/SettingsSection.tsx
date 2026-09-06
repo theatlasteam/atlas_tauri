@@ -1,3 +1,4 @@
+import { Card } from "@atlas/ui";
 import type { JSX } from "solid-js";
 import { A } from "@solidjs/router";
 import { ChevronRightIcon } from "../icons";
@@ -6,7 +7,7 @@ export function SettingsSection(props: { title: string; children: JSX.Element })
   return (
     <section class="px-5 pb-6">
       <h2 class="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-ink-subtle">{props.title}</h2>
-      <div class="divide-y divide-border rounded-2xl border border-border bg-surface">{props.children}</div>
+      <Card padded={false} class="divide-y divide-border">{props.children}</Card>
     </section>
   );
 }

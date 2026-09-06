@@ -28,7 +28,6 @@
 // back to localStorage so the feature still works in a browser — consistent
 // with lib/tauri.ts's secrets fallback.
 
-import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "../lib/tauri";
 import { apiBase, getToken } from "../data/api";
 import { messagesStore } from "../store/messages";
@@ -196,6 +195,7 @@ const STORAGE_PREFIX = "atlas.plugin.";
 export async function listInstalled(): Promise<PluginRecord[]> {
   if (isTauri) {
     try {
+      const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<PluginRecord[]>("plugin_list");
     } catch (e) {
       console.warn("[atlas] plugin_list failed, falling back to web store:", e);
@@ -211,6 +211,7 @@ export async function listInstalled(): Promise<PluginRecord[]> {
 
 async function saveRecord(record: PluginRecord): Promise<void> {
   if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
     await invoke("plugin_save", { record });
     return;
   }
@@ -223,6 +224,7 @@ async function saveRecord(record: PluginRecord): Promise<void> {
 
 async function removeRecord(pluginId: string): Promise<void> {
   if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
     await invoke("plugin_remove", { pluginId });
     return;
   }

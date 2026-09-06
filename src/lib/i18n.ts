@@ -17,6 +17,44 @@ const dict = {
     "onboarding.next": "Next",
     "onboarding.getStarted": "Get started",
     "onboarding.skip": "Skip introduction",
+    "pwa.installTitle": "Install Atlas on this iPhone",
+    "pwa.installBody":
+      "Tap Share, then Add to Home Screen. Atlas opens full-screen, caches the UI for offline, and keeps encryption keys on this device.",
+    "pwa.installDismiss": "Not now",
+    "security.kicker": "Insecure session",
+    "security.title": "This connection is not safe for encrypted chat.",
+    "security.lede":
+      "Atlas encrypts messages on your device. An HTTP page, a missing Web Crypto API, or a wrapping iframe can leak keys or let someone sit in the middle. Fix the issues below before you sign in.",
+    "security.stripBlocking": "INSECURE SESSION — encryption is disabled. Use HTTPS.",
+    "security.stripWarning": "This session has security warnings. Read them before you chat.",
+    "security.blocking": "Blocking",
+    "security.warning": "Warning",
+    "security.ack": "I understand the risks — continue this once",
+    "security.cannotContinue": "Sign-in is blocked until this page is served over HTTPS in a secure context.",
+    "security.switchHttps": "Reload over HTTPS",
+    "security.iosHint":
+      "On iPhone, add Atlas from an https:// page via Share → Add to Home Screen. Home-screen apps only persist keys if the origin stays HTTPS.",
+    "security.insecureOrigin.title": "Page is not HTTPS",
+    "security.insecureOrigin.body":
+      "You opened Atlas over plain HTTP. Anyone on this network can inject scripts and steal keys. Open the https:// URL instead.",
+    "security.noSecureContext.title": "Browser secure context is off",
+    "security.noSecureContext.body":
+      "Web Crypto, service workers and persistent storage are restricted. This usually means HTTP, a file:// URL, or an insecure iframe.",
+    "security.noCrypto.title": "Web Crypto is missing",
+    "security.noCrypto.body":
+      "This browser cannot run AES-GCM. Encryption cannot start. Update Safari / iOS, or use the desktop app.",
+    "security.noIdb.title": "IndexedDB is missing",
+    "security.noIdb.body":
+      "Keys may fall back to localStorage, which iOS can evict. Add to Home Screen from HTTPS for a more durable store.",
+    "security.iframe.title": "Atlas is running inside an iframe",
+    "security.iframe.body":
+      "A parent page can overlay UI and phish you. Open /app as a top-level tab, or install it to the Home Screen.",
+    "security.insecureApi.title": "API endpoint is not HTTPS",
+    "security.insecureApi.body":
+      "The messenger backend URL is HTTP. Login tokens and ciphertext in transit can be intercepted. Point the app at an https:// server.",
+    "security.noPersist.title": "This browser cannot keep secrets",
+    "security.noPersist.body":
+      "Private browsing or storage restrictions blocked IndexedDB. Encryption keys will vanish when you close the tab, and you will not be able to decrypt old DMs.",
     "nav.chats": "Chats",
     "nav.settings": "Settings",
     "nav.profile": "Profile",
@@ -66,6 +104,12 @@ const dict = {
     "settings.verificationDesc": "Grant or remove verified checkmarks",
     "settings.plugins": "Plugins",
     "settings.pluginsDesc": "Extend Atlas with plugins",
+    "settings.reload": "Get latest version",
+    "settings.reloadDesc": "Reload Atlas to pick up a new update on this phone.",
+    "update.available": "A new version of Atlas is ready.",
+    "update.reload": "Update now",
+    "broadcast.cantReply": "This is an official Atlas announcement. You can’t reply.",
+    "broadcast.imageUntitled": "Photo",
 
     "plugins.title": "Plugins",
     "plugins.installed": "Installed",
@@ -426,6 +470,44 @@ const dict = {
     "onboarding.next": "Далее",
     "onboarding.getStarted": "Начать",
     "onboarding.skip": "Пропустить знакомство",
+    "pwa.installTitle": "Установите Atlas на этот iPhone",
+    "pwa.installBody":
+      "Нажмите «Поделиться», затем «На экран Домой». Atlas откроется на весь экран, закэширует интерфейс и оставит ключи шифрования на устройстве.",
+    "pwa.installDismiss": "Не сейчас",
+    "security.kicker": "Небезопасная сессия",
+    "security.title": "Это соединение небезопасно для зашифрованного чата.",
+    "security.lede":
+      "Atlas шифрует сообщения на устройстве. HTTP-страница, отсутствие Web Crypto или iframe могут скомпрометировать ключи. Исправьте пункты ниже, прежде чем входить.",
+    "security.stripBlocking": "НЕБЕЗОПАСНАЯ СЕССИЯ — шифрование выключено. Используйте HTTPS.",
+    "security.stripWarning": "У этой сессии есть предупреждения безопасности. Прочитайте их до переписки.",
+    "security.blocking": "Блокирует",
+    "security.warning": "Предупреждение",
+    "security.ack": "Я понимаю риск — продолжить один раз",
+    "security.cannotContinue": "Вход заблокирован, пока страница не открыта по HTTPS в безопасном контексте.",
+    "security.switchHttps": "Открыть по HTTPS",
+    "security.iosHint":
+      "На iPhone добавляйте Atlas с https:// через «Поделиться» → «На экран Домой». Ключи сохраняются только на HTTPS-источнике.",
+    "security.insecureOrigin.title": "Страница не HTTPS",
+    "security.insecureOrigin.body":
+      "Atlas открыт по обычному HTTP. Кто угодно в этой сети может подменить скрипты и украсть ключи. Откройте адрес https://.",
+    "security.noSecureContext.title": "Нет secure context",
+    "security.noSecureContext.body":
+      "Web Crypto, service worker и постоянное хранилище ограничены. Обычно это HTTP, file:// или небезопасный iframe.",
+    "security.noCrypto.title": "Нет Web Crypto",
+    "security.noCrypto.body":
+      "Этот браузер не умеет AES-GCM. Шифрование невозможно. Обновите Safari / iOS или используйте приложение.",
+    "security.noIdb.title": "Нет IndexedDB",
+    "security.noIdb.body":
+      "Ключи могут попасть в localStorage, которое iOS чистит. Добавьте на Домой с HTTPS.",
+    "security.iframe.title": "Atlas внутри iframe",
+    "security.iframe.body":
+      "Родительская страница может наложить свой UI. Откройте /app в обычной вкладке или на экране Домой.",
+    "security.insecureApi.title": "API не HTTPS",
+    "security.insecureApi.body":
+      "Адрес сервера — HTTP. Токены и трафик можно перехватить. Укажите https:// сервер.",
+    "security.noPersist.title": "Секреты не сохраняются",
+    "security.noPersist.body":
+      "Приватный режим или ограничения хранилища блокируют IndexedDB. Ключи пропадут при закрытии вкладки, старые личные сообщения не расшифруются.",
     "nav.chats": "Чаты",
     "nav.settings": "Настройки",
     "nav.profile": "Профиль",
@@ -475,6 +557,12 @@ const dict = {
     "settings.verificationDesc": "Выдавайте или снимайте галочки верификации",
     "settings.plugins": "Плагины",
     "settings.pluginsDesc": "Расширяйте Atlas плагинами",
+    "settings.reload": "Обновить приложение",
+    "settings.reloadDesc": "Перезагрузить Atlas, чтобы получить новую версию на этом телефоне.",
+    "update.available": "Доступна новая версия Atlas.",
+    "update.reload": "Обновить",
+    "broadcast.cantReply": "Это официальное объявление Atlas. Ответить нельзя.",
+    "broadcast.imageUntitled": "Фото",
 
     "plugins.title": "Плагины",
     "plugins.installed": "Установленные",

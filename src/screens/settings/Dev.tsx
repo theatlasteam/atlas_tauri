@@ -1,3 +1,4 @@
+import { A } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
 import Appbar from "../../components/Appbar";
@@ -33,6 +34,17 @@ export default function Dev() {
       setIdentityReset("done");
     } catch {
       setIdentityReset("error");
+    }
+  };
+
+  const [replenish, setReplenish] = createSignal<"idle" | "busy" | "done" | "error">("idle");
+  const replenishKeys = async () => {
+    setReplenish("busy");
+    try {
+      await e2ee.replenishKeys();
+      setReplenish("done");
+    } catch {
+      setReplenish("error");
     }
   };
 
@@ -79,6 +91,12 @@ export default function Dev() {
     <div class="h-full overflow-y-auto pb-28">
       <Appbar title="Developer" back="/settings" sticky />
 
+      <SettingsSection title="Design system">
+        <SettingsRow label="Atlas UI" description="Shared components, themes and interactive states.">
+          <A href="/settings/design-system" class="rounded-full border border-border px-4 py-2 text-sm text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">Open catalogue</A>
+        </SettingsRow>
+      </SettingsSection>
+
       <SettingsSection title="Plugins">
         <SettingsRow
           label="Developer mode"
@@ -93,7 +111,10 @@ export default function Dev() {
       </SettingsSection>
 
       <SettingsSection title="Identity">
-        <SettingsRow label="E2EE available" description={e2eeAvailable ? "yes (Tauri)" : "no (web build)"} />
+        <SettingsRow
+          label="E2EE available"
+          description={e2eeAvailable ? (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window ? "yes (Tauri)" : "yes (WASM / Olm)") : "no"}
+        />
         <SettingsRow
           label="My fingerprint"
           description={myFingerprint.loading ? "loading…" : myFingerprint() ?? "unavailable"}
@@ -120,6 +141,25 @@ export default function Dev() {
       </SettingsSection>
 
       <SettingsSection title="Caches">
+        <SettingsRow
+          label="Replenish one-time keys"
+          description={
+            replenish() === "done"
+              ? "Published this device's bundle and uploaded a new batch of one-time prekeys. No sign-out needed."
+              : replenish() === "error"
+                ? "Couldn't publish — check the console (often a stale identity on the server)."
+                : "Republish your Olm identity and mint more one-time prekeys so others can start a DM without you signing out."
+          }
+        >
+          <button
+            type="button"
+            onClick={() => void replenishKeys()}
+            disabled={!e2eeAvailable || replenish() === "busy"}
+            class="flex shrink-0 items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 text-xs font-medium text-accent transition hover:opacity-80 active:scale-95 disabled:opacity-50"
+          >
+            <BroomIcon size={14} /> {replenish() === "busy" ? "Publishing…" : "Replenish"}
+          </button>
+        </SettingsRow>
         <SettingsRow
           label="E2EE prekey bundle"
           description={
@@ -169,8 +209,7 @@ export default function Dev() {
 
       <Show when={!e2eeAvailable}>
         <p class="px-6 text-xs text-ink-subtle">
-          E2EE commands run in the Tauri core, so this page is limited when running as a plain web
-          build.
+          E2EE is off in this session (insecure origin or missing Web Crypto).
         </p>
       </Show>
     </div>

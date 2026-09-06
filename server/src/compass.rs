@@ -445,6 +445,7 @@ async fn try_respond_in_group(
             attachment_id: None,
             unlock_at: None,
             mentions_compass: false, // its own reply must never re-trigger itself
+            buttons: None,
         },
     )
     .await?;
