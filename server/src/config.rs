@@ -54,6 +54,8 @@ pub struct Config {
     /// server making unauthenticated requests that will just fail.
     pub compass_api_key: Option<String>,
     pub compass_model: String,
+    /// OpenAI-compatible base URL, no trailing slash (`COMPASS_API_BASE`).
+    pub compass_api_base: String,
     /// Bearer / x-admin-token for official broadcasts. Falls back to
     /// `waitlist_admin_token` when unset.
     pub broadcast_admin_token: Option<String>,
@@ -117,7 +119,11 @@ impl Config {
             metrics_admin_token: var("METRICS_ADMIN_TOKEN"),
             api_only_hostname: var("API_ONLY_HOSTNAME").map(|h| h.to_lowercase()),
             compass_api_key: var("COMPASS_API_KEY"),
-            compass_model: var("COMPASS_MODEL").unwrap_or_else(|| "gpt-5".into()),
+            compass_model: var("COMPASS_MODEL").unwrap_or_else(|| "kimi-k2.7-code".into()),
+            compass_api_base: var("COMPASS_API_BASE")
+                .unwrap_or_else(|| "https://hybra.lol".into())
+                .trim_end_matches('/')
+                .to_string(),
             broadcast_admin_token: var("BROADCAST_ADMIN_TOKEN"),
         })
     }

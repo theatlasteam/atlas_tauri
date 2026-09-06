@@ -16,6 +16,7 @@ import { toMessage } from "../data/mapping";
 import type { Message } from "../data/types";
 import { e2eeAvailable, e2eeOpen, isTauri } from "../lib/tauri";
 import { mentionsCompass } from "../lib/compassMention";
+import { loadCompassModel } from "../lib/compassModels";
 import { emitMessageReceived, emitMessageSent, transformBeforeSend } from "../plugins/runtime";
 import { e2ee } from "./e2ee";
 import { compassUserId } from "./compassIdentity";
@@ -176,7 +177,7 @@ function createMessagesStore() {
         .slice(-20)
         .map((m) => ({ role: m.authorId === compassId ? "assistant" : "user", content: m.text }));
       if (turns.length === 0) return;
-      const { reply } = await api.compassComplete(turns);
+      const { reply } = await api.compassComplete(turns, loadCompassModel());
       await api.compassReply(chatId, reply);
     } catch (e) {
       console.warn("[atlas] compass reply failed:", e);

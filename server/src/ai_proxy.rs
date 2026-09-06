@@ -18,11 +18,12 @@ use axum::response::{IntoResponse, Response};
 use crate::auth::AuthUser;
 use crate::state::AppState;
 
-/// The real Inference Gateway. Also used directly by compass.rs — a
-/// server-to-server call has no Atlas session to attach, so it can't go
-/// through this route's own AuthUser-gated proxy below without 401ing
-/// against itself.
-pub const UPSTREAM_BASE: &str = "https://inference.waw0.amvera.ru";
+/// Inference gateway base URL from `COMPASS_API_BASE`. Compass.rs uses the
+/// same value for server-to-server calls (those have no Atlas session, so
+/// they cannot loop through this AuthUser-gated proxy).
+pub fn upstream_base(state: &AppState) -> &str {
+    &state.cfg.compass_api_base
+}
 
 // Requiring AuthUser (any signed-in Atlas account) keeps this from being an
 // open, unauthenticated relay to the gateway — without it, anyone on the
@@ -35,8 +36,9 @@ pub async fn proxy(State(state): State<AppState>, _auth: AuthUser, req: Request)
         .path_and_query()
         .map(|pq| pq.as_str())
         .unwrap_or("/");
-    let url = format!("{UPSTREAM_BASE}{path_and_query}");
-    let upstream_uri: Uri = match UPSTREAM_BASE.parse::<Uri>() {
+    let base = upstream_base(&state);
+    let url = format!("{base}{path_and_query}");
+    let upstream_uri: Uri = match base.parse::<Uri>() {
         Ok(u) => u,
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     };
@@ -61,9 +63,9 @@ pub async fn proxy(State(state): State<AppState>, _auth: AuthUser, req: Request)
     let Some(api_key) = &state.cfg.compass_api_key else {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
-    match HeaderValue::from_str(api_key) {
+    match HeaderValue::from_str(&format!("Bearer {api_key}")) {
         Ok(v) => {
-            headers.insert("X-Auth-Header", v);
+            headers.insert(axum::http::header::AUTHORIZATION, v);
         }
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }

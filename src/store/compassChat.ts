@@ -8,6 +8,7 @@
 import { createRoot } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { api } from "../data/api";
+import { loadCompassModel, type CompassModelId } from "../lib/compassModels";
 
 export interface CompassTurn {
   role: "user" | "assistant";
@@ -103,7 +104,7 @@ function createCompassChatStore() {
     persist();
   };
 
-  const send = async (threadId: string, content: string) => {
+  const send = async (threadId: string, content: string, model?: CompassModelId) => {
     const index = threads.findIndex((t) => t.id === threadId);
     if (index === -1) return;
 
@@ -131,11 +132,15 @@ function createCompassChatStore() {
     const currentThreadIndex = () => threads.findIndex((t) => t.id === threadId);
 
     try {
-      await api.compassCompleteStream(request, (delta) => {
-        const at = currentThreadIndex();
-        if (at === -1) return; // thread was deleted mid-stream
-        setThreads(at, "turns", replyIndex, "content", (c) => c + delta);
-      });
+      await api.compassCompleteStream(
+        request,
+        (delta) => {
+          const at = currentThreadIndex();
+          if (at === -1) return; // thread was deleted mid-stream
+          setThreads(at, "turns", replyIndex, "content", (c) => c + delta);
+        },
+        { model: model ?? loadCompassModel() },
+      );
       const at = currentThreadIndex();
       if (at === -1) return;
       setThreads(at, "turns", replyIndex, "streaming", false);

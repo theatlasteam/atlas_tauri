@@ -1,5 +1,12 @@
 import { AiMessage, MessageBubble, PromptInput } from "@atlas/ui";
 import { createEffect, createSignal, For, on, Show } from "solid-js";
+import ModelLogo from "../components/ModelLogo";
+import {
+  COMPASS_MODELS,
+  loadCompassModel,
+  saveCompassModel,
+  type CompassModelId,
+} from "../lib/compassModels";
 import { A, useNavigate, useParams } from "@solidjs/router";
 import { compassChat } from "../store/compassChat";
 import EmptyState from "../components/EmptyState";
@@ -25,6 +32,7 @@ export default function CompassChat() {
 
   const [draft, setDraft] = createSignal("");
   const [sending, setSending] = createSignal(false);
+  const [model, setModel] = createSignal<CompassModelId>(loadCompassModel());
   let scrollRef: HTMLDivElement | undefined;
 
   // A stale/deleted thread id (e.g. deleted in another tab) has nothing to
@@ -55,7 +63,7 @@ export default function CompassChat() {
     setSending(true);
     queueMicrotask(() => scrollToBottom());
     try {
-      await compassChat.send(params.id, text);
+      await compassChat.send(params.id, text, model());
     } catch {
       /* the failed turn already shows its own retry-less error state */
     } finally {
@@ -106,7 +114,28 @@ export default function CompassChat() {
       </div>
 
       <div class="shrink-0 border-t border-border bg-surface/95 px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5 backdrop-blur">
-        <PromptInput value={draft()} onChange={setDraft} onSubmit={() => void submit()} disabled={sending()} placeholder={t("compass.placeholder")} sendLabel={t("compass.send")} />
+        <PromptInput
+          value={draft()}
+          onChange={setDraft}
+          onSubmit={() => void submit()}
+          disabled={sending()}
+          placeholder={t("compass.placeholder")}
+          sendLabel={t("compass.send")}
+          model={model()}
+          models={COMPASS_MODELS.map((m) => ({
+            id: m.id,
+            label: m.label,
+            hint: m.id,
+            icon: <ModelLogo name={m.id} size={16} />,
+          }))}
+          onModelChange={(id) => {
+            if (COMPASS_MODELS.some((m) => m.id === id)) {
+              const next = id as CompassModelId;
+              setModel(next);
+              saveCompassModel(next);
+            }
+          }}
+        />
       </div>
     </div>
   );

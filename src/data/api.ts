@@ -66,15 +66,15 @@ async function request<T>(
 async function streamCompassComplete(
   messages: { role: "user" | "assistant"; content: string }[],
   onDelta: (delta: string) => void,
-  signal?: AbortSignal,
+  opts?: { signal?: AbortSignal; model?: string },
 ): Promise<string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${apiBase()}/api/compass/complete/stream`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ messages }),
-    signal,
+    body: JSON.stringify({ messages, model: opts?.model }),
+    signal: opts?.signal,
   });
   if (!res.ok || !res.body) {
     let message = res.statusText;
@@ -245,8 +245,10 @@ export const api = {
    * server-side. Used for a DM mention's reply generation and for the
    * separate local-only Compass chat, whose history never leaves the
    * device except as these one-off requests. */
-  compassComplete: (messages: { role: "user" | "assistant"; content: string }[]) =>
-    request<{ reply: string }>("POST", "/api/compass/complete", { messages }),
+  compassComplete: (
+    messages: { role: "user" | "assistant"; content: string }[],
+    model?: string,
+  ) => request<{ reply: string }>("POST", "/api/compass/complete", { messages, model }),
   /** Same request as compassComplete, but the reply streams in as plain-text
    * SSE deltas (one `data:` line per chunk) instead of one JSON blob at the
    * end — `onDelta` fires per chunk, the promise resolves with the full
@@ -256,8 +258,8 @@ export const api = {
   compassCompleteStream: (
     messages: { role: "user" | "assistant"; content: string }[],
     onDelta: (delta: string) => void,
-    signal?: AbortSignal,
-  ) => streamCompassComplete(messages, onDelta, signal),
+    opts?: { signal?: AbortSignal; model?: string },
+  ) => streamCompassComplete(messages, onDelta, opts),
   /** Compass's real user id — generated at server startup, not something
    * either side can hardcode. Used to tell its messages apart from a
    * human's when building a transcript for the gateway. */

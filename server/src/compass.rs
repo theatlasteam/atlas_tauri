@@ -144,7 +144,27 @@ pub async fn ensure_user(db: &sqlx::PgPool) -> Result<Uuid, AppError> {
 /// One call to the configured inference gateway. Shared by the group
 /// auto-reply path and the `/api/compass/complete` proxy the client calls
 /// for DMs and the separate local-only Compass chat.
-async fn complete(state: &AppState, messages: Vec<GatewayMessage>) -> Result<String, AppError> {
+const ALLOWED_MODELS: &[&str] = &[
+    "glm-5.3-flash",
+    "kimi-k2.7-code",
+    "deepseek-v4-pro",
+    "qwen3.6-35b",
+];
+
+fn resolve_model(state: &AppState, requested: Option<&str>) -> String {
+    if let Some(m) = requested {
+        if ALLOWED_MODELS.iter().any(|allowed| *allowed == m) {
+            return m.to_string();
+        }
+    }
+    state.cfg.compass_model.clone()
+}
+
+async fn complete(
+    state: &AppState,
+    messages: Vec<GatewayMessage>,
+    model: Option<&str>,
+) -> Result<String, AppError> {
     let Some(api_key) = &state.cfg.compass_api_key else {
         return Err(AppError::BadRequest(
             "Compass isn't configured on this server (no API key set)".into(),
@@ -152,7 +172,7 @@ async fn complete(state: &AppState, messages: Vec<GatewayMessage>) -> Result<Str
     };
 
     let body = ChatCompletionRequest {
-        model: state.cfg.compass_model.clone(),
+        model: resolve_model(state, model),
         messages,
         temperature: 0.7,
         stream: false,
@@ -160,8 +180,8 @@ async fn complete(state: &AppState, messages: Vec<GatewayMessage>) -> Result<Str
 
     let res = state
         .http
-        .post(format!("{}/v1/chat/completions", crate::ai_proxy::UPSTREAM_BASE))
-        .header("X-Auth-Header", api_key)
+        .post(format!("{}/v1/chat/completions", state.cfg.compass_api_base))
+        .bearer_auth(api_key)
         .json(&body)
         .send()
         .await
@@ -191,9 +211,10 @@ async fn complete(state: &AppState, messages: Vec<GatewayMessage>) -> Result<Str
 /// client-side for a DM, or the local-only Compass chat's own log), the
 /// server only adds the system prompt and forwards it. Nothing here is
 /// persisted; the request/response exist only for the duration of the call.
-pub async fn complete_for_client(
+async fn complete_for_client_with_model(
     state: &AppState,
     turns: Vec<(String, String)>,
+    model: Option<&str>,
 ) -> Result<String, AppError> {
     let mut messages = vec![GatewayMessage { role: "system", content: system_prompt() }];
     for (role, content) in turns {
@@ -203,7 +224,7 @@ pub async fn complete_for_client(
         };
         messages.push(GatewayMessage { role, content });
     }
-    complete(state, messages).await
+    complete(state, messages, model).await
 }
 
 #[derive(Deserialize)]
@@ -215,6 +236,7 @@ pub struct CompleteTurn {
 #[derive(Deserialize)]
 pub struct CompleteRequest {
     messages: Vec<CompleteTurn>,
+    model: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -255,8 +277,9 @@ pub async fn complete_route(
             return Err(AppError::BadRequest("a single message is too long".into()));
         }
     }
+    let model = payload.model.clone();
     let turns = payload.messages.into_iter().map(|t| (t.role, t.content)).collect();
-    let reply = complete_for_client(&state, turns).await?;
+    let reply = complete_for_client_with_model(&state, turns, model.as_deref()).await?;
     Ok(Json(CompleteResponse { reply }))
 }
 
@@ -353,7 +376,7 @@ pub async fn complete_stream_route(
     }
 
     let body = ChatCompletionRequest {
-        model: state.cfg.compass_model.clone(),
+        model: resolve_model(&state, payload.model.as_deref()),
         messages,
         temperature: 0.7,
         stream: true,
@@ -361,8 +384,8 @@ pub async fn complete_stream_route(
 
     let res = state
         .http
-        .post(format!("{}/v1/chat/completions", crate::ai_proxy::UPSTREAM_BASE))
-        .header("X-Auth-Header", api_key)
+        .post(format!("{}/v1/chat/completions", state.cfg.compass_api_base))
+        .bearer_auth(api_key)
         .json(&body)
         .send()
         .await
@@ -431,7 +454,7 @@ async fn try_respond_in_group(
         }
     }
 
-    let reply = complete(state, messages).await?;
+    let reply = complete(state, messages, None).await?;
 
     persist_and_fanout(
         state,

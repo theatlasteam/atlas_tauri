@@ -3,7 +3,7 @@ import { createEffect, createMemo } from "solid-js";
 import { cx } from "./lib/cx";
 import Menu, { type MenuItemDef } from "./Menu";
 
-export type PromptModel = { id: string; label: string; hint?: string };
+export type PromptModel = { id: string; label: string; hint?: string; icon?: JSX.Element };
 
 function ChipButton(props: { ariaLabel: string; children: JSX.Element; class?: string }) {
   return (
@@ -117,13 +117,14 @@ export default function PromptInput(props: {
         align="left"
         trigger={
           <ChipButton ariaLabel="Model">
-            {props.modelIcon ?? <SparkIcon />}
+            {props.modelIcon ?? currentModel()?.icon ?? <SparkIcon />}
             <span class="max-w-[9rem] truncate">{currentModel()?.label ?? "Model"}</span>
           </ChipButton>
         }
         items={props.models.map((m) => ({
           id: m.id,
           label: m.hint ? `${m.label} · ${m.hint}` : m.label,
+          icon: m.icon,
           onSelect: () => props.onModelChange?.(m.id),
         }))}
       />

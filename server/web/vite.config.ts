@@ -75,6 +75,7 @@ export default defineConfig({
       assert: fileURLToPath(new URL("../../src/lib/assert-polyfill.cjs", import.meta.url)),
       "node:assert": fileURLToPath(new URL("../../src/lib/assert-polyfill.cjs", import.meta.url)),
       "@atlas/ui": fileURLToPath(new URL("./design-system/index.ts", import.meta.url)),
+      "@tauri-apps/api/core": fileURLToPath(new URL("./tauri-stub.ts", import.meta.url)),
     },
   },
   css: {
