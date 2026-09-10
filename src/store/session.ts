@@ -59,6 +59,18 @@ function ensureNotificationPermission() {
   if (preferences.notificationsEnabled) requestNotificationPermission();
 }
 
+/** Android writes the FCM token into secrets.json; we POST it after sign-in
+ *  because MainActivity often runs before the auth token exists. */
+async function registerPushToken() {
+  const fcm = await secretGet("fcm_token");
+  if (!fcm) return;
+  try {
+    await api.registerDevice(fcm, "android");
+  } catch (e) {
+    console.warn("[atlas] device token register failed:", e);
+  }
+}
+
 function createSessionStore() {
   const [status, setStatus] = createSignal<SessionStatus>("loading");
   const [user, setUser] = createSignal<User | null>(null);
@@ -72,6 +84,7 @@ function createSessionStore() {
     connectSocket();
     void publishIdentity();
     ensureNotificationPermission();
+    void registerPushToken();
   };
 
   /** Restore a persisted session on app start. */
@@ -92,6 +105,7 @@ function createSessionStore() {
       connectSocket();
       void publishIdentity();
       ensureNotificationPermission();
+      void registerPushToken();
     } catch (e: unknown) {
       const status = typeof e === "object" && e && "status" in e ? Number((e as { status: number }).status) : 0;
       // Only a real auth rejection should forget the token. A blip on

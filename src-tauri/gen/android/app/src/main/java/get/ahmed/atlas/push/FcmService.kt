@@ -39,6 +39,7 @@ class FcmService : FirebaseMessagingService() {
          * into the secrets file yet.
          */
         fun syncToken(context: Context, fcmToken: String) {
+            Secrets.put(context, "fcm_token", fcmToken)
             val base = Secrets.serverUrl(context)
             val auth = Secrets.authToken(context)
             if (base == null || auth == null) {

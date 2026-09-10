@@ -29,7 +29,8 @@ internal object Secrets {
      * holds the file. That directory is also what [NativeCrypto] is handed.
      */
     fun dir(context: Context): File? {
-        val candidates = listOf(context.filesDir, context.dataDir, File(context.dataDir, "files"))
+        val candidates = mutableListOf(context.filesDir, context.dataDir, File(context.dataDir, "files"))
+        context.filesDir.listFiles()?.filter { it.isDirectory }?.forEach { candidates.add(it) }
         return candidates.firstOrNull { File(it, FILE).isFile }
     }
 
@@ -53,4 +54,17 @@ internal object Secrets {
      */
     fun serverUrl(context: Context): String? =
         read(context)?.optString(KEY_SERVER_URL)?.takeIf { it.isNotEmpty() }?.trimEnd('/')
+
+    /** Merge one key into secrets.json without dropping rust-owned entries. */
+    fun put(context: Context, key: String, value: String) {
+        val dir = dir(context) ?: context.filesDir
+        val file = File(dir, FILE)
+        val obj = try {
+            if (file.isFile) JSONObject(file.readText()) else JSONObject()
+        } catch (_: Exception) {
+            JSONObject()
+        }
+        obj.put(key, value)
+        runCatching { file.writeText(obj.toString()) }
+    }
 }

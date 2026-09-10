@@ -319,6 +319,8 @@ export const api = {
   /** Clears the published identity key so a mismatched device (reinstall,
    * factory reset) can publish its real one instead of 409ing forever. */
   resetIdentity: () => request<{ ok: boolean }>("POST", "/api/keys/identity/reset"),
+  registerDevice: (token: string, platform = "android") =>
+    request<{ ok: boolean }>("POST", "/api/devices", { token, platform }),
 
   // E2EE v2 prekey bundles (X3DH + Double Ratchet)
   publishBundle: (bundle: {
