@@ -24,7 +24,7 @@ export {
   defaultAvatarSmiley,
   isEmojiGlyph,
 } from "./avatarGradient";
-export { default as Twemoji } from "./Twemoji";
+export { default as Twemoji } from "./TwemojiImg";
 export { twemojiUrl, nativeToTwemojiId, toTwemojiId } from "./twemoji";
 export { default as Tabs, TabPanel } from "./Tabs";
 export type { TabItem } from "./Tabs";

@@ -2,7 +2,7 @@ import type { JSX } from "solid-js";
 import { For, Show, splitProps } from "solid-js";
 import { cx } from "./lib/cx";
 import Avatar from "./Avatar";
-import Twemoji from "./Twemoji";
+import Twemoji from "./TwemojiImg";
 
 export type MessageBubbleSide = "sent" | "received";
 export type MessageStatus = "sending" | "sent" | "read";
