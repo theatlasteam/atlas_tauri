@@ -32,31 +32,44 @@ fn identity_from_dir(dir: &str) -> Option<StaticSecret> {
     Some(StaticSecret::from(arr))
 }
 
-/// Decrypt one "x25519-v1" body. Returns the plaintext, or Java `null` for any
-/// failure — a notification that can't be decrypted degrades to a generic one
-/// rather than propagating an exception into the messaging service.
+/// Decrypt one message body (x25519-v1, olm-v1 / dr-v1, or megolm-v1).
+/// Returns Java `null` on any failure so the notification degrades to a
+/// generic one instead of crashing the messaging service.
 ///
-/// Signature must match the `external fun` declared in
-/// `get.ahmed.atlas.push.NativeCrypto`; renaming either side breaks the link at
-/// call time, not build time.
+/// Signature must match the `external fun` in `NativeCrypto`.
 #[no_mangle]
 pub extern "system" fn Java_get_ahmed_atlas_push_NativeCrypto_nativeDecrypt(
     mut env: JNIEnv,
     _class: JClass,
     secrets_dir: JString,
+    scheme: JString,
+    peer: JString,
+    chat_id: JString,
     peer_public_key: JString,
     body: JString,
 ) -> jstring {
     let null = std::ptr::null_mut();
 
     let Ok(dir) = env.get_string(&secrets_dir).map(String::from) else { return null };
+    let Ok(scheme) = env.get_string(&scheme).map(String::from) else { return null };
+    let Ok(peer) = env.get_string(&peer).map(String::from) else { return null };
+    let Ok(chat_id) = env.get_string(&chat_id).map(String::from) else { return null };
     let Ok(peer_b64) = env.get_string(&peer_public_key).map(String::from) else { return null };
-    let Ok(body_b64) = env.get_string(&body).map(String::from) else { return null };
+    let Ok(body) = env.get_string(&body).map(String::from) else { return null };
 
-    let Some(secret) = identity_from_dir(&dir) else { return null };
-    let Ok(peer) = crate::e2ee::parse_public(&peer_b64) else { return null };
-    let Ok(plaintext) = crate::e2ee::open(&secret, &peer, &body_b64) else { return null };
+    let path = std::path::Path::new(&dir);
+    let plaintext = match scheme.as_str() {
+        "x25519-v1" => {
+            let Some(secret) = identity_from_dir(&dir) else { return null };
+            let Ok(pk) = crate::e2ee::parse_public(&peer_b64) else { return null };
+            crate::e2ee::open(&secret, &pk, &body).ok()
+        }
+        "olm-v1" | "dr-v1" => crate::e2ee2::decrypt_from_dir(path, &peer, &body).ok(),
+        "megolm-v1" => crate::e2ee_megolm::decrypt_from_dir(path, &chat_id, &peer, &body).ok(),
+        _ => None,
+    };
 
+    let Some(plaintext) = plaintext else { return null };
     match env.new_string(plaintext) {
         Ok(s) => s.into_raw(),
         Err(_) => null,

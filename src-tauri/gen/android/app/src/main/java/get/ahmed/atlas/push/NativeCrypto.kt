@@ -23,16 +23,20 @@ internal object NativeCrypto {
     }
 
     /**
-     * Decrypt an "x25519-v1" body. Returns null on any failure, including a
-     * missing library — callers fall back to a generic notification.
-     *
-     * Must stay in sync with the exported symbol name in android_push.rs; a
-     * mismatch surfaces as an UnsatisfiedLinkError at call time, not build time.
+     * Decrypt a ciphertext for the given scheme. Returns null on any failure,
+     * including a missing library — callers fall back to a generic notification.
      */
-    fun decrypt(secretsDir: String, peerPublicKey: String, body: String): String? {
+    fun decrypt(
+        secretsDir: String,
+        scheme: String,
+        peerId: String,
+        chatId: String,
+        peerPublicKey: String,
+        body: String,
+    ): String? {
         if (!available) return null
         return try {
-            nativeDecrypt(secretsDir, peerPublicKey, body)
+            nativeDecrypt(secretsDir, scheme, peerId, chatId, peerPublicKey, body)
         } catch (e: Throwable) {
             Log.w(TAG, "native decrypt failed: ${e.message}")
             null
@@ -41,6 +45,9 @@ internal object NativeCrypto {
 
     private external fun nativeDecrypt(
         secretsDir: String,
+        scheme: String,
+        peerId: String,
+        chatId: String,
         peerPublicKey: String,
         body: String,
     ): String?

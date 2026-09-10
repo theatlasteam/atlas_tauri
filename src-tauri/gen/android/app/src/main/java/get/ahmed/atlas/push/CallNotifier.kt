@@ -20,10 +20,8 @@ import get.ahmed.atlas.R
 /**
  * Incoming-call notification.
  *
- * Answering only opens the app: the server retains the caller's SDP offer for
- * the duration of the ring and replays it when the socket connects
- * (ws::calls::replay_pending), so the in-app call UI comes up on its own. That
- * avoids having to plumb a call hand-off from Kotlin into the webview.
+ * Answering opens the app with EXTRA_ANSWER so the webview sends the SDP
+ * answer as soon as the server replays the pending offer.
  *
  * Declining, by contrast, must work with the app closed, so it posts straight
  * to the server from a broadcast receiver — see [CallActionReceiver].
@@ -37,6 +35,7 @@ internal object CallNotifier {
     const val NOTIFICATION_ID = 7001
 
     const val EXTRA_CALL_ID = "callId"
+    const val EXTRA_ANSWER = "answer"
 
     /** Matches RING_TIMEOUT in the server, as a backstop if no dismissal arrives. */
     private const val RING_TIMEOUT_MS = 60_000L
@@ -85,6 +84,7 @@ internal object CallNotifier {
             Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra(EXTRA_CALL_ID, callId)
+                putExtra(EXTRA_ANSWER, true)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

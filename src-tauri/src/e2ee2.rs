@@ -281,6 +281,147 @@ pub fn e2ee2_fingerprint(bundle: PublicBundle) -> Result<String, E2eeError> {
     crate::e2ee::e2ee_fingerprint(bundle.identity_key)
 }
 
+/// Decrypt an olm-v1 body using `secrets.json` in `dir` (Android FCM process).
+#[cfg(target_os = "android")]
+/// Advances and persists the matching session so the in-app ratchet stays in
+/// lockstep with a notification that opened the ciphertext first.
+pub fn decrypt_from_dir(dir: &std::path::Path, peer: &str, body: &str) -> Result<String, E2eeError> {
+    let path = dir.join("secrets.json");
+    let bytes = std::fs::read(&path).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    let mut map: HashMap<String, String> =
+        serde_json::from_slice(&bytes).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    let key = pickle_key_from_map(&map)?;
+
+    let mut sessions = {
+        let mut cache = SESSIONS.lock().unwrap();
+        let m = cache.get_or_insert_with(HashMap::new);
+        if let Some(s) = m.remove(peer) {
+            s
+        } else {
+            load_sessions_from_map(&map, peer, &key)?
+        }
+    };
+
+    let msg = parse_olm_body(body)?;
+    for i in (0..sessions.len()).rev() {
+        match sessions[i].decrypt(&msg) {
+            Ok(pt) => {
+                let used = sessions.remove(i);
+                sessions.push(used);
+                persist_sessions_to_map(&mut map, peer, &sessions, &key)?;
+                write_secrets(&path, &map)?;
+                SESSIONS
+                    .lock()
+                    .unwrap()
+                    .get_or_insert_with(HashMap::new)
+                    .insert(peer.to_string(), sessions);
+                return String::from_utf8(pt)
+                    .map_err(|_| E2eeError::Bad("plaintext not utf-8".into()));
+            }
+            Err(_) => continue,
+        }
+    }
+
+    let OlmMessage::PreKey(pre) = &msg else {
+        let had = !sessions.is_empty();
+        SESSIONS
+            .lock()
+            .unwrap()
+            .get_or_insert_with(HashMap::new)
+            .insert(peer.to_string(), sessions);
+        return Err(if had {
+            E2eeError::Decrypt
+        } else {
+            E2eeError::Bad("no session and not a pre-key message".into())
+        });
+    };
+
+    let mut account = {
+        let mut g = ACCOUNT.lock().unwrap();
+        if let Some(a) = g.take() {
+            a
+        } else {
+            load_account_from_map(&map, &key)?
+        }
+    };
+    let result = account
+        .create_inbound_session(pre.identity_key(), pre)
+        .map_err(|e| E2eeError::Bad(e.to_string()))?;
+    map.insert(ACCOUNT_KEY.to_string(), account.pickle().encrypt(&key));
+    *ACCOUNT.lock().unwrap() = Some(account);
+    sessions.push(result.session);
+    persist_sessions_to_map(&mut map, peer, &sessions, &key)?;
+    write_secrets(&path, &map)?;
+    SESSIONS
+        .lock()
+        .unwrap()
+        .get_or_insert_with(HashMap::new)
+        .insert(peer.to_string(), sessions);
+    String::from_utf8(result.plaintext).map_err(|_| E2eeError::Bad("plaintext not utf-8".into()))
+}
+
+#[cfg(target_os = "android")]
+fn pickle_key_from_map(map: &HashMap<String, String>) -> Result<[u8; 32], E2eeError> {
+    let b64 = map
+        .get(PICKLE_KEY_KEY)
+        .ok_or_else(|| E2eeError::Storage("no pickle key".into()))?;
+    let bytes = B64
+        .decode(b64)
+        .map_err(|_| E2eeError::Storage("pickle key corrupt".into()))?;
+    bytes
+        .try_into()
+        .map_err(|_| E2eeError::Storage("pickle key corrupt".into()))
+}
+
+#[cfg(target_os = "android")]
+fn load_account_from_map(
+    map: &HashMap<String, String>,
+    key: &[u8; 32],
+) -> Result<Account, E2eeError> {
+    let p = map
+        .get(ACCOUNT_KEY)
+        .ok_or_else(|| E2eeError::Storage("no olm account".into()))?;
+    let pickle =
+        AccountPickle::from_encrypted(p, key).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    Ok(Account::from_pickle(pickle))
+}
+
+#[cfg(target_os = "android")]
+fn load_sessions_from_map(
+    map: &HashMap<String, String>,
+    peer: &str,
+    key: &[u8; 32],
+) -> Result<Vec<Session>, E2eeError> {
+    if let Some(raw) = map.get(&sessions_store_key(peer)) {
+        let pickled: Vec<String> =
+            serde_json::from_str(raw).map_err(|e| E2eeError::Storage(e.to_string()))?;
+        return pickled.iter().map(|p| decode_one_pickle(p, key)).collect();
+    }
+    if let Some(p) = map.get(&session_store_key(peer)) {
+        return Ok(vec![decode_one_pickle(p, key)?]);
+    }
+    Ok(vec![])
+}
+
+#[cfg(target_os = "android")]
+fn persist_sessions_to_map(
+    map: &mut HashMap<String, String>,
+    peer: &str,
+    sessions: &[Session],
+    key: &[u8; 32],
+) -> Result<(), E2eeError> {
+    let pickled: Vec<String> = sessions.iter().map(|s| s.pickle().encrypt(key)).collect();
+    let json = serde_json::to_string(&pickled).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    map.insert(sessions_store_key(peer), json);
+    Ok(())
+}
+
+#[cfg(target_os = "android")]
+fn write_secrets(path: &std::path::Path, map: &HashMap<String, String>) -> Result<(), E2eeError> {
+    let bytes = serde_json::to_vec(map).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    std::fs::write(path, bytes).map_err(|e| E2eeError::Storage(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

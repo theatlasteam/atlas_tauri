@@ -47,12 +47,30 @@ function createMessagesStore() {
     void forgetPlaintext(id);
   };
 
+  type PlaintextListener = (info: {
+    chatId: string;
+    messageId: string;
+    text: string;
+    sentAt: string;
+  }) => void;
+  const plaintextListeners: PlaintextListener[] = [];
+  const onPlaintext = (fn: PlaintextListener) => {
+    plaintextListeners.push(fn);
+  };
+  const emitPlaintext = (chatId: string, messageId: string, text: string, sentAt?: string) => {
+    if (!text || text.startsWith("🔒 ")) return;
+    const row = state[chatId]?.messages.find((m) => m.id === messageId);
+    const at = sentAt ?? row?.sentAt ?? "";
+    for (const fn of plaintextListeners) fn({ chatId, messageId, text, sentAt: at });
+  };
+
   const rememberPlaintext = (messageId: string, text: string, seed?: Message) => {
     if (text && text !== "🔒 Encrypted message" && !text.startsWith("🔒 ")) {
       openedPlaintext.set(messageId, text);
       if (seed?.contentVersion) plaintextVersions.set(messageId, seed.contentVersion);
       void putPlaintext(messageId, seed?.chatId ?? "", text);
       if (seed) void cachePut({ ...seed, text, decrypting: false, decryptFailed: false, sourceText: text });
+      if (seed?.chatId) emitPlaintext(seed.chatId, messageId, text, seed.sentAt);
     }
   };
 
@@ -83,6 +101,7 @@ function createMessagesStore() {
     const already = openedPlaintext.get(messageId);
     if (already && !already.startsWith("🔒 ")) {
       patch(chatId, messageId, { text: already, decrypting: false, decryptFailed: false, sourceText: already });
+      emitPlaintext(chatId, messageId, already);
       return;
     }
     if (
@@ -148,6 +167,7 @@ function createMessagesStore() {
         const hit = openedPlaintext.get(messageId);
         if (hit && !hit.startsWith("🔒 ")) {
           patch(chatId, messageId, { text: hit, decrypting: false, decryptFailed: false, sourceText: hit });
+          emitPlaintext(chatId, messageId, hit);
           return;
         }
         try {
@@ -321,6 +341,7 @@ function createMessagesStore() {
       message.decrypting = false;
       message.decryptFailed = false;
       upsert(dto.chatId, message);
+      emitPlaintext(dto.chatId, dto.id, cached, dto.sentAt);
       return message;
     }
     const already = state[dto.chatId]?.messages.find((m) => m.id === dto.id);
@@ -699,6 +720,7 @@ function createMessagesStore() {
     ingestDto,
     applyReaction,
     toggleReaction,
+    onPlaintext,
   };
 }
 

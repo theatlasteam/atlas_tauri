@@ -51,6 +51,7 @@ function createChatsStore() {
 
   const myId = () => session.user()?.id ?? "";
   const chat = (id: string) => state.chats.find((c) => c.id === id);
+  const pendingNotifies = new Map<string, { title: string; tag: string }>();
 
   const refresh = async () => {
     const me = myId();
@@ -61,6 +62,11 @@ function createChatsStore() {
       folders: folderDtos.map((f) => ({ id: f.id, name: f.name })),
       loaded: true,
     });
+    for (const dto of chatDtos) {
+      const last = dto.lastMessage;
+      if (!last || last.deleted || last.scheme === "plain" || last.scheme === "call-log") continue;
+      messagesStore.ingestDto(last, { peerUserId: dto.peerUserId ?? last.authorId });
+    }
   };
 
   const sortChats = () => {
@@ -75,6 +81,18 @@ function createChatsStore() {
   const patchChat = (chatId: string, changes: Partial<Chat>) => {
     setState("chats", (c) => c.id === chatId, (c) => ({ ...c, ...changes }));
   };
+
+  messagesStore.onPlaintext(({ chatId, messageId, text, sentAt }) => {
+    const target = chat(chatId);
+    if (target && (target.lastMessageAt === sentAt || (target.lastMessage || "").startsWith("🔒"))) {
+      patchChat(chatId, { lastMessage: text });
+    }
+    const pending = pendingNotifies.get(messageId);
+    if (pending) {
+      pendingNotifies.delete(messageId);
+      notifyIncoming({ title: pending.title, body: text, tag: pending.tag });
+    }
+  });
 
   const setActiveChat = (chatId: string | null) => {
     activeChatId = chatId;
@@ -271,11 +289,15 @@ function createChatsStore() {
             void markRead(dto.chatId, dto.id);
           }
           if (countsAsUnread && !target.muted) {
-            notifyIncoming({
-              title: target.name,
-              body: previewText(message),
-              tag: dto.chatId,
-            });
+            if (message.decrypting) {
+              pendingNotifies.set(dto.id, { title: target.name, tag: dto.chatId });
+            } else {
+              notifyIncoming({
+                title: target.name,
+                body: previewText(message),
+                tag: dto.chatId,
+              });
+            }
           }
         } else {
           // Message for a chat we don't know yet (created elsewhere): refetch.

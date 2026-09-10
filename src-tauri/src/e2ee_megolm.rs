@@ -167,3 +167,64 @@ pub fn megolm_decrypt(
     put_in(&app, &k, session)?;
     String::from_utf8(pt.plaintext).map_err(|_| E2eeError::Bad("plaintext not utf-8".into()))
 }
+
+/// Open a megolm-v1 body from `secrets.json` (Android notifications).
+#[cfg(target_os = "android")]
+/// The body is JSON `{ sessionId, ciphertext, shares? }`. Shares that need
+/// a fresh Olm unwrap are skipped here — only an already-imported inbound
+/// session is used, which covers the usual case after the chat has been opened.
+pub fn decrypt_from_dir(
+    dir: &std::path::Path,
+    chat_id: &str,
+    sender_id: &str,
+    body: &str,
+) -> Result<String, E2eeError> {
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Wire {
+        session_id: String,
+        ciphertext: String,
+    }
+    let wire: Wire = serde_json::from_str(body).map_err(|e| E2eeError::Bad(e.to_string()))?;
+    let path = dir.join("secrets.json");
+    let bytes = std::fs::read(&path).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    let mut map: HashMap<String, String> =
+        serde_json::from_slice(&bytes).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    let pickle_b64 = map
+        .get(PICKLE_KEY_KEY)
+        .ok_or_else(|| E2eeError::Storage("no pickle key".into()))?;
+    let key_bytes = B64
+        .decode(pickle_b64)
+        .map_err(|_| E2eeError::Storage("pickle key corrupt".into()))?;
+    let key: [u8; 32] = key_bytes
+        .try_into()
+        .map_err(|_| E2eeError::Storage("pickle key corrupt".into()))?;
+    let store_key = in_key(chat_id, sender_id, &wire.session_id);
+
+    let mut session = {
+        let mut cache = IN.lock().unwrap();
+        let m = cache.get_or_insert_with(HashMap::new);
+        if let Some(s) = m.remove(&store_key) {
+            s
+        } else {
+            drop(cache);
+            let p = map
+                .get(&store_key)
+                .ok_or_else(|| E2eeError::Bad("no megolm session".into()))?;
+            let pickle = InboundGroupSessionPickle::from_encrypted(p, &key)
+                .map_err(|e| E2eeError::Storage(e.to_string()))?;
+            InboundGroupSession::from_pickle(pickle)
+        }
+    };
+    let msg = MegolmMessage::from_base64(&wire.ciphertext)
+        .map_err(|e| E2eeError::Bad(e.to_string()))?;
+    let pt = session.decrypt(&msg).map_err(|_| E2eeError::Decrypt)?;
+    map.insert(store_key.clone(), session.pickle().encrypt(&key));
+    let out = serde_json::to_vec(&map).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    std::fs::write(&path, out).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    IN.lock()
+        .unwrap()
+        .get_or_insert_with(HashMap::new)
+        .insert(store_key, session);
+    String::from_utf8(pt.plaintext).map_err(|_| E2eeError::Bad("plaintext not utf-8".into()))
+}

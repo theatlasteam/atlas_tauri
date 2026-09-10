@@ -294,6 +294,25 @@ function createCallsStore() {
     }
   };
 
+  const autoAnswerId = (): string | null => {
+    if (typeof window === "undefined") return null;
+    const id = (window as unknown as { __atlasAutoAnswerCallId?: string }).__atlasAutoAnswerCallId;
+    return id || null;
+  };
+
+  const maybeAutoAnswer = (callId: string) => {
+    if (autoAnswerId() !== callId) return;
+    (window as unknown as { __atlasAutoAnswerCallId?: string }).__atlasAutoAnswerCallId = undefined;
+    void accept();
+  };
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("atlas-auto-answer", ((ev: Event) => {
+      const id = (ev as CustomEvent<string>).detail;
+      if (pendingOffer?.callId === id) maybeAutoAnswer(id);
+    }) as EventListener);
+  }
+
   const accept = async () => {
     const offer = pendingOffer;
     if (!offer) return;
@@ -403,6 +422,7 @@ function createCallsStore() {
           cameraOff: false,
           hasRemoteStream: false,
         });
+        maybeAutoAnswer(event.call_id);
         break;
       }
       case "call_answer": {

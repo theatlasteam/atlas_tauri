@@ -111,7 +111,7 @@ class FcmService : FirebaseMessagingService() {
 
         notify(
             senderName,
-            preview(messageId, senderId),
+            preview(messageId, senderId, chatId),
             chatId,
             messageId,
             avatar(
@@ -144,7 +144,7 @@ class FcmService : FirebaseMessagingService() {
      * Best-effort message text. Returns null when it can't be resolved, which
      * renders as a notification with no preview rather than no notification.
      */
-    private fun preview(messageId: String, senderId: String?): String? {
+    private fun preview(messageId: String, senderId: String?, chatId: String): String? {
         val base = Secrets.serverUrl(applicationContext) ?: return null
         val auth = Secrets.authToken(applicationContext) ?: return null
 
@@ -152,17 +152,15 @@ class FcmService : FirebaseMessagingService() {
         val scheme = msg.optString("scheme")
         val body = msg.optString("body")
         if (body.isEmpty()) {
-            // An attachment-only message has no body to show.
             return if (msg.isNull("attachment")) null else "Attachment"
         }
         if (scheme in TEXT_SCHEMES) return body
         if (scheme == "call-log") return "Call"
 
-        // Encrypted: needs the sender's identity key, then Rust does the rest.
         val sender = senderId ?: return null
         val dir = Secrets.dir(applicationContext)?.absolutePath ?: return null
-        val peerKey = PushApi.getIdentityKey(base, auth, sender) ?: return null
-        return NativeCrypto.decrypt(dir, peerKey, body)
+        val peerKey = PushApi.getIdentityKey(base, auth, sender).orEmpty()
+        return NativeCrypto.decrypt(dir, scheme, sender, chatId, peerKey, body)
     }
 
     private fun notify(

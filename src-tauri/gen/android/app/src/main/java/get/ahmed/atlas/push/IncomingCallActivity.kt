@@ -9,7 +9,11 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.view.WindowManager
+import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
@@ -76,16 +80,27 @@ class IncomingCallActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.call_subtitle).text =
             if (media == "video") "Incoming video call" else "Incoming voice call"
 
-        // Already circle-cropped by Avatars before being handed over.
         intent.getByteArrayExtra(EXTRA_AVATAR_PNG)?.let { png ->
             BitmapFactory.decodeByteArray(png, 0, png.size)?.let {
                 findViewById<ImageView>(R.id.call_avatar).setImageBitmap(it)
             }
         }
 
-        // Answering is a deliberate drag, not a tap — a pocket tap shouldn't
-        // pick up a call.
-        findViewById<SlideToAnswerView>(R.id.call_slider).onAnswer = { answer() }
+        findViewById<View>(R.id.call_avatar_ring).let { ring ->
+            ObjectAnimator.ofPropertyValuesHolder(
+                ring,
+                PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.08f, 1f),
+                PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.08f, 1f),
+                PropertyValuesHolder.ofFloat(View.ALPHA, 0.45f, 0.9f, 0.45f),
+            ).apply {
+                duration = 1800
+                interpolator = AccelerateDecelerateInterpolator()
+                repeatCount = ObjectAnimator.INFINITE
+                start()
+            }
+        }
+
+        findViewById<ImageButton>(R.id.call_answer).setOnClickListener { answer() }
         findViewById<ImageButton>(R.id.call_decline).setOnClickListener { decline() }
 
         ContextCompat.registerReceiver(
@@ -113,6 +128,7 @@ class IncomingCallActivity : AppCompatActivity() {
             Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra(CallNotifier.EXTRA_CALL_ID, callId)
+                putExtra(CallNotifier.EXTRA_ANSWER, true)
             },
         )
         finish()

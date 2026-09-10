@@ -9,6 +9,9 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
@@ -16,6 +19,7 @@ import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessaging
 import get.ahmed.atlas.push.CallNotifier
 import get.ahmed.atlas.push.FcmService
+import org.json.JSONObject
 
 class MainActivity : TauriActivity() {
   private companion object {
@@ -31,6 +35,7 @@ class MainActivity : TauriActivity() {
     ensureFullScreenIntentAccess()
     syncPushToken()
     clearCallNotification(intent)
+    injectAutoAnswer(intent)
   }
 
   /**
@@ -73,6 +78,40 @@ class MainActivity : TauriActivity() {
   override fun onNewIntent(intent: android.content.Intent) {
     super.onNewIntent(intent)
     clearCallNotification(intent)
+    injectAutoAnswer(intent)
+  }
+
+  /**
+   * Native Answer (full-screen or CallStyle) opens the app *and* tells the
+   * webview to send the SDP answer as soon as the pending offer is replayed.
+   * Without this flag the overlay waits for a second Accept tap.
+   */
+  private fun injectAutoAnswer(intent: Intent?) {
+    val callId = intent?.getStringExtra(CallNotifier.EXTRA_CALL_ID) ?: return
+    if (intent.getBooleanExtra(CallNotifier.EXTRA_ANSWER, false).not()) return
+    val js =
+      "window.__atlasAutoAnswerCallId=${JSONObject.quote(callId)};" +
+        "window.dispatchEvent(new CustomEvent('atlas-auto-answer',{detail:${JSONObject.quote(callId)}}));"
+    fun tryInject(left: Int) {
+      val web = findWebView(window.decorView)
+      if (web != null) {
+        web.evaluateJavascript(js, null)
+        return
+      }
+      if (left <= 0) return
+      window.decorView.postDelayed({ tryInject(left - 1) }, 150)
+    }
+    window.decorView.post { tryInject(40) }
+  }
+
+  private fun findWebView(view: View): WebView? {
+    if (view is WebView) return view
+    if (view is ViewGroup) {
+      for (i in 0 until view.childCount) {
+        findWebView(view.getChildAt(i))?.let { return it }
+      }
+    }
+    return null
   }
 
   /**
