@@ -1,4 +1,4 @@
-import { MessageSurface } from "@atlas/ui";
+import { MessageSurface, type MessageButton, type MessageComments } from "@atlas/ui";
 import { createEffect, createResource, createSignal, For, on, onCleanup, Show } from "solid-js";
 import { api } from "../data/api";
 import Avatar from "./Avatar";
@@ -271,13 +271,17 @@ export default function MessageBubble(props: {
   onReply: (message: Message) => void;
   /** Open the message-actions sheet (reactions, reply, edit, unsend). */
   onActions: (message: Message, anchor: HTMLElement) => void;
+  /** Channel comments. Omit on DMs/groups so the bubble stays as wide as its text. */
+  comments?: MessageComments;
+  /** Bot / channel inline keyboard. */
+  onButton?: (button: { label: string; url?: string; data?: string }) => void;
 }) {
   const isFirst = () => props.isFirstInGroup ?? true;
   const isLast = () => props.isLastInGroup ?? true;
   const m = () => props.message;
   const mine = () => m().mine;
   const myId = () => session.user()?.id ?? "";
-  const isGroupChat = () => props.chat?.kind === "group";
+  const isGroupChat = () => props.chat?.kind === "group" || props.chat?.kind === "broadcast";
 
   /** ✓ sent, ✓✓ seen (DM only — peer's read cursor is a message id; UUIDv7
    * ordering makes string compare correct). */
@@ -296,7 +300,6 @@ export default function MessageBubble(props: {
    * just the reaction row.
    */
   const startPress = () => {
-    if (props.chat?.kind === "broadcast") return;
     pressTimer = setTimeout(() => props.onActions(m(), bubbleRef!), HOLD_MS);
   };
   const cancelPress = () => pressTimer && clearTimeout(pressTimer);
@@ -313,6 +316,20 @@ export default function MessageBubble(props: {
    * what it is allowed to show.
    */
   const sealed = () => !!m().sealed;
+  const keyboard = (): MessageButton[] | undefined => {
+    const list = m().buttons;
+    if (!list?.length) return undefined;
+    return list.map((b) => ({
+      label: b.label,
+      url: b.url || undefined,
+      data: b.data || undefined,
+      icon: b.icon || undefined,
+      row: b.row,
+      onClick: b.data
+        ? () => props.onButton?.({ label: b.label, url: b.url, data: b.data })
+        : undefined,
+    }));
+  };
 
   return (
     <div
@@ -325,7 +342,7 @@ export default function MessageBubble(props: {
     >
       <div class="bubble-in group flex w-full items-end gap-1" classList={{ "justify-end": mine(), "justify-start": !mine() }}>
         {/* Hover affordances (desktop) */}
-        <Show when={mine() && props.chat?.kind !== "broadcast"}>
+        <Show when={mine()}>
           <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
         </Show>
 
@@ -345,9 +362,11 @@ export default function MessageBubble(props: {
           </div>
         </Show>
 
-        <div class="relative w-fit max-w-[75%] shrink-0 sm:max-w-[65%]">
+        <div class="relative w-fit max-w-[75%] sm:max-w-[65%]">
           <MessageSurface
             side={mine() ? "sent" : "received"}
+            comments={props.comments}
+            keyboard={keyboard()}
             ref={bubbleRef}
             onDblClick={() => props.onReply(m())}
             onTouchStart={startPress}
@@ -429,7 +448,7 @@ export default function MessageBubble(props: {
           </Show>
         </div>
 
-        <Show when={!mine() && props.chat?.kind !== "broadcast"}>
+        <Show when={!mine()}>
           <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
         </Show>
       </div>
@@ -515,22 +534,7 @@ function MessageBody(props: { message: Message }) {
           <MarkdownContent text={m().text} class="text-[0.95em] leading-snug" />
         </Show>
       </Show>
-      <Show when={m().buttons && m().buttons!.length > 0}>
-        <div class="mt-2 flex flex-col gap-1.5">
-          <For each={m().buttons}>
-            {(btn) => (
-              <a
-                href={btn.url}
-                target={btn.url.startsWith("/") ? undefined : "_blank"}
-                rel="noopener noreferrer"
-                class="block rounded-full bg-accent px-3 py-1.5 text-center text-xs font-semibold text-accent-ink"
-              >
-                {btn.label}
-              </a>
-            )}
-          </For>
-        </div>
-      </Show>
+
     </>
   );
 }

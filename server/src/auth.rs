@@ -20,7 +20,7 @@ use crate::models::{UserDto, UserRow};
 use crate::state::AppState;
 
 pub const USER_COLUMNS: &str =
-    "id, handle, name, bio, status, avatar_color, avatar_initial, avatar_attachment_id, last_seen_at, verified, read_receipts, last_seen_visible";
+    "id, handle, name, bio, status, avatar_color, avatar_initial, avatar_attachment_id, last_seen_at, verified, read_receipts, last_seen_visible, is_bot";
 
 // ---------- password hashing ----------
 //
@@ -252,11 +252,24 @@ pub async fn register(
     }
 
     let password_hash = hash_password(payload.password).await?;
-    let initial = name.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default();
+    const AVATAR_FROM: [&str; 10] = [
+        "#66A1FF", "#7C6CFF", "#3D8BFF", "#5B6CFF", "#00B7FF",
+        "#4F46E5", "#6366F1", "#0EA5E9", "#818CF8", "#2DD4BF",
+    ];
+    const AVATAR_SMILEYS: [&str; 32] = [
+        "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂",
+        "🙂", "😉", "😊", "😇", "🥰", "😍", "🤩", "😘",
+        "😋", "😜", "🤪", "🤗", "🤭", "🤫", "🤔", "😎",
+        "🥳", "😏", "😌", "😴", "🤠", "🤡", "👻", "🤖",
+    ];
+    let mut n = [0u8; 2];
+    rand::rngs::OsRng.fill_bytes(&mut n);
+    let avatar_color = AVATAR_FROM[(n[0] as usize) % AVATAR_FROM.len()];
+    let initial = AVATAR_SMILEYS[(n[1] as usize) % AVATAR_SMILEYS.len()];
 
     let user: UserRow = sqlx::query_as(&format!(
-        "INSERT INTO users (id, handle, name, password_hash, avatar_initial)
-         VALUES ($1, $2, $3, $4, $5)
+        "INSERT INTO users (id, handle, name, password_hash, avatar_initial, avatar_color)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (handle) DO NOTHING
          RETURNING {USER_COLUMNS}"
     ))
@@ -265,6 +278,7 @@ pub async fn register(
     .bind(name)
     .bind(&password_hash)
     .bind(&initial)
+    .bind(avatar_color)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::Conflict("handle already taken".into()))?;

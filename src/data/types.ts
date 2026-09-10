@@ -21,6 +21,7 @@ export interface User {
   /** Privacy switches, enforced server-side (see Privacy settings). */
   readReceipts: boolean;
   lastSeenVisible: boolean;
+  isBot?: boolean;
 }
 
 /** Parsed body of a "call-log" message. */
@@ -74,8 +75,8 @@ export interface Message {
   pending?: boolean;
   failed?: boolean;
   clientTag?: string;
-  /** Official announcement actions (https or in-app path). */
-  buttons?: { label: string; url: string }[];
+  /** Official / bot actions. `url` opens a link; `data` is sent back as a message. */
+  buttons?: { label: string; url: string; data?: string; icon?: string; row?: number }[];
 }
 
 export interface Chat {
@@ -104,6 +105,8 @@ export interface Chat {
   blockedByMe?: boolean;
   /** DM only: has the peer blocked me. */
   blockedMe?: boolean;
+  /** DM only: peer is a bot — messages stay plaintext. */
+  peerIsBot?: boolean;
 }
 
 export interface Folder {

@@ -37,6 +37,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Bialog,
   Dialog,
   EmptyState,
   IconButton,
@@ -89,6 +90,7 @@ const SECTIONS = [
   { id: "progress", label: "Progress", icon: <ChartBar size={18} /> },
   { id: "limitbar", label: "Limit bar", icon: <BoundingBox size={18} /> },
   { id: "dialog", label: "Dialog", icon: <ChatsCircle size={18} /> },
+  { id: "bialog", label: "Bialog", icon: <Trash size={18} /> },
   { id: "toast", label: "Toast", icon: <Tray size={18} /> },
   { id: "empty", label: "Empty state", icon: <Tray size={18} /> },
   { id: "navigation", label: "Navigation", icon: <Compass size={18} /> },
@@ -225,6 +227,8 @@ export default function DesignSystem(props: { onOpenApp?: () => void } = {}) {
           <NavbarLinks>
             <NavbarLink href="/">Home</NavbarLink>
             <NavbarLink href="/plugins">Plugins</NavbarLink>
+            <NavbarLink href="/bots">Bots</NavbarLink>
+            <NavbarLink href="/docs">Docs</NavbarLink>
             <NavbarLink href="/design">Design</NavbarLink>
           </NavbarLinks>
           <NavbarActions>
@@ -427,6 +431,37 @@ export default function DesignSystem(props: { onOpenApp?: () => void } = {}) {
           </Dialog>
         </Section>
 
+        <Section
+          id="bialog"
+          title="Bialog"
+          lead="A button that becomes the dialog — it grows from the click instead of popping up in the middle of the screen."
+        >
+          <Card>
+            <div class="flex flex-wrap items-center gap-3">
+              <Bialog
+                variant="danger"
+                label={
+                  <>
+                    <Trash size={16} />
+                    Delete account
+                  </>
+                }
+                title="Delete your account?"
+                description="This permanently removes your profile, chats, and keys from Atlas. You cannot undo this."
+                cancelLabel="Keep account"
+              >
+                <p class="text-ink-muted">Sessions on other devices will be signed out. Shared groups stay; you just leave them.</p>
+              </Bialog>
+              <Bialog
+                variant="soft"
+                label="Export data"
+                title="Export your data?"
+                description="We’ll pack your chats into an archive. It can take a minute."
+              />
+            </div>
+          </Card>
+        </Section>
+
         <Section id="toast" title="Toast">
           <Card>
             <Button variant="ghost" onClick={showToast}>
@@ -558,6 +593,24 @@ export default function DesignSystem(props: { onOpenApp?: () => void } = {}) {
               </MessageBubble>
               <MessageBubble side="sent" time="14:04" status="sent">
                 On my way.
+              </MessageBubble>
+              <MessageBubble side="received" name="Atlas" time="14:05" comments={{ count: 0 }}>
+                Channel post — comments on.
+              </MessageBubble>
+              <MessageBubble side="received" name="Atlas" time="14:06" comments={{ count: 12 }}>
+                Twelve people replied.
+              </MessageBubble>
+              <MessageBubble
+                side="received"
+                name="Weather Bot"
+                time="14:07"
+                keyboard={[
+                  { label: "Weather", data: "/weather", icon: "☀️" },
+                  { label: "Help", data: "/help", icon: "❓" },
+                  { label: "Atlas", url: "https://atlasmsg.app", icon: "✨", row: 1 },
+                ]}
+              >
+                Welcome! Pick something.
               </MessageBubble>
             </div>
           </Card>

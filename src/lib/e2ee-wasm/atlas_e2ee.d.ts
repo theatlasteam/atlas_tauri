@@ -23,6 +23,12 @@ export function e2ee_public_key(): string;
 
 export function e2ee_seal(peer_public_key: string, plaintext: string): string;
 
+export function megolm_decrypt(chat_id: string, sender_id: string, session_id: string, ciphertext: string): string;
+
+export function megolm_encrypt(chat_id: string, plaintext: string): string;
+
+export function megolm_import_key(chat_id: string, sender_id: string, session_id: string, session_key: string): void;
+
 export function start(): void;
 
 export function store_dump(): string;
@@ -44,6 +50,9 @@ export interface InitOutput {
     readonly e2ee_open: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly e2ee_public_key: () => [number, number, number, number];
     readonly e2ee_seal: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly megolm_decrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
+    readonly megolm_encrypt: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly megolm_import_key: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number];
     readonly store_dump: () => [number, number];
     readonly store_hydrate: (a: number, b: number) => void;
     readonly start: () => void;

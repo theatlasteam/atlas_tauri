@@ -15,6 +15,7 @@ import Verification from "./screens/settings/Verification";
 import NewChat from "./screens/NewChat";
 import CompassList from "./screens/CompassList";
 import CompassChat from "./screens/CompassChat";
+import SpaceView from "./screens/SpaceView";
 import Shell from "./components/Shell";
 import TitleBar from "./components/TitleBar";
 import SecurityGate from "./components/SecurityGate";
@@ -53,6 +54,7 @@ function App() {
             <Router root={Shell} base={routerBase}>
               <Route path="/" component={ChatLayout} />
               <Route path="/chat/:id" component={ChatLayout} />
+              <Route path="/chat/:id/comments/:postId" component={ChatLayout} />
               <Route path="/settings" component={SettingsHome} />
               <Route path="/settings/appearance" component={Appearance} />
               <Route path="/settings/notifications" component={Notifications} />
@@ -68,6 +70,7 @@ function App() {
               <Route path="/new-chat" component={NewChat} />
               <Route path="/compass" component={CompassList} />
               <Route path="/compass/:id" component={CompassChat} />
+              <Route path="/spaces/:id" component={SpaceView} />
               <Route path="*" component={ChatLayout} />
             </Router>
           </Match>

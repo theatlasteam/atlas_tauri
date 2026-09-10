@@ -1,6 +1,6 @@
 import { Avatar as UiAvatar } from "@atlas/ui";
 import { createResource } from "solid-js";
-import { avatarUrl } from "../data/avatarCache";
+import { avatarEpoch, avatarUrl } from "../data/avatarCache";
 import atlasLogo from "../../src-tauri/icons/ios/AppIcon-512@2x.png";
 
 export default function Avatar(props: {
@@ -16,10 +16,18 @@ export default function Avatar(props: {
 }) {
   const size = () => props.size ?? 48;
   const [photo] = createResource(
-    () => (props.hasPhoto && props.userId ? props.userId : undefined),
-    avatarUrl,
+    () => {
+      const gen = avatarEpoch();
+      if (!props.hasPhoto || !props.userId) return undefined;
+      return { id: props.userId, gen };
+    },
+    ({ id }) => avatarUrl(id),
   );
-  const src = () => (props.atlasLogo ? atlasLogo : photo());
+  const src = () => {
+    if (props.atlasLogo) return atlasLogo;
+    if (!props.hasPhoto) return undefined;
+    return photo();
+  };
 
   return (
     <div class="relative shrink-0" style={{ width: `${size()}px`, height: `${size()}px` }}>

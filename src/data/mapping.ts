@@ -26,6 +26,7 @@ export function toUser(dto: UserDto): User {
     verified: dto.verified,
     readReceipts: dto.readReceipts,
     lastSeenVisible: dto.lastSeenVisible,
+    isBot: dto.isBot,
   };
 }
 
@@ -154,5 +155,6 @@ export function toChat(dto: ChatDto, myUserId: string): Chat {
     peerLastSeenAt: dto.peerLastSeenAt ?? undefined,
     blockedByMe: dto.blockedByMe,
     blockedMe: dto.blockedMe,
+    peerIsBot: dto.peerIsBot,
   };
 }

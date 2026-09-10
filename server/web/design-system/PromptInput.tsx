@@ -7,7 +7,8 @@ export type PromptModel = { id: string; label: string; hint?: string; icon?: JSX
 
 function ChipButton(props: { ariaLabel: string; children: JSX.Element; class?: string }) {
   return (
-    <span
+    <button
+      type="button"
       class={cx(
         "inline-flex h-8 items-center gap-1.5 rounded-full px-2 text-xs font-medium text-ink-muted transition hover:bg-bg hover:text-ink",
         props.class,
@@ -15,7 +16,7 @@ function ChipButton(props: { ariaLabel: string; children: JSX.Element; class?: s
       aria-label={props.ariaLabel}
     >
       {props.children}
-    </span>
+    </button>
   );
 }
 

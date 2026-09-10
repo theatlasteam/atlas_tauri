@@ -5,6 +5,7 @@ use wasm_bindgen::prelude::*;
 
 mod e2ee;
 mod e2ee2;
+mod e2ee_megolm;
 mod store;
 
 #[wasm_bindgen(start)]
@@ -89,4 +90,30 @@ pub fn e2ee2_fingerprint(bundle_json: String) -> Result<String, JsError> {
     let bundle: e2ee2::PublicBundle =
         serde_json::from_str(&bundle_json).map_err(|e| JsError::new(&e.to_string()))?;
     e2ee2::e2ee2_fingerprint(bundle).map_err(err)
+}
+
+#[wasm_bindgen]
+pub fn megolm_encrypt(chat_id: String, plaintext: String) -> Result<String, JsError> {
+    let s = e2ee_megolm::megolm_encrypt(chat_id, plaintext).map_err(err)?;
+    serde_json::to_string(&s).map_err(|e| JsError::new(&e.to_string()))
+}
+
+#[wasm_bindgen]
+pub fn megolm_import_key(
+    chat_id: String,
+    sender_id: String,
+    session_id: String,
+    session_key: String,
+) -> Result<(), JsError> {
+    e2ee_megolm::megolm_import_key(chat_id, sender_id, session_id, session_key).map_err(err)
+}
+
+#[wasm_bindgen]
+pub fn megolm_decrypt(
+    chat_id: String,
+    sender_id: String,
+    session_id: String,
+    ciphertext: String,
+) -> Result<String, JsError> {
+    e2ee_megolm::megolm_decrypt(chat_id, sender_id, session_id, ciphertext).map_err(err)
 }

@@ -16,6 +16,16 @@ export { default as Slider } from "./Slider";
 export { default as Card } from "./Card";
 export { default as Divider } from "./Divider";
 export { default as Avatar } from "./Avatar";
+export {
+  AVATAR_GRADIENTS,
+  avatarGradientCss,
+  resolveAvatarGradient,
+  DEFAULT_AVATAR_SMILEYS,
+  defaultAvatarSmiley,
+  isEmojiGlyph,
+} from "./avatarGradient";
+export { default as Twemoji } from "./Twemoji";
+export { twemojiUrl, nativeToTwemojiId, toTwemojiId } from "./twemoji";
 export { default as Tabs, TabPanel } from "./Tabs";
 export type { TabItem } from "./Tabs";
 export {
@@ -31,6 +41,7 @@ export type { SidebarItem, SidebarGroup } from "./Sidebar";
 export { default as BottomNav } from "./BottomNav";
 export type { BottomNavItem } from "./BottomNav";
 export { default as Dialog } from "./Dialog";
+export { default as Bialog } from "./Bialog";
 export { default as Alert } from "./Alert";
 export type { AlertTone } from "./Alert";
 export { default as Banner } from "./Banner";
@@ -53,7 +64,7 @@ export { default as PromptInput } from "./PromptInput";
 export type { PromptModel } from "./PromptInput";
 export { default as ThinkingStatus } from "./ThinkingStatus";
 export { default as MessageBubble, MessageSurface } from "./MessageBubble";
-export type { MessageBubbleSide, MessageStatus } from "./MessageBubble";
+export type { MessageBubbleSide, MessageStatus, MessageComments, MessageButton } from "./MessageBubble";
 export { default as Composer } from "./Composer";
 export { default as AiMessage } from "./AiMessage";
 export { default as Conversation } from "./Conversation";

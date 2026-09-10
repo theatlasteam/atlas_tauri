@@ -1,4 +1,5 @@
 pub mod attachments;
+pub mod bots;
 pub mod calls;
 pub mod chats;
 pub mod devices;
@@ -7,6 +8,7 @@ pub mod keys;
 pub mod messages;
 pub mod metrics;
 pub mod plugins;
+pub mod spaces;
 pub mod turn;
 pub mod users;
 pub mod waitlist;

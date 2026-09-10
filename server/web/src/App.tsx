@@ -130,6 +130,9 @@ export default function App() {
               <NavbarLink href="/plugins" class="text-[#f2ede2]/70 hover:text-[#f2ede2]">
                 {t("nav.plugins")}
               </NavbarLink>
+              <NavbarLink href="/bots" class="text-[#f2ede2]/70 hover:text-[#f2ede2]">
+                {t("nav.bots")}
+              </NavbarLink>
               <NavbarLink href="/design" class="text-[#f2ede2]/70 hover:text-[#f2ede2]">
                 Design
               </NavbarLink>
@@ -444,7 +447,9 @@ export default function App() {
                   <GithubLogo size={14} weight="bold" /> {t("nav.github")}
                 </a>
               </li>
-              <li><a href="/plugindocs.md" class="transition hover:text-ink">{t("footer.docs")}</a></li>
+              <li><a href="/plugins" class="transition hover:text-ink">{t("nav.plugins")}</a></li>
+              <li><a href="/bots" class="transition hover:text-ink">{t("nav.bots")}</a></li>
+              <li><a href="/docs" class="transition hover:text-ink">{t("footer.docs")}</a></li>
               <li><a href="/mcp" class="transition hover:text-ink">{t("footer.mcp")}</a></li>
             </ul>
           </div>

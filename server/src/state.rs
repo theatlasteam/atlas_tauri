@@ -44,7 +44,8 @@ impl AppState {
         let push = Arc::new(Push::new(cfg.fcm_service_account.clone()));
         let (waitlist_tx, _) = broadcast::channel(64);
         let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(15))
+            .timeout(std::time::Duration::from_secs(600))
             .build()
             .expect("reqwest client");
         Self {

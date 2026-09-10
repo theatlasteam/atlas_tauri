@@ -1,29 +1,19 @@
-import { TextField, TextArea } from "@atlas/ui";
+import { TextField, TextArea, AVATAR_GRADIENTS, avatarGradientCss, Menu, Dialog } from "@atlas/ui";
 import { createSignal, For, Show } from "solid-js";
 import { api } from "../data/api";
 import { session } from "../store/session";
 import Avatar from "../components/Avatar";
+import EmojiPicker from "../components/EmojiPicker";
 import VerifiedBadge from "../components/VerifiedBadge";
 import { Skeleton } from "../components/Skeleton";
-import { CameraIcon, CheckIcon, EditIcon, SignOutIcon, SpinnerIcon, TrashIcon } from "../icons";
+import { CheckIcon, EditIcon, ImageIcon, PaletteIcon, SignOutIcon, SmileyIcon, SpinnerIcon, TrashIcon } from "../icons";
 import type { User } from "../data/types";
-import { t, type TranslationKey } from "../lib/i18n";
+import { t } from "../lib/i18n";
 
-/** Fallback-avatar swatches — same hex values as the accent palette, kept
- * independent since your avatar color and your app theme are different
- * choices (e.g. you might use a red theme but a blue avatar). */
-const AVATAR_COLORS: { hex: string; nameKey: TranslationKey }[] = [
-  { hex: "#c9772e", nameKey: "profile.color.amber" },
-  { hex: "#2f8f6e", nameKey: "profile.color.emerald" },
-  { hex: "#7b5ec9", nameKey: "profile.color.violet" },
-  { hex: "#c9436f", nameKey: "profile.color.rose" },
-  { hex: "#4a6b7c", nameKey: "profile.color.slate" },
-  { hex: "#2f6fc9", nameKey: "profile.color.blue" },
-  { hex: "#1f8f8a", nameKey: "profile.color.teal" },
-  { hex: "#d9603f", nameKey: "profile.color.terracotta" },
-  { hex: "#4550b8", nameKey: "profile.color.indigo" },
-  { hex: "#9c4fa0", nameKey: "profile.color.plum" },
-];
+const AVATAR_COLORS = AVATAR_GRADIENTS.map((g, i) => ({
+  hex: g.from,
+  label: String(i + 1),
+}));
 
 export default function Profile() {
   const user = session.user;
@@ -37,6 +27,8 @@ export default function Profile() {
   });
   const [uploadingPhoto, setUploadingPhoto] = createSignal(false);
   const [photoError, setPhotoError] = createSignal<string | null>(null);
+  const [emojiOpen, setEmojiOpen] = createSignal(false);
+  const [bgOpen, setBgOpen] = createSignal(false);
   let fileInput: HTMLInputElement | undefined;
 
   const startEditing = () => {
@@ -89,6 +81,21 @@ export default function Profile() {
     setUploadingPhoto(true);
     try {
       await session.removeAvatar();
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const applyEmoji = async (glyph: string) => {
+    if (!glyph) return;
+    setPhotoError(null);
+    setUploadingPhoto(true);
+    try {
+      if (user()?.hasAvatar) await session.removeAvatar();
+      await session.updateProfile({ avatarInitial: glyph });
+      setEmojiOpen(false);
+    } catch {
+      setPhotoError(t("profile.uploadError"));
     } finally {
       setUploadingPhoto(false);
     }
@@ -156,29 +163,62 @@ export default function Profile() {
     >
     {(u) => (
       <div class="flex flex-col items-center gap-3 px-5 pt-2">
-      {/* Avatar + halo */}
+      {/* Avatar + halo — tap for emoji / photo */}
       <div class="relative mt-2">
       <div
       class="absolute inset-0 -z-10 rounded-full opacity-25 blur-xl"
-      style={{ "background-color": editing() ? draft().avatarColor : u().avatarColor }}
+      style={{ background: avatarGradientCss(editing() ? draft().avatarColor : u().avatarColor, u().avatarInitial) }}
       />
-      <Avatar color={u().avatarColor} initial={u().avatarInitial} size={92} userId={u().id} hasPhoto={u().hasAvatar} />
+      <Menu
+        trigger={
+          <button
+            type="button"
+            disabled={uploadingPhoto()}
+            aria-label={t("profile.changePhotoAria")}
+            class="rounded-full outline-none ring-offset-2 ring-offset-bg transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent active:scale-95 disabled:opacity-60"
+          >
+            <Avatar color={editing() ? draft().avatarColor : u().avatarColor} initial={u().avatarInitial} size={92} userId={u().id} hasPhoto={u().hasAvatar} />
+          </button>
+        }
+        items={[
+          {
+            id: "emoji",
+            label: t("profile.avatarEmoji"),
+            icon: <SmileyIcon size={16} />,
+            onSelect: () => setEmojiOpen(true),
+          },
+          {
+            id: "bg",
+            label: t("profile.avatarBg"),
+            icon: <PaletteIcon size={16} />,
+            onSelect: () => setBgOpen(true),
+          },
+          {
+            id: "photo",
+            label: t("profile.avatarImage"),
+            icon: <ImageIcon size={16} />,
+            onSelect: pickPhoto,
+          },
+          ...(u().hasAvatar
+            ? [
+                {
+                  id: "remove",
+                  label: t("profile.removePhoto"),
+                  icon: <TrashIcon size={16} />,
+                  danger: true,
+                  onSelect: () => void removePhoto(),
+                },
+              ]
+            : []),
+        ]}
+      />
 
       <Show when={uploadingPhoto()}>
-      <div class="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
+      <div class="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
       <SpinnerIcon size={22} class="animate-spin text-white" />
       </div>
       </Show>
 
-      <button
-      type="button"
-      onClick={pickPhoto}
-      disabled={uploadingPhoto()}
-      aria-label={t("profile.changePhotoAria")}
-      class="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-bg bg-accent text-accent-ink shadow-sm active:scale-90 disabled:opacity-60"
-      >
-      <CameraIcon size={15} />
-      </button>
       <input
       ref={fileInput}
       type="file"
@@ -191,17 +231,46 @@ export default function Profile() {
       />
       </div>
 
-      <Show when={u().hasAvatar}>
-      <button
-      type="button"
-      onClick={() => void removePhoto()}
-      disabled={uploadingPhoto()}
-      class="-mt-1 flex items-center gap-1 text-xs font-medium text-danger/80 active:opacity-60 disabled:opacity-40"
+      <Dialog
+        open={emojiOpen()}
+        onOpenChange={setEmojiOpen}
+        title={t("profile.emojiTitle")}
+        description={t("profile.emojiHint")}
       >
-      <TrashIcon size={12} />
-      {t("profile.removePhoto")}
-      </button>
-      </Show>
+        <EmojiPicker onPick={(e) => void applyEmoji(e)} />
+      </Dialog>
+
+      <Dialog
+        open={bgOpen()}
+        onOpenChange={setBgOpen}
+        title={t("profile.avatarBg")}
+        description={t("profile.avatarColorDesc")}
+      >
+        <div class="flex flex-wrap gap-3">
+          <For each={AVATAR_COLORS}>
+            {(color) => {
+              const active = () => u().avatarColor === color.hex;
+              return (
+                <button
+                  type="button"
+                  aria-label={`${t("profile.avatarBg")} ${color.label}`}
+                  class="relative flex h-12 w-12 items-center justify-center rounded-full active:scale-90"
+                  style={{ background: avatarGradientCss(color.hex) }}
+                  onClick={() => {
+                    void session.updateProfile({ avatarColor: color.hex });
+                    setBgOpen(false);
+                  }}
+                >
+                  <Show when={active()}>
+                    <span class="absolute inset-0 rounded-full ring-2 ring-ink ring-offset-2 ring-offset-surface-raised" />
+                    <CheckIcon size={16} class="text-white drop-shadow" />
+                  </Show>
+                </button>
+              );
+            }}
+          </For>
+        </div>
+      </Dialog>
 
       <Show when={photoError()}>
       <p class="rounded-lg bg-danger/10 px-3 py-1.5 text-xs text-danger">{photoError()}</p>
@@ -215,32 +284,6 @@ export default function Profile() {
           <TextField label={t("profile.name")} value={draft().name} onInput={(e) => setDraft((d) => ({ ...d, name: e.currentTarget.value }))} placeholder={t("profile.namePlaceholder")} />
           <TextField label={t("profile.status")} value={draft().status} onInput={(e) => setDraft((d) => ({ ...d, status: e.currentTarget.value }))} placeholder={t("profile.statusPlaceholder")} />
           <TextArea label={t("profile.bio")} rows={3} value={draft().bio} onInput={(e) => setDraft((d) => ({ ...d, bio: e.currentTarget.value }))} placeholder={t("profile.bioPlaceholder")} />
-        </div>
-
-        <div class="rounded-2xl border border-border bg-surface p-4">
-        <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("profile.avatarColor")}</h3>
-        <p class="mt-0.5 text-xs text-ink-subtle">{t("profile.avatarColorDesc")}</p>
-        <div class="flex flex-wrap gap-3 pt-3">
-        <For each={AVATAR_COLORS}>
-        {(color) => {
-          const active = () => draft().avatarColor === color.hex;
-          return (
-            <button
-            type="button"
-            aria-label={t(color.nameKey)}
-            onClick={() => setDraft((d) => ({ ...d, avatarColor: color.hex }))}
-            class="relative flex h-9 w-9 items-center justify-center rounded-full active:scale-90"
-            style={{ "background-color": color.hex }}
-            >
-            <Show when={active()}>
-            <span class="absolute inset-0 rounded-full ring-2 ring-ink ring-offset-2 ring-offset-surface" />
-            <CheckIcon size={15} class="text-white drop-shadow" />
-            </Show>
-            </button>
-          );
-        }}
-        </For>
-        </div>
         </div>
         </form>
       }

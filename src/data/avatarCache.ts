@@ -2,9 +2,16 @@
 // Avatar instance so scrolling a chat list doesn't refetch the same photo,
 // and invalidated explicitly when the current user changes their own photo.
 
+import { createSignal } from "solid-js";
 import { api } from "./api";
 
 const cache = new Map<string, Promise<string>>();
+const [epoch, setEpoch] = createSignal(0);
+
+/** Subscribe in resources so a photo upload/removal remounts the fetch. */
+export function avatarEpoch() {
+  return epoch();
+}
 
 export function avatarUrl(userId: string): Promise<string> {
   let cached = cache.get(userId);
@@ -20,6 +27,7 @@ export function avatarUrl(userId: string): Promise<string> {
 export function invalidateAvatar(userId: string) {
   cache.get(userId)?.then((url) => URL.revokeObjectURL(url)).catch(() => {});
   cache.delete(userId);
+  setEpoch((n) => n + 1);
 }
 
 /** Drop every cached avatar (dev tool: force a full refetch). */

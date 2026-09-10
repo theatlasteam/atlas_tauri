@@ -9,6 +9,7 @@ import { createRoot } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { api } from "../data/api";
 import { loadCompassModel, type CompassModelId } from "../lib/compassModels";
+import { parseSpaceFences } from "../lib/spaceMarkup";
 
 export interface CompassTurn {
   role: "user" | "assistant";
@@ -19,6 +20,8 @@ export interface CompassTurn {
   failed?: boolean;
   /** Set on the assistant turn while its reply is still streaming in. */
   streaming?: boolean;
+  /** Spaces Compass emitted in this turn (HTML lives on the server). */
+  spaces?: { id: string; title: string }[];
 }
 
 export interface CompassThread {
@@ -144,6 +147,23 @@ function createCompassChatStore() {
       const at = currentThreadIndex();
       if (at === -1) return;
       setThreads(at, "turns", replyIndex, "streaming", false);
+      const raw = threads[at].turns[replyIndex]?.content ?? "";
+      const parsed = parseSpaceFences(raw);
+      if (parsed.spaces.length) {
+        const created: { id: string; title: string }[] = [];
+        for (const space of parsed.spaces) {
+          try {
+            const saved = await api.createSpace({ title: space.title, html: space.html });
+            created.push({ id: saved.id, title: saved.title });
+          } catch {
+            /* keep going — the fence still renders as markdown if upload fails */
+          }
+        }
+        if (created.length) {
+          setThreads(at, "turns", replyIndex, "content", parsed.prose || raw);
+          setThreads(at, "turns", replyIndex, "spaces", created);
+        }
+      }
       setThreads(at, "updatedAt", new Date().toISOString());
     } catch (e) {
       const at = currentThreadIndex();

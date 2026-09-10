@@ -30,7 +30,7 @@ pub async fn update_me(
         || too_long(&patch.bio, 500)
         || too_long(&patch.status, 120)
         || too_long(&patch.avatar_color, 32)
-        || too_long(&patch.avatar_initial, 8)
+        || too_long(&patch.avatar_initial, 64)
     {
         return Err(AppError::BadRequest("field too long".into()));
     }

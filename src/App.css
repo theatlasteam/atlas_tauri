@@ -39,6 +39,7 @@
 
   --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-heading: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-avatar: "Nunito", ui-rounded, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --font-size-base: 16px;
 }
@@ -444,14 +445,21 @@ main {
 
 /* Compass replies: minimal markdown styling, no typography plugin needed
    for a handful of block types. Sized relative to the bubble's own text. */
+.markdown-body {
+  display: inline;
+}
+.markdown-body p {
+  display: inline;
+  margin: 0;
+}
+.markdown-body p + p {
+  margin-top: 0.5em;
+}
 .markdown-body > :first-child {
   margin-top: 0;
 }
 .markdown-body > :last-child {
   margin-bottom: 0;
-}
-.markdown-body p {
-  margin: 0.5em 0;
 }
 .markdown-body ul,
 .markdown-body ol {
@@ -487,6 +495,13 @@ main {
   color: var(--color-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+.markdown-body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.35em 0;
+  border-radius: 12px;
 }
 .markdown-body strong {
   font-weight: 700;

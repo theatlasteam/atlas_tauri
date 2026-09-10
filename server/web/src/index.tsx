@@ -3,7 +3,9 @@ import "./index.css";
 import App from "./App";
 import PrivacyPolicy from "./components/PrivacyPolicy";
 import PluginEditor from "./screens/PluginEditor";
+import BotEditor from "./screens/BotEditor";
 import DesignSystem from "./screens/DesignSystem";
+import Docs from "./screens/Docs";
 import { initAnalytics } from "./lib/analytics";
 
 initAnalytics();
@@ -30,6 +32,8 @@ function Root() {
   }
   if (path === "/privacy") return <PrivacyPolicy />;
   if (path === "/plugins" || path.startsWith("/plugins/")) return <PluginEditor />;
+  if (path === "/bots" || path.startsWith("/bots/")) return <BotEditor />;
+  if (path === "/docs" || path.startsWith("/docs/")) return <Docs />;
   if (path === "/design" || path.startsWith("/design/")) return <DesignSystem />;
   return <App />;
 }

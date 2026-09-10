@@ -106,6 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // chats & messages
         .route("/api/chats", get(routes::chats::list_chats).post(routes::chats::create_chat))
         .route("/api/chats/{id}", get(routes::chats::get_chat))
+        .route("/api/chats/{id}/members", get(routes::chats::list_members))
         .route("/api/chats/{id}/mute", post(routes::chats::set_muted))
         .route(
             "/api/chats/{id}/messages",
@@ -116,6 +117,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/compass/complete", post(compass::complete_route))
         .route("/api/compass/complete/stream", post(compass::complete_stream_route))
         .route("/api/compass/info", get(compass::info_route))
+        .route("/api/bots", get(routes::bots::list_mine).post(routes::bots::create))
+        .route(
+            "/api/bots/{id}",
+            patch(routes::bots::update).delete(routes::bots::delete),
+        )
+        .route("/api/bots/{id}/token", post(routes::bots::rotate_token))
+        .route("/api/bot/messages", post(routes::bots::bot_send))
+        .route("/api/spaces", post(routes::spaces::create))
+        .route("/api/spaces/{id}", get(routes::spaces::get))
+        .route("/api/spaces/{id}/public", get(routes::spaces::get_public))
+        .route("/s/{id}", get(routes::spaces::share_page))
         // Custom API surface for the Inference Gateway — reachable at
         // ai.atlasmsg.app once that hostname is pointed at this server.
         .route("/v1/{*path}", any(ai_proxy::proxy))

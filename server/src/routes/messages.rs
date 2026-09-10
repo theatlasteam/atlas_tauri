@@ -16,7 +16,7 @@ use crate::state::AppState;
 use crate::ws::chat_member_ids;
 use crate::ws::protocol::ServerEvent;
 
-const MAX_BODY_BYTES: usize = 64 * 1024;
+const MAX_BODY_BYTES: usize = 256 * 1024;
 /// How far ahead a time capsule may be scheduled. A year is generous for the
 /// intended uses (birthdays, anniversaries, "read this when you land") and
 /// still bounds how long the server is on the hook for storing a body nobody
@@ -226,11 +226,8 @@ pub async fn persist_and_fanout(
         .fetch_optional(&state.db)
         .await?
         .ok_or(AppError::NotFound)?;
-    if chat_kind == "broadcast" && author_id != state.official_user_id {
-        return Err(AppError::Forbidden);
-    }
-    if new.reply_to_id.is_some() && chat_kind == "broadcast" {
-        return Err(AppError::BadRequest("can't reply to an announcement".into()));
+    if chat_kind == "broadcast" && author_id != state.official_user_id && new.reply_to_id.is_none() {
+        return Err(AppError::BadRequest("reply to an announcement to comment".into()));
     }
 
     require_membership(state, chat_id, author_id).await?;
@@ -322,6 +319,9 @@ pub async fn persist_and_fanout(
         // Compass's own reply re-triggering itself.
         if new.mentions_compass && new.scheme == "plain" && author_id != state.compass_user_id {
             crate::compass::respond_in_group(state.clone(), chat_id, state.compass_user_id);
+        }
+        if new.scheme == "plain" {
+            crate::routes::bots::maybe_dispatch(state.clone(), author_id, chat_id, new.body.to_string());
         }
     }
     Ok(dto)

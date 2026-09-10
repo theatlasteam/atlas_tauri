@@ -21,8 +21,12 @@ import {
   e2ee2NewPrekeys,
   e2ee2StartSession,
   e2eeAvailable,
+  megolmDecrypt,
+  megolmEncrypt,
+  megolmImportKey,
   type PrekeyBundle,
 } from "../lib/tauri";
+
 
 const PREKEY_BATCH = 50;
 const PREKEY_LOW_WATER = 10;
@@ -112,7 +116,86 @@ function createE2eeStore() {
   const hasSession = (peer: string): Promise<boolean> =>
     e2eeAvailable ? e2ee2HasSession(peer) : Promise.resolve(false);
 
-  return { publishIdentity, replenishKeys, ensureSession, seal, open, enabledFor, hasSession };
+  const sharedKey = (chatId: string, sessionId: string) => `atlas.megolm.shared.${chatId}.${sessionId}`;
+
+  function loadShared(chatId: string, sessionId: string): Set<string> {
+    try {
+      const raw = localStorage.getItem(sharedKey(chatId, sessionId));
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      return new Set();
+    }
+  }
+  function saveShared(chatId: string, sessionId: string, ids: Set<string>) {
+    try {
+      localStorage.setItem(sharedKey(chatId, sessionId), JSON.stringify([...ids]));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** Encrypt a group message: Megolm ciphertext + Olm-wrapped session keys. */
+  const sealGroup = async (
+    chatId: string,
+    memberIds: string[],
+    plaintext: string,
+    me: string,
+  ): Promise<string> => {
+    if (!e2eeAvailable) throw new Error("E2EE unavailable");
+    const sealed = await megolmEncrypt(chatId, plaintext);
+    const already = loadShared(chatId, sealed.sessionId);
+    already.add(me);
+    const shares: Record<string, string> = {};
+    const payload = JSON.stringify({ sessionId: sealed.sessionId, sessionKey: sealed.sessionKey });
+    for (const member of memberIds) {
+      if (!member || member === me || already.has(member)) continue;
+      try {
+        shares[member] = await seal(member, payload);
+        already.add(member);
+      } catch (e) {
+        console.warn("[atlas] megolm: could not share session with", member, e);
+      }
+    }
+    saveShared(chatId, sealed.sessionId, already);
+    await megolmImportKey(chatId, me, sealed.sessionId, sealed.sessionKey);
+    return JSON.stringify({
+      sessionId: sealed.sessionId,
+      ciphertext: sealed.ciphertext,
+      shares,
+    });
+  };
+
+  const openGroup = async (
+    chatId: string,
+    senderId: string,
+    body: string,
+    me: string,
+  ): Promise<string> => {
+    const parsed = JSON.parse(body) as {
+      sessionId: string;
+      ciphertext: string;
+      shares?: Record<string, string>;
+    };
+    const mine = parsed.shares?.[me];
+    if (mine) {
+      const raw = await open(senderId, mine);
+      const key = JSON.parse(raw) as { sessionId: string; sessionKey: string };
+      await megolmImportKey(chatId, senderId, key.sessionId, key.sessionKey);
+    }
+    return megolmDecrypt(chatId, senderId, parsed.sessionId, parsed.ciphertext);
+  };
+
+  return {
+    publishIdentity,
+    replenishKeys,
+    ensureSession,
+    seal,
+    open,
+    sealGroup,
+    openGroup,
+    enabledFor,
+    hasSession,
+  };
 }
 
 export const e2ee = createE2eeStore();

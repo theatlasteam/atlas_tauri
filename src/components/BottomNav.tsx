@@ -27,7 +27,7 @@ export default function BottomNav() {
       }
     >
       <UiBottomNav
-        class="vt-nav fixed inset-x-0 bottom-0 z-30"
+        class="vt-nav z-30"
         items={NAV_TABS.map((tab) => ({
           id: tab.href,
           label: t(tab.labelKey),

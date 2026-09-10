@@ -83,6 +83,9 @@ export function languageOf(filename: string): string {
   if (filename.endsWith(".json")) return "JSON";
   if (filename.endsWith(".css")) return "CSS";
   if (filename.endsWith(".tsx") || filename.endsWith(".ts")) return "TS";
+  if (filename.endsWith(".svg")) return "SVG";
+  if (filename.endsWith(".md")) return "Markdown";
+  if (filename.endsWith(".html") || filename.endsWith(".htm")) return "HTML";
   return "JS";
 }
 

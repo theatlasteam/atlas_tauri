@@ -56,6 +56,8 @@ import {
   CornersIn,
   Compass,
   PuzzlePiece,
+  Planet,
+  Copy,
 } from "phosphor-solid-js";
 import type { JSX } from "solid-js";
 
@@ -135,3 +137,5 @@ export const RestoreIcon = wrap(CornersIn);
 export const CompassIcon = wrap(Compass);
 /** Installed/creatable plugins — the extensibility surface. */
 export const PluginsIcon = wrap(PuzzlePiece);
+export const SpaceIcon = wrap(Planet);
+export const CopyIcon = wrap(Copy);

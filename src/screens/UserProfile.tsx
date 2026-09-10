@@ -10,6 +10,7 @@ import { Skeleton } from "../components/Skeleton";
 import { ProhibitIcon, SpinnerIcon, VerifiedIcon } from "../icons";
 import VerifiedBadge from "../components/VerifiedBadge";
 import { t } from "../lib/i18n";
+import { avatarGradientCss } from "@atlas/ui";
 
 /** Read-only view of another user's profile, reached by tapping a DM's
  * appbar. Own profile is a separate screen (Profile.tsx) with edit affordances. */
@@ -79,7 +80,7 @@ export default function UserProfile() {
             <div class="relative mt-2">
               <div
                 class="absolute inset-0 -z-10 rounded-full opacity-25 blur-xl"
-                style={{ "background-color": u().avatarColor }}
+                style={{ background: avatarGradientCss(u().avatarColor, u().avatarInitial) }}
               />
               <Avatar color={u().avatarColor} initial={u().avatarInitial} size={92} userId={u().id} hasPhoto={u().hasAvatar} />
             </div>

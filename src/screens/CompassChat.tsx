@@ -11,7 +11,8 @@ import { A, useNavigate, useParams } from "@solidjs/router";
 import { compassChat } from "../store/compassChat";
 import EmptyState from "../components/EmptyState";
 import MarkdownContent from "../components/MarkdownContent";
-import { BackIcon, CompassIcon } from "../icons";
+import { BackIcon, CompassIcon, CopyIcon, SpaceIcon } from "../icons";
+import { spaceShareUrl } from "../lib/spaceShare";
 import { useIsDesktopLayout } from "../lib/platform";
 import { t } from "../lib/i18n";
 
@@ -103,8 +104,40 @@ export default function CompassChat() {
                   <MessageBubble side="sent" class={turn.failed ? "opacity-60" : undefined}>{turn.content}</MessageBubble>
                 }>
                   <AiMessage name={t("compass.title")} thinking={!turn.content && (!!turn.pending || !!turn.streaming)} thinkingLabel={t("compass.title") + "…"} class={turn.failed ? "rounded-xl border border-danger p-3" : undefined}>
-                    <MarkdownContent text={turn.content} />
+                    <Show when={turn.content}><MarkdownContent text={turn.content} /></Show>
                     <Show when={turn.streaming && turn.content}><span class="ml-0.5 inline-block h-[0.9em] w-[2px] animate-pulse bg-current align-text-bottom" /></Show>
+                    <Show when={turn.spaces?.length}>
+                      <div class="mt-2 flex flex-col gap-2">
+                        <For each={turn.spaces}>
+                          {(space) => (
+                            <div class="flex items-center gap-2 rounded-2xl border border-border bg-surface px-3 py-2.5">
+                              <A
+                                href={spaceShareUrl(space.id)}
+                                target="_blank"
+                                rel="noreferrer"
+                                class="flex min-w-0 flex-1 items-center gap-3 text-ink"
+                              >
+                                <span class="grid h-9 w-9 place-items-center rounded-full bg-accent-soft text-accent">
+                                  <SpaceIcon size={18} />
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                  <span class="block truncate text-sm font-semibold">{space.title}</span>
+                                  <span class="block truncate text-xs text-ink-subtle">{t("space.publicHint")}</span>
+                                </span>
+                              </A>
+                              <button
+                                type="button"
+                                class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-bg hover:text-ink"
+                                aria-label={t("space.share")}
+                                onClick={() => void navigator.clipboard.writeText(spaceShareUrl(space.id))}
+                              >
+                                <CopyIcon size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
                   </AiMessage>
                 </Show>
               )}

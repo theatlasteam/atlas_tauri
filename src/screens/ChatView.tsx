@@ -73,7 +73,7 @@ interface PendingAttachment {
 }
 
 export default function ChatView() {
-  const params = useParams<{ id: string }>();
+  const params = useParams<{ id: string; postId?: string }>();
   const navigate = useNavigate();
   const isDesktop = useIsDesktopLayout();
 
@@ -81,6 +81,16 @@ export default function ChatView() {
   const thread = () => messagesStore.state[params.id];
   const messages = () => thread()?.messages ?? [];
   const me = () => session.user()?.id ?? "";
+  const isCommentThread = () => chat()?.kind === "broadcast" && !!params.postId;
+  const feedMessages = () => {
+    const all = messages();
+    if (chat()?.kind !== "broadcast") return all;
+    if (isCommentThread()) {
+      const pid = params.postId!;
+      return all.filter((m) => m.id === pid || m.replyTo?.id === pid);
+    }
+    return all.filter((m) => !m.replyTo);
+  };
 
   let scrollRef: HTMLDivElement | undefined;
   let menuBtn: HTMLButtonElement | undefined;
@@ -173,7 +183,7 @@ export default function ChatView() {
   // Resolve author names for group bubbles.
   createEffect(() => {
     const c = chat();
-    if (c?.kind !== "group") return;
+    if (c?.kind !== "group" && c?.kind !== "broadcast") return;
     const missing = [...new Set(messages().map((m) => m.authorId))].filter(
       (id) => id !== me() && !authors()[id],
     );
@@ -241,7 +251,7 @@ export default function ChatView() {
     }
   };
 
-  const encrypted = () => e2eeAvailable && !!chat()?.peerUserId;
+  const encrypted = () => e2eeAvailable && !!chat()?.peerUserId && !chat()?.peerIsBot;
   const blocked = () => !!chat()?.blockedByMe || !!chat()?.blockedMe;
 
   const submit = async (e?: Event) => {
@@ -298,12 +308,15 @@ export default function ChatView() {
         attachmentPreview = uploaded;
         clearPendingAttachment();
       }
+      const c = chat();
       await messagesStore.send(params.id, text, {
-        replyToId: reply?.id,
-        peerUserId: chat()?.peerUserId,
+        replyToId: reply?.id ?? (isCommentThread() ? params.postId : undefined),
+        peerUserId: c?.peerUserId,
         attachmentId,
         attachmentPreview,
         unlockAt,
+        group: c?.kind === "group",
+        peerIsBot: c?.peerIsBot,
       });
     } catch {
       /* the failed row in the thread offers retry */
@@ -357,6 +370,7 @@ export default function ChatView() {
             attachmentId: attachment.id,
             peerUserId: chat()?.peerUserId,
             attachmentPreview: attachment,
+            group: chat()?.kind === "group",
           });
           queueMicrotask(() => scrollToBottom());
         } finally {
@@ -389,7 +403,8 @@ export default function ChatView() {
   };
 
   const bubbleRetry = (message: Message) => {
-    if (message.failed) void messagesStore.retryFailed(params.id, message, chat()?.peerUserId);
+    if (message.failed)
+      void messagesStore.retryFailed(params.id, message, chat()?.peerUserId, chat()?.peerIsBot);
   };
 
   // What the actions sheet may offer for a given bubble. These live with the
@@ -442,8 +457,11 @@ export default function ChatView() {
   return (
     <div class="relative flex h-full flex-col">
       <header class="flex shrink-0 items-center gap-3 border-b border-border bg-appbar px-3 pb-3 pt-[max(var(--safe-top),1.5rem)]">
-        <Show when={!isDesktop()}>
-          <A href="/" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface">
+        <Show when={!isDesktop() || isCommentThread()}>
+          <A
+            href={isCommentThread() ? `/chat/${params.id}` : "/"}
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
+          >
             <BackIcon size={22} />
           </A>
         </Show>
@@ -467,7 +485,7 @@ export default function ChatView() {
                 />
                 <div class="min-w-0 flex-1">
                   <p class="flex items-center gap-1.5 truncate font-semibold leading-tight">
-                    <span class="truncate">{c().name}</span>
+                    <span class="truncate">{isCommentThread() ? t("chatView.commentsTitle") : c().name}</span>
                     <Show when={c().peerVerified}>
                       <VerifiedBadge size={14} name={c().name} />
                     </Show>
@@ -543,21 +561,28 @@ export default function ChatView() {
                 </div>
               </Show>
               <div class="flex flex-col">
-                <For each={messages()}>
+                <For each={feedMessages()}>
                   {(message, i) => {
-                    // Group consecutive messages from the same author (call-log
-                    // rows never group) so only the last bubble in a run gets a
-                    // tail + name label, like every real messenger does.
+                    const list = () => feedMessages();
                     const groupable = (m: Message | undefined) => m && !m.callLog && !message.callLog;
-                    const prev = () => messages()[i() - 1];
-                    const next = () => messages()[i() + 1];
+                    const prev = () => list()[i() - 1];
+                    const next = () => list()[i() + 1];
                     const isFirst = () => !groupable(prev()) || prev()!.authorId !== message.authorId;
                     const isLast = () => !groupable(next()) || next()!.authorId !== message.authorId;
+                    const channelFeed = () => chat()?.kind === "broadcast" && !isCommentThread() && !message.replyTo;
+                    const commenters = () => {
+                      const seen = new Set<string>();
+                      const out: { id: string; user?: User }[] = [];
+                      for (const m of messages()) {
+                        if (m.replyTo?.id !== message.id || seen.has(m.authorId)) continue;
+                        seen.add(m.authorId);
+                        out.push({ id: m.authorId, user: authors()[m.authorId] });
+                        if (out.length >= 3) break;
+                      }
+                      return out;
+                    };
+                    const commentCount = () => messages().filter((m) => m.replyTo?.id === message.id).length;
                     return (
-                      // Spacing between bubbles lives here and only here.
-                      // MessageBubble used to apply its own mt-3/mt-0.5 on top
-                      // of this, so every gap in the thread was the sum of two
-                      // rules that disagreed with each other.
                       <div
                         onClick={() => bubbleRetry(message)}
                         classList={{
@@ -571,8 +596,51 @@ export default function ChatView() {
                           author={authors()[message.authorId]}
                           isFirstInGroup={isFirst()}
                           isLastInGroup={isLast()}
-                          onReply={(m) => setReplyTo(m)}
+                          onReply={(m) =>
+                            chat()?.kind === "broadcast"
+                              ? navigate(`/chat/${params.id}/comments/${m.replyTo?.id ?? m.id}`)
+                              : setReplyTo(m)
+                          }
                           onActions={(m, anchor) => setActionsFor({ message: m, anchor })}
+                          onButton={(btn) => {
+                            if (!btn.data) return;
+                            const c = chat();
+                            void messagesStore.send(params.id, btn.data, {
+                              peerUserId: c?.peerUserId,
+                              peerIsBot: true,
+                            });
+                          }}
+                          comments={
+                            channelFeed()
+                              ? {
+                                  count: commentCount(),
+                                  emptyLabel: t("chatView.leaveComment"),
+                                  countLabel:
+                                    commentCount() === 1
+                                      ? t("chatView.commentCountOne")
+                                      : t("chatView.commentsCount", { n: commentCount() }),
+                                  onClick: () => navigate(`/chat/${params.id}/comments/${message.id}`),
+                                  leading:
+                                    commenters().length > 0 ? (
+                                      <span class="flex shrink-0 -space-x-1.5">
+                                        <For each={commenters()}>
+                                          {(c) => (
+                                            <span class="rounded-full ring-2 ring-bubble-received">
+                                              <Avatar
+                                                size={16}
+                                                color={c.user?.avatarColor ?? "#94a3b8"}
+                                                initial={(c.user?.name?.[0] ?? "?").toUpperCase()}
+                                                userId={c.id}
+                                                hasPhoto={c.user?.hasAvatar}
+                                              />
+                                            </span>
+                                          )}
+                                        </For>
+                                      </span>
+                                    ) : undefined,
+                                }
+                              : undefined
+                          }
                         />
                       </div>
                     );
@@ -696,14 +764,16 @@ export default function ChatView() {
           )}
         </Show>
 
-        <Show when={replyTo()}>
+        <Show when={replyTo() && !isCommentThread()}>
           {(reply) => (
             <div class="rise-in flex items-center gap-2 px-4 pt-2">
               <div class="min-w-0 flex-1 rounded-lg border-l-2 border-accent bg-surface-raised px-2.5 py-1.5">
                 <p class="text-xs font-semibold text-accent">
-                  {reply().mine
-                    ? t("chatView.replyingToSelf")
-                    : t("chatView.replyingTo", { name: authors()[reply().authorId]?.name ?? chat()?.name ?? "" })}
+                  {chat()?.kind === "broadcast"
+                    ? t("chatView.comment")
+                    : reply().mine
+                      ? t("chatView.replyingToSelf")
+                      : t("chatView.replyingTo", { name: authors()[reply().authorId]?.name ?? chat()?.name ?? "" })}
                 </p>
                 <p class="truncate text-xs text-ink-muted">{reply().text}</p>
               </div>
@@ -719,22 +789,13 @@ export default function ChatView() {
           )}
         </Show>
 
-        <Show when={chat()?.kind === "broadcast"}>
-          <div class="flex items-center justify-center gap-2 px-4 pb-[max(var(--safe-bottom),1rem)] pt-3 text-sm text-ink-subtle">
-            {t("broadcast.cantReply")}
-          </div>
-        </Show>
-        <Show
-          when={!blocked() && chat()?.kind !== "broadcast"}
-          fallback={
-            <Show when={chat()?.kind !== "broadcast"}>
+        <Show when={blocked()}>
             <div class="flex items-center justify-center gap-2 px-4 pb-[max(var(--safe-bottom),1rem)] pt-3 text-sm text-ink-subtle">
               <ProhibitIcon size={16} />
               {chat()?.blockedByMe ? t("chatView.blockedByMe") : t("chatView.cantMessage")}
             </div>
-            </Show>
-          }
-        >
+        </Show>
+        <Show when={!blocked() && (chat()?.kind !== "broadcast" || isCommentThread())}>
         <form
           onSubmit={(e) => void submit(e)}
           class="px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5"
@@ -764,9 +825,11 @@ export default function ChatView() {
                     ? t("chatView.captionPlaceholder")
                     : capsuleAt()
                       ? t("chatView.capsulePlaceholder")
-                      : encrypted()
-                        ? t("chatView.encryptedPlaceholder")
-                        : t("chatView.messagePlaceholder")
+                      : chat()?.kind === "broadcast"
+                        ? t("chatView.commentPlaceholder")
+                        : encrypted()
+                          ? t("chatView.encryptedPlaceholder")
+                          : t("chatView.messagePlaceholder")
             }
             onAdd={editing() ? undefined : pickFile}
             addIcon={uploading() ? <SpinnerIcon size={19} class="animate-spin" /> : undefined}

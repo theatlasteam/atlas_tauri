@@ -1,4 +1,4 @@
-const CACHE = "atlas-app-shell-v5";
+const CACHE = "atlas-app-shell-v6";
 const SHELL = ["/app/", "/app/index.html", "/app/manifest.webmanifest", "/app/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {

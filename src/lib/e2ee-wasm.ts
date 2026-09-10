@@ -126,3 +126,20 @@ export const wasmE2ee2Decrypt = (peer: string, body: string) => withWasm((m) => 
 export const wasmE2ee2HasSession = (peer: string) => withWasm((m) => m.e2ee2_has_session(peer));
 export const wasmE2ee2Fingerprint = (bundle: unknown) =>
   withWasm((m) => m.e2ee2_fingerprint(JSON.stringify(bundle)));
+
+export type MegolmSeal = { sessionId: string; ciphertext: string; sessionKey: string };
+
+export const wasmMegolmEncrypt = async (chatId: string, plaintext: string) =>
+  JSON.parse(await withWasm((m) => m.megolm_encrypt(chatId, plaintext))) as MegolmSeal;
+export const wasmMegolmImportKey = (
+  chatId: string,
+  senderId: string,
+  sessionId: string,
+  sessionKey: string,
+) => withWasm((m) => m.megolm_import_key(chatId, senderId, sessionId, sessionKey));
+export const wasmMegolmDecrypt = (
+  chatId: string,
+  senderId: string,
+  sessionId: string,
+  ciphertext: string,
+) => withWasm((m) => m.megolm_decrypt(chatId, senderId, sessionId, ciphertext));

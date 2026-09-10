@@ -1,5 +1,5 @@
 import type { JSX } from "solid-js";
-import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Transition } from "solid-transition-group";
 import { cx } from "./lib/cx";
@@ -23,7 +23,7 @@ export default function Menu(props: {
   align?: "left" | "right";
 }) {
   const [open, setOpen] = createSignal(false);
-  const [pos, setPos] = createSignal({ top: 0, left: 0, origin: "top" as "top" | "bottom" });
+  const [pos, setPos] = createSignal({ top: 0, left: 0, origin: "bottom" as "top" | "bottom" });
   let root: HTMLDivElement | undefined;
   let panel: HTMLDivElement | undefined;
 
@@ -33,64 +33,80 @@ export default function Menu(props: {
     const c = panel.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const maxH = Math.min(c.height, vh - MARGIN * 2);
+    const h = c.height > 0 ? c.height : Math.min(280, vh - MARGIN * 2);
+    const maxH = Math.min(h, vh - MARGIN * 2);
 
-    let top = a.bottom + GUTTER;
-    let origin: "top" | "bottom" = "top";
-    if (top + maxH > vh - MARGIN && a.top - GUTTER - maxH >= MARGIN) {
+    const spaceBelow = vh - a.bottom - MARGIN;
+    const spaceAbove = a.top - MARGIN;
+    const preferUp = a.top > vh * 0.4 || spaceBelow < Math.min(160, maxH);
+
+    let top: number;
+    let origin: "top" | "bottom";
+    if (preferUp && spaceAbove >= 80) {
       top = a.top - GUTTER - maxH;
       origin = "bottom";
+    } else {
+      top = a.bottom + GUTTER;
+      origin = "top";
     }
     top = Math.min(Math.max(top, MARGIN), vh - maxH - MARGIN);
 
-    let left = (props.align ?? "right") === "right" ? a.right - c.width : a.left;
-    left = Math.min(Math.max(left, MARGIN), Math.max(MARGIN, vw - c.width - MARGIN));
+    let left = (props.align ?? "right") === "right" ? a.right - Math.max(c.width, 176) : a.left;
+    left = Math.min(Math.max(left, MARGIN), Math.max(MARGIN, vw - Math.max(c.width, 176) - MARGIN));
 
     setPos({ top, left, origin });
   }
 
+  function toggle(e: Event) {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpen((v) => !v);
+  }
+
+  // Click (not pointerdown): Chrome device-mode synthesizes a mouse click
+  // after the touch, which would immediately re-toggle a pointerdown handler.
+
   createEffect(() => {
     if (!open()) return;
-    queueMicrotask(place);
+    const id = requestAnimationFrame(() => {
+      place();
+      requestAnimationFrame(place);
+    });
     const onWin = () => place();
     window.addEventListener("resize", onWin);
     window.addEventListener("scroll", onWin, true);
+    const onPointer = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (root?.contains(t) || panel?.contains(t)) return;
+      setOpen(false);
+    };
+    const closeTimer = window.setTimeout(() => {
+      document.addEventListener("pointerdown", onPointer, true);
+    }, 200);
     onCleanup(() => {
+      cancelAnimationFrame(id);
+      window.clearTimeout(closeTimer);
       window.removeEventListener("resize", onWin);
       window.removeEventListener("scroll", onWin, true);
-    });
-  });
-
-  onMount(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (root && !root.contains(e.target as Node) && panel && !panel.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    onCleanup(() => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer, true);
     });
   });
 
   return (
     <div class={cx("relative inline-flex", props.class)} ref={(el) => (root = el)}>
-      <div onClick={() => setOpen((v) => !v)}>{props.trigger}</div>
+      <div class="inline-flex" onClick={toggle}>
+        {props.trigger}
+      </div>
       <Portal>
         <Transition name="pop">
           <Show when={open()}>
             <div
               ref={(el) => {
                 panel = el;
-                if (el) queueMicrotask(place);
+                if (el) requestAnimationFrame(place);
               }}
               role="menu"
-              class="fixed z-50 min-w-[11rem] max-w-[calc(100vw-16px)] overflow-y-auto rounded-2xl border border-border bg-surface-raised p-1.5 shadow-floating"
+              class="fixed z-[80] min-w-[11rem] max-w-[calc(100vw-16px)] overflow-y-auto rounded-2xl border border-border bg-surface-raised p-1.5 shadow-floating"
               style={{
                 top: `${pos().top}px`,
                 left: `${pos().left}px`,

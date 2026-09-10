@@ -14,6 +14,13 @@ marked.use({
 /** Compass replies are model output, not from a trusted human — sanitize
  * before it ever reaches innerHTML, same as any other untrusted-HTML path. */
 export function renderMarkdown(source: string): string {
-  const html = marked.parse(source, { async: false }) as string;
-  return DOMPurify.sanitize(html, { ADD_ATTR: ["target"] });
+  const html = DOMPurify.sanitize(marked.parse(source, { async: false }) as string, {
+    ADD_TAGS: ["img"],
+    ADD_ATTR: ["target", "src", "alt", "title"],
+  });
+  // A lone <p> is a block box and inflates short chat bubbles. Unwrap it so
+  // "/start" shrink-wraps like a messenger chip.
+  const lone = html.match(/^<p>([\s\S]*)<\/p>\s*$/i);
+  if (lone && !/<\/?p[\s>]/i.test(lone[1])) return lone[1];
+  return html;
 }

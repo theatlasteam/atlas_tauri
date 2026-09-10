@@ -26,7 +26,7 @@ import { API_BASE } from "../lib/api";
 import { t } from "../lib/i18n";
 import { GITHUB_REPO_URL } from "../lib/repo";
 import { highlightCode, isValidFileName, languageOf } from "../lib/highlight";
-import PluginDocs from "../components/PluginDocs";
+
 import PluginAuth from "../components/PluginAuth";
 import ProjectSettings from "../components/ProjectSettings";
 import McpSettings from "../components/McpSettings";
@@ -304,7 +304,7 @@ export default function PluginEditor() {
   const [addingFile, setAddingFile] = createSignal(false);
   const [newFileName, setNewFileName] = createSignal("");
   const [renaming, setRenaming] = createSignal<{ old: string; value: string } | null>(null);
-  const [docsOpen, setDocsOpen] = createSignal(false);
+
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [mcpOpen, setMcpOpen] = createSignal(false);
   const [fileMenuOpen, setFileMenuOpen] = createSignal(false);
@@ -431,7 +431,6 @@ export default function PluginEditor() {
     setCreating(isCreating);
     setError(null);
     setNotice(null);
-    setDocsOpen(false);
     if (isCreating && !id) {
       setFiles(DEFAULT_FILES);
       setActiveName("src/main.tsx");
@@ -776,13 +775,12 @@ export default function PluginEditor() {
                     >
                       {t("pluginsEditor.back")}
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => setDocsOpen(true)}
+                    <a
+                        href="/docs/plugins"
                         class="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-[#d4d4d4] transition hover:border-white/25 hover:bg-white/5"
                       >
                         {t("pluginsEditor.docs")}
-                      </button>
+                      </a>
                       <Show when={!creating() && editId()}>
                         <button
                           type="button"
@@ -942,6 +940,18 @@ export default function PluginEditor() {
                 >
                   {t("pluginsAuth.logout")}
                 </button>
+                <a
+                  href="/bots"
+                  class="text-sm font-medium text-ink-subtle transition hover:text-ink"
+                >
+                  {t("nav.bots")}
+                </a>
+                <a
+                  href="/docs/plugins"
+                  class="text-sm font-medium text-ink-subtle transition hover:text-ink"
+                >
+                  {t("pluginsEditor.docs")}
+                </a>
                 <a
                   href={GITHUB_REPO_URL}
                   target="_blank"
@@ -1133,13 +1143,7 @@ export default function PluginEditor() {
         </div>
       </Show>
 
-      {/* Documentation drawer */}
-      <Show when={docsOpen()}>
-        <div class="fixed inset-0 z-40 bg-black/40" onClick={() => setDocsOpen(false)} />
-        <div class="fixed bottom-0 right-0 top-0 z-50 w-full max-w-md border-l border-border bg-bg shadow-2xl">
-          <PluginDocs onClose={() => setDocsOpen(false)} />
-        </div>
-      </Show>
+
     </div>
   );
 }

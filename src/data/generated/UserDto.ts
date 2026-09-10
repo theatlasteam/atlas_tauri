@@ -18,4 +18,4 @@ verified: boolean,
  * user lets a viewer explain the absence of a receipt or a last-seen
  * instead of rendering a silent blank.
  */
-readReceipts: boolean, lastSeenVisible: boolean, };
+readReceipts: boolean, lastSeenVisible: boolean, isBot: boolean, };

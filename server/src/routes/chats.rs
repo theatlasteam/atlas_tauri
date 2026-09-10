@@ -35,6 +35,7 @@ struct ChatListRow {
     peer_last_seen_visible: Option<bool>,
     blocked_by_me: bool,
     blocked_me: bool,
+    peer_is_bot: Option<bool>,
     lm_id: Option<Uuid>,
     lm_author: Option<Uuid>,
     lm_scheme: Option<String>,
@@ -60,6 +61,7 @@ const CHAT_LIST_SQL: &str = "
         pu.verified AS peer_verified,
         pu.last_seen_at AS peer_last_seen_at,
         pu.last_seen_visible AS peer_last_seen_visible,
+        pu.is_bot AS peer_is_bot,
         EXISTS(SELECT 1 FROM blocks b WHERE b.blocker_id = cm.user_id AND b.blocked_id = p.user_id) AS blocked_by_me,
         EXISTS(SELECT 1 FROM blocks b WHERE b.blocker_id = p.user_id AND b.blocked_id = cm.user_id) AS blocked_me,
         lm.id AS lm_id, lm.author_id AS lm_author, lm.scheme AS lm_scheme,
@@ -147,6 +149,7 @@ fn row_to_dto(row: ChatListRow, folder_ids: Vec<Uuid>, online: bool) -> ChatDto 
             .filter(|_| is_dm && row.peer_last_seen_visible.unwrap_or(false)),
         blocked_by_me: row.blocked_by_me,
         blocked_me: row.blocked_me,
+        peer_is_bot: is_dm && row.peer_is_bot.unwrap_or(false),
     }
 }
 
@@ -223,6 +226,28 @@ pub async fn get_chat(
     Path(chat_id): Path<Uuid>,
 ) -> ApiResult<Json<ChatDto>> {
     Ok(Json(chat_dto_for(&state, auth.user_id, chat_id).await?))
+}
+
+pub async fn list_members(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(chat_id): Path<Uuid>,
+) -> ApiResult<Json<Vec<serde_json::Value>>> {
+    let is_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2)",
+    )
+    .bind(chat_id)
+    .bind(auth.user_id)
+    .fetch_one(&state.db)
+    .await?;
+    if !is_member {
+        return Err(AppError::Forbidden);
+    }
+    let ids: Vec<Uuid> = sqlx::query_scalar("SELECT user_id FROM chat_members WHERE chat_id = $1")
+        .bind(chat_id)
+        .fetch_all(&state.db)
+        .await?;
+    Ok(Json(ids.into_iter().map(|id| serde_json::json!({ "id": id })).collect()))
 }
 
 #[derive(Deserialize)]

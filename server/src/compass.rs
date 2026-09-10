@@ -54,12 +54,30 @@ const HISTORY_LIMIT: i64 = 30;
 /// generic about *how* it was reached, since the transcript that follows
 /// already establishes that context on its own.
 fn system_prompt() -> String {
-    "You are Compass, the built-in AI assistant inside Atlas — a modern, end-to-end encrypted chat \
-     app for Windows, Linux, and Android. You can see only the messages given to you below, in order; \
-     you have no memory of anything outside this specific conversation. Reply directly, concisely, \
-     and helpfully, in the same language the conversation is using. Do not mention that you are built \
-     on a third-party AI model — you are Compass, part of Atlas."
-        .to_string()
+    concat!(
+        "You are Compass, the built-in AI assistant inside Atlas — a modern, end-to-end encrypted chat ",
+        "app for Windows, Linux, and Android. You can see only the messages given to you below, in order; ",
+        "you have no memory of anything outside this specific conversation. Reply directly, concisely, ",
+        "and helpfully, in the same language the conversation is using. Do not mention that you are built ",
+        "on a third-party AI model — you are Compass, part of Atlas.\n\n",
+        "You can make shareable Spaces: tiny HTML apps that open in a sandboxed webview. ",
+        "When the user asks for a mini-app, game, tool, landing page, widget, or visual UI, ",
+        "output a short intro then ONE fenced block:\n",
+        "```space title=\"Short name\"\n",
+        "<!DOCTYPE html> ... complete document ...\n",
+        "```\n",
+        "Space UI rules:\n",
+        "- One self-contained HTML file. Inline <style> and <script> only. No external JS/CSS/fonts except https images if needed.\n",
+        "- Viewport meta, box-sizing border-box, system-ui / ui-rounded / Nunito-like rounded sans.\n",
+        "- Light: bg #f7f5f1, surface #fff, ink #201c16, muted #6b6459, accent #c9772e. Dark: prefer color-scheme and prefers-color-scheme.\n",
+        "- Pills not sharp rectangles: buttons border-radius 999px, cards 16–24px, 8px gaps, plenty of padding.\n",
+        "- Large tap targets (min 44px). Works at 360px wide. No horizontal scroll.\n",
+        "- No tracking, no fetch/XHR to random hosts, no iframes, no document.cookie.\n",
+        "- Interactive things must work with only inline JS.\n",
+        "- Put a real <title>. The fence title attribute is the Space's name in Atlas.\n",
+        "If they did not ask for a Space, do not emit a space fence.",
+    )
+    .to_string()
 }
 
 #[derive(Serialize)]
@@ -74,6 +92,9 @@ struct ChatCompletionRequest {
     messages: Vec<GatewayMessage>,
     temperature: f32,
     stream: bool,
+    /// High ceiling so the gateway does not apply a tiny default (Spaces
+    /// were getting cut off mid-file). Not a small cap.
+    max_tokens: u32,
 }
 
 #[derive(Deserialize)]
@@ -124,7 +145,7 @@ pub async fn ensure_user(db: &sqlx::PgPool) -> Result<Uuid, AppError> {
     .bind(HANDLE)
     .bind("Compass")
     .bind("Atlas's built-in AI assistant. Tag @compass in a group chat, or start a chat with me directly.")
-    .bind("#7b5ec9")
+    .bind("#5B6CFF")
     .bind("C")
     .bind(&password_hash)
     .bind(true)
@@ -176,11 +197,13 @@ async fn complete(
         messages,
         temperature: 0.7,
         stream: false,
+        max_tokens: 65_536,
     };
 
     let res = state
         .http
         .post(format!("{}/v1/chat/completions", state.cfg.compass_api_base))
+        .timeout(std::time::Duration::from_secs(600))
         .bearer_auth(api_key)
         .json(&body)
         .send()
@@ -273,7 +296,7 @@ pub async fn complete_route(
         return Err(AppError::BadRequest("messages must be 1..=60 turns".into()));
     }
     for turn in &payload.messages {
-        if turn.content.len() > 8_000 {
+        if turn.content.len() > 100_000 {
             return Err(AppError::BadRequest("a single message is too long".into()));
         }
     }
@@ -355,7 +378,7 @@ pub async fn complete_stream_route(
         return Err(AppError::BadRequest("messages must be 1..=60 turns".into()));
     }
     for turn in &payload.messages {
-        if turn.content.len() > 8_000 {
+        if turn.content.len() > 100_000 {
             return Err(AppError::BadRequest("a single message is too long".into()));
         }
     }
@@ -380,11 +403,13 @@ pub async fn complete_stream_route(
         messages,
         temperature: 0.7,
         stream: true,
+        max_tokens: 65_536,
     };
 
     let res = state
         .http
         .post(format!("{}/v1/chat/completions", state.cfg.compass_api_base))
+        .timeout(std::time::Duration::from_secs(600))
         .bearer_auth(api_key)
         .json(&body)
         .send()

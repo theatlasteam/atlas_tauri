@@ -21,6 +21,7 @@ pub struct UserRow {
     pub verified: bool,
     pub read_receipts: bool,
     pub last_seen_visible: bool,
+    pub is_bot: bool,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -86,6 +87,7 @@ pub struct UserDto {
     /// instead of rendering a silent blank.
     pub read_receipts: bool,
     pub last_seen_visible: bool,
+    pub is_bot: bool,
 }
 
 impl From<UserRow> for UserDto {
@@ -106,6 +108,7 @@ impl From<UserRow> for UserDto {
             verified: u.verified,
             read_receipts: u.read_receipts,
             last_seen_visible: u.last_seen_visible,
+            is_bot: u.is_bot,
         }
     }
 }
@@ -263,7 +266,7 @@ impl MessageDto {
 /// Schemes whose bodies are server-readable UTF-8 text. Everything else is
 /// opaque ciphertext and travels base64-encoded.
 pub fn is_text_scheme(scheme: &str) -> bool {
-    matches!(scheme, "plain" | "call-log")
+    matches!(scheme, "plain" | "call-log" | "megolm-v1")
 }
 
 pub fn encode_body(scheme: &str, body: &[u8]) -> String {
@@ -323,6 +326,8 @@ pub struct ChatDto {
     pub blocked_by_me: bool,
     /// For DMs: whether the peer has blocked me. Always false for groups.
     pub blocked_me: bool,
+    /// For DMs: the peer is an Atlas bot (plaintext DMs; no E2EE keys).
+    pub peer_is_bot: bool,
 }
 
 /// A user I've blocked, as returned by GET /api/blocks.

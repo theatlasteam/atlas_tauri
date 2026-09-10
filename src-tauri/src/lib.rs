@@ -1,5 +1,6 @@
 mod e2ee;
 mod e2ee2;
+mod e2ee_megolm;
 mod plugins;
 mod secure;
 
@@ -30,6 +31,9 @@ pub fn run() {
             e2ee2::e2ee2_decrypt,
             e2ee2::e2ee2_has_session,
             e2ee2::e2ee2_fingerprint,
+            e2ee_megolm::megolm_encrypt,
+            e2ee_megolm::megolm_import_key,
+            e2ee_megolm::megolm_decrypt,
             plugins::plugin_list,
             plugins::plugin_save,
             plugins::plugin_remove,

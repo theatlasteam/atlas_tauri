@@ -194,6 +194,7 @@ export const api = {
     request<ChatDto>("POST", "/api/chats", { kind: "group", name, memberIds }),
   setMuted: (chatId: string, muted: boolean) =>
     request<{ ok: boolean }>("POST", `/api/chats/${chatId}/mute`, { muted }),
+  listChatMembers: (chatId: string) => request<{ id: string }[]>("GET", `/api/chats/${chatId}/members`),
 
   // messages
   listMessages: (chatId: string, opts?: { before?: string; after?: string; limit?: number }) => {
@@ -264,6 +265,20 @@ export const api = {
    * either side can hardcode. Used to tell its messages apart from a
    * human's when building a transcript for the gateway. */
   compassInfo: () => request<{ userId: string }>("GET", "/api/compass/info"),
+
+  createSpace: (body: { title?: string; html: string; parentSpaceId?: string }) =>
+    request<{ id: string; title: string; html: string; creatorId: string; parentSpaceId: string | null; createdAt: string }>(
+      "POST",
+      "/api/spaces",
+      body,
+    ),
+  getSpace: (id: string) =>
+    request<{ id: string; title: string; html: string; creatorId: string; parentSpaceId: string | null; createdAt: string }>(
+      "GET",
+      `/api/spaces/${id}`,
+    ),
+  getSpacePublic: (id: string) =>
+    request<{ id: string; title: string; html: string }>("GET", `/api/spaces/${id}/public`),
 
   // attachments
   uploadAttachment: (

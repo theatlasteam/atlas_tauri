@@ -13,15 +13,23 @@ export default function Shell(props: RouteSectionProps) {
   const isDesktop = useIsDesktopLayout();
   const location = useLocation();
   const navigate = useNavigate();
-  // On mobile, ChatView owns the full screen with its own bottom input bar —
-  // the floating nav would overlap it, so it only shows outside an open chat.
-  // A user's profile (reached by tapping a DM's appbar) is the same kind of
-  // drill-down push, not a tab destination, so it's excluded too.
-  const showBottomNav = () =>
-    !isDesktop() &&
-    !location.pathname.startsWith("/chat/") &&
-    !location.pathname.startsWith("/user/") &&
-    !location.pathname.startsWith("/compass/");
+  // Router `base` is `/app` on the PWA, so pathname may be `/app/compass/:id`.
+  const routePath = () => {
+    const p = location.pathname.replace(/^\/app(?=\/|$)/, "");
+    return p.startsWith("/") ? p : `/${p}`;
+  };
+  // On mobile, ChatView / Compass thread / a user profile own the bottom
+  // chrome (composer). The tab bar would cover the input, so hide it there.
+  const showBottomNav = () => {
+    if (isDesktop()) return false;
+    const p = routePath();
+    return (
+      !p.startsWith("/chat/") &&
+      !p.startsWith("/user/") &&
+      !p.startsWith("/compass/") &&
+      !p.startsWith("/spaces/")
+    );
+  };
 
   // Plugin SDK: hand the router's navigate over (useNavigate can't be called
   // from a plain object context), and surface chat opens/closes as events.
@@ -44,11 +52,14 @@ export default function Shell(props: RouteSectionProps) {
   });
 
   return (
-    <div class="relative flex h-full w-full overflow-hidden bg-bg pl-[var(--safe-left)] pr-[var(--safe-right)] text-ink">
+    <div
+      class="relative flex h-full w-full overflow-hidden bg-bg pl-[var(--safe-left)] pr-[var(--safe-right)] text-ink"
+      classList={{ "flex-col": !isDesktop(), "flex-row": isDesktop() }}
+    >
       <Show when={isDesktop()}>
         <SideNav />
       </Show>
-      <div class="vt-page h-full min-w-0 flex-1">{props.children}</div>
+      <div class="vt-page min-h-0 min-w-0 flex-1">{props.children}</div>
       <Show when={showBottomNav()}>
         <BottomNav />
       </Show>

@@ -192,3 +192,77 @@ export async function deletePlugin(id: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/plugins/${encodeURIComponent(id)}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Couldn't delete plugin");
 }
+
+export interface BotDto {
+  id: string;
+  userId: string;
+  handle: string;
+  name: string;
+  webhookUrl: string;
+  script: string;
+  createdAt: string;
+  token?: string;
+}
+
+async function botFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const token = getPluginToken();
+  return fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
+    },
+  });
+}
+
+export async function listBots(): Promise<BotDto[]> {
+  const res = await botFetch("/api/bots");
+  const ct = res.headers.get("content-type") ?? "";
+  if (!res.ok || !ct.includes("json")) {
+    const body = ct.includes("json") ? await res.json().catch(() => null) : null;
+    throw new Error(body?.error ?? `Couldn't load bots (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function createBot(handle: string, name: string): Promise<BotDto> {
+  const res = await botFetch("/api/bots", {
+    method: "POST",
+    body: JSON.stringify({ handle, name }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? "Couldn't create bot");
+  }
+  return res.json();
+}
+
+export async function updateBot(
+  id: string,
+  patch: { webhookUrl?: string; script?: string; name?: string },
+): Promise<BotDto> {
+  const res = await botFetch(`/api/bots/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? "Couldn't save bot");
+  }
+  return res.json();
+}
+
+export async function deleteBot(id: string): Promise<void> {
+  const res = await botFetch(`/api/bots/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Couldn't delete bot");
+}
+
+export async function rotateBotToken(id: string): Promise<BotDto> {
+  const res = await botFetch(`/api/bots/${encodeURIComponent(id)}/token`, { method: "POST" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? "Couldn't rotate token");
+  }
+  return res.json();
+}

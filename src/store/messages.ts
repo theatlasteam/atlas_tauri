@@ -85,8 +85,28 @@ function createMessagesStore() {
       patch(chatId, messageId, { text: already, decrypting: false, decryptFailed: false, sourceText: already });
       return;
     }
-    if (!e2eeAvailable || (scheme !== "olm-v1" && scheme !== "dr-v1" && scheme !== "x25519-v1")) {
+    if (
+      !e2eeAvailable ||
+      (scheme !== "olm-v1" && scheme !== "dr-v1" && scheme !== "x25519-v1" && scheme !== "megolm-v1")
+    ) {
       patch(chatId, messageId, { text: "🔒 Encrypted message (unsupported here)", decrypting: false });
+      return;
+    }
+    if (scheme === "megolm-v1") {
+      const senderId = peerUserId ?? "";
+      decryptingVersions.add(decryptKey);
+      void (async () => {
+        try {
+          const text = await e2ee.openGroup(chatId, senderId, body, myId());
+          if (!isCurrent()) return;
+          const row = state[chatId]?.messages.find((m) => m.id === messageId);
+          rememberPlaintext(messageId, text, row ? { ...row, text } : undefined);
+          patch(chatId, messageId, { text, decrypting: false, decryptFailed: false });
+        } catch {
+          if (!isCurrent()) return;
+          patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
+        }
+      })().finally(() => decryptingVersions.delete(decryptKey));
       return;
     }
     // Legacy x25519-v1 bodies (pre-ratchet history) still open through the
@@ -427,6 +447,10 @@ function createMessagesStore() {
       attachmentPreview?: Message["attachment"];
       /** Time capsule: ISO instant before which the recipient can't read it. */
       unlockAt?: string;
+      /** Group chat — Megolm. */
+      group?: boolean;
+      /** Bots have no E2EE keys — send plaintext. */
+      peerIsBot?: boolean;
     },
   ): Promise<void> => {
     ensure(chatId);
@@ -444,14 +468,15 @@ function createMessagesStore() {
     // silent plaintext fallback. If the peer's key isn't published yet, the
     // send fails (and lands in the "failed" retry state below) rather than
     // going out as "plain".
-    const mustEncrypt = !!opts?.peerUserId && e2ee.enabledFor(chatId);
+    const mustEncrypt = !!opts?.peerUserId && !opts?.peerIsBot && e2ee.enabledFor(chatId);
+    const groupEncrypt = !!opts?.group && e2eeAvailable;
 
     const optimistic: Message = {
       id: `pending-${clientTag}`,
       chatId,
       authorId: myId(),
       text,
-      scheme: mustEncrypt ? "olm-v1" : "plain",
+      scheme: mustEncrypt ? "olm-v1" : groupEncrypt ? "megolm-v1" : "plain",
       sentAt: now,
       mine: true,
       reactions: [],
@@ -480,6 +505,15 @@ function createMessagesStore() {
       if (mustEncrypt) {
         body = await e2ee.seal(opts!.peerUserId!, text);
         scheme = "olm-v1";
+      } else if (groupEncrypt) {
+        const members = await api.listChatMembers(chatId);
+        body = await e2ee.sealGroup(
+          chatId,
+          members.map((m) => m.id),
+          text,
+          myId(),
+        );
+        scheme = "megolm-v1";
       }
 
       const dto = await api.sendMessage(chatId, {
@@ -516,7 +550,7 @@ function createMessagesStore() {
       // this client — the only party that actually has the plaintext —
       // generates the reply itself and hands the finished text to the
       // server to post under Compass's identity.
-      if (mentioned && mustEncrypt) void replyAsCompass(chatId);
+      if (mentioned && (mustEncrypt || groupEncrypt)) void replyAsCompass(chatId);
     } catch (e) {
       console.error("[atlas] send failed:", e);
       patch(chatId, `pending-${clientTag}`, { pending: false, failed: true });
@@ -537,7 +571,12 @@ function createMessagesStore() {
    * failed capsule displays a placeholder, and resending that would deliver
    * the words "⏳ Time capsule".
    */
-  const retryFailed = async (chatId: string, message: Message, peerUserId?: string) => {
+  const retryFailed = async (
+    chatId: string,
+    message: Message,
+    peerUserId?: string,
+    peerIsBot?: boolean,
+  ) => {
     if (!message.failed) return;
     setState(chatId, "messages", (m) => m.filter((x) => x.id !== message.id));
     await send(chatId, message.sourceText ?? message.text, {
@@ -546,6 +585,8 @@ function createMessagesStore() {
       attachmentId: message.attachment?.id,
       attachmentPreview: message.attachment,
       unlockAt: message.unlockAt,
+      group: message.scheme === "megolm-v1",
+      peerIsBot,
     });
   };
 
@@ -566,9 +607,18 @@ function createMessagesStore() {
     try {
       let scheme = "plain";
       let body = trimmed;
-      if (peerUserId && e2ee.enabledFor(chatId)) {
+      if (peerUserId && message.scheme !== "plain" && e2ee.enabledFor(chatId)) {
         body = await e2ee.seal(peerUserId, trimmed);
         scheme = "olm-v1";
+      } else if (message.scheme === "megolm-v1" && e2eeAvailable) {
+        const members = await api.listChatMembers(chatId);
+        body = await e2ee.sealGroup(
+          chatId,
+          members.map((m) => m.id),
+          trimmed,
+          myId(),
+        );
+        scheme = "megolm-v1";
       }
       const dto = await api.editMessage(message.id, { scheme, body });
       // The echoed DTO carries ciphertext we already know the plaintext of.

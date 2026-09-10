@@ -1,6 +1,6 @@
-//! Official Atlas channel: a one-way `broadcast` chat every account is in,
-//! authored by a seeded verified user. Replies are rejected; the control
-//! panel posts via `/api/admin/broadcast`.
+//! Official Atlas channel: a `broadcast` chat every account is in, authored
+//! by a seeded verified user. Top-level posts are official-only; members
+//! may reply. The control panel posts via `/api/admin/broadcast`.
 
 use axum::body::Bytes;
 use axum::extract::{Query, State};
@@ -20,12 +20,22 @@ use crate::state::AppState;
 pub const HANDLE: &str = "atlasnews";
 pub const DISPLAY_NAME: &str = "Atlas";
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS, Default)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct BroadcastButton {
     pub label: String,
+    #[serde(default)]
     pub url: String,
+    /// Bot callback: tapping sends this text as a DM (Telegram-style).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub data: String,
+    /// Emoji shown on the button.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub icon: String,
+    /// Grid row (0-based). Buttons with the same row sit side by side.
+    #[serde(default)]
+    pub row: u8,
 }
 
 pub struct Official {
@@ -107,7 +117,7 @@ async fn ensure_user(db: &sqlx::PgPool) -> Result<Uuid, AppError> {
     .bind(HANDLE)
     .bind(DISPLAY_NAME)
     .bind("Official Atlas announcements. You can’t reply.")
-    .bind("#c9772e")
+    .bind("#66A1FF")
     .bind("A")
     .bind(&password_hash)
     .execute(db)
@@ -132,7 +142,7 @@ async fn ensure_chat(db: &sqlx::PgPool, official_id: Uuid) -> Result<Uuid, AppEr
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO chats (id, kind, name, avatar_color, created_by)
-         VALUES ($1, 'broadcast', $2, '#c9772e', $3)",
+         VALUES ($1, 'broadcast', $2, '#66A1FF', $3)",
     )
     .bind(id)
     .bind(DISPLAY_NAME)
@@ -211,6 +221,9 @@ pub struct BroadcastPayload {
 
 fn sanitize_url(url: &str) -> Result<String, AppError> {
     let u = url.trim();
+    if u.is_empty() {
+        return Ok(String::new());
+    }
     if u.len() > 2048 {
         return Err(AppError::BadRequest("button url too long".into()));
     }
@@ -220,9 +233,13 @@ fn sanitize_url(url: &str) -> Result<String, AppError> {
     Ok(u.to_string())
 }
 
-fn sanitize_buttons(buttons: Vec<BroadcastButton>) -> Result<Vec<BroadcastButton>, AppError> {
-    if buttons.len() > 6 {
-        return Err(AppError::BadRequest("at most 6 buttons".into()));
+pub fn sanitize_buttons(buttons: Vec<BroadcastButton>) -> Result<Vec<BroadcastButton>, AppError> {
+    sanitize_buttons_n(buttons, 24)
+}
+
+fn sanitize_buttons_n(buttons: Vec<BroadcastButton>, max: usize) -> Result<Vec<BroadcastButton>, AppError> {
+    if buttons.len() > max {
+        return Err(AppError::BadRequest(format!("at most {max} buttons")));
     }
     let mut out = Vec::new();
     for b in buttons {
@@ -230,9 +247,18 @@ fn sanitize_buttons(buttons: Vec<BroadcastButton>) -> Result<Vec<BroadcastButton
         if label.is_empty() || label.len() > 48 {
             return Err(AppError::BadRequest("button label must be 1-48 characters".into()));
         }
+        let url = sanitize_url(&b.url)?;
+        let data = b.data.trim().chars().take(200).collect::<String>();
+        let icon = b.icon.chars().take(8).collect::<String>();
+        if url.is_empty() && data.is_empty() {
+            return Err(AppError::BadRequest("button needs a url or data".into()));
+        }
         out.push(BroadcastButton {
             label: label.to_string(),
-            url: sanitize_url(&b.url)?,
+            url,
+            data,
+            icon,
+            row: b.row,
         });
     }
     Ok(out)

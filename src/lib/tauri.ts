@@ -13,6 +13,10 @@ import {
   wasmE2eeOpen,
   wasmE2eePublicKey,
   wasmE2eeSeal,
+  wasmMegolmDecrypt,
+  wasmMegolmEncrypt,
+  wasmMegolmImportKey,
+  type MegolmSeal,
 } from "./e2ee-wasm";
 import { inspectSessionSecurity, hasBlockingSecurityIssue } from "./secure-context";
 import { webSecretDelete, webSecretGet, webSecretSet } from "./web-secrets";
@@ -133,6 +137,35 @@ export function e2ee2HasSession(peer: string): Promise<boolean> {
 export function e2ee2Fingerprint(bundle: PrekeyBundle): Promise<string> {
   if (isTauri) return invokeTauri<string>("e2ee2_fingerprint", { bundle });
   return wasmE2ee2Fingerprint(bundle);
+}
+
+export type { MegolmSeal };
+
+export function megolmEncrypt(chatId: string, plaintext: string): Promise<MegolmSeal> {
+  if (isTauri) return invokeTauri<MegolmSeal>("megolm_encrypt", { chatId, plaintext });
+  return wasmMegolmEncrypt(chatId, plaintext);
+}
+
+export function megolmImportKey(
+  chatId: string,
+  senderId: string,
+  sessionId: string,
+  sessionKey: string,
+): Promise<void> {
+  if (isTauri) return invokeTauri("megolm_import_key", { chatId, senderId, sessionId, sessionKey });
+  return wasmMegolmImportKey(chatId, senderId, sessionId, sessionKey);
+}
+
+export function megolmDecrypt(
+  chatId: string,
+  senderId: string,
+  sessionId: string,
+  ciphertext: string,
+): Promise<string> {
+  if (isTauri) {
+    return invokeTauri<string>("megolm_decrypt", { chatId, senderId, sessionId, ciphertext });
+  }
+  return wasmMegolmDecrypt(chatId, senderId, sessionId, ciphertext);
 }
 
 export const nativeExperimentalAvailable = isTauri && isAndroid();
