@@ -137,7 +137,6 @@ pub async fn handle_offer(
 
     // Ring every device the callee has connected; the first to answer wins.
     let caller_dto = UserDto::from(caller);
-    let was_online = state.hub.is_online(to_user_id);
     state.hub.send_to_user(
         to_user_id,
         &ServerEvent::CallOffer {
@@ -148,25 +147,22 @@ pub async fn handle_offer(
         },
     );
 
-    // No live socket means the app is backgrounded or killed, so the event
-    // above reached nobody — wake the device with a push instead. It picks up
-    // the retained offer through replay_pending once it connects.
-    if !was_online {
-        crate::push::notify_detached(
-            state.push.clone(),
-            state.db.clone(),
-            vec![to_user_id],
-            crate::push::PushPayload::Call(crate::push::PushCall {
-                call_id,
-                caller_id: caller_dto.id,
-                caller_name: caller_dto.name,
-                caller_avatar_color: caller_dto.avatar_color,
-                caller_avatar_initial: caller_dto.avatar_initial,
-                caller_has_avatar: caller_dto.has_avatar,
-                media,
-            }),
-        );
-    }
+    // Always FCM as well as the socket offer. A backgrounded Android app can
+    // still look "online" on the hub, which used to skip the lock-screen ring.
+    crate::push::notify_detached(
+        state.push.clone(),
+        state.db.clone(),
+        vec![to_user_id],
+        crate::push::PushPayload::Call(crate::push::PushCall {
+            call_id,
+            caller_id: caller_dto.id,
+            caller_name: caller_dto.name,
+            caller_avatar_color: caller_dto.avatar_color,
+            caller_avatar_initial: caller_dto.avatar_initial,
+            caller_has_avatar: caller_dto.has_avatar,
+            media,
+        }),
+    );
 
     // Ring timeout: if nobody answered, tear the call down on both ends.
     let st = state.clone();

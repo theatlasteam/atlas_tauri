@@ -15,6 +15,7 @@ const ACCOUNT_KEY: &str = "olm_account";
 const PICKLE_KEY_KEY: &str = "olm_pickle_key";
 const SESSION_PREFIX: &str = "olm_session_";
 const SESSIONS_PREFIX: &str = "olm_sessions_";
+const REMOTE_IK_PREFIX: &str = "olm_remote_ik_";
 const MAX_SESSIONS_PER_PEER: usize = 8;
 
 static ACCOUNT: Mutex<Option<Account>> = Mutex::new(None);
@@ -81,6 +82,10 @@ fn session_store_key(peer: &str) -> String {
 
 fn sessions_store_key(peer: &str) -> String {
     format!("{SESSIONS_PREFIX}{peer}")
+}
+
+fn remote_ik_key(peer: &str) -> String {
+    format!("{REMOTE_IK_PREFIX}{peer}")
 }
 
 fn decode_one_pickle(p: &str, key: &[u8; 32]) -> Result<Session, E2eeError> {
@@ -177,7 +182,8 @@ pub fn e2ee2_start_session(
     put_account(account)?;
     let mut sessions = take_sessions(&peer)?;
     sessions.push(session);
-    put_sessions(&peer, sessions)
+    put_sessions(&peer, sessions)?;
+    crate::store::secret_set(remote_ik_key(&peer), bundle.identity_key).map_err(E2eeError::Storage)
 }
 
 pub fn e2ee2_encrypt(peer: String, plaintext: String) -> Result<String, E2eeError> {
@@ -234,7 +240,25 @@ fn inbound(peer: &str, pre: &PreKeyMessage, mut sessions: Vec<Session>) -> Resul
     put_account(account)?;
     sessions.push(result.session);
     put_sessions(peer, sessions)?;
+    let _ = crate::store::secret_set(remote_ik_key(peer), b64_encode(pre.identity_key().to_bytes()));
     String::from_utf8(result.plaintext).map_err(|_| E2eeError::Bad("plaintext not utf-8".into()))
+}
+
+pub fn e2ee2_remote_identity(peer: String) -> Result<Option<String>, E2eeError> {
+    crate::store::secret_get(remote_ik_key(&peer)).map_err(E2eeError::Storage)
+}
+
+pub fn e2ee2_forget_peer(peer: String) -> Result<(), E2eeError> {
+    let _ = take_sessions(&peer);
+    SESSIONS
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .get_or_insert_with(HashMap::new)
+        .remove(&peer);
+    let _ = crate::store::secret_delete(sessions_store_key(&peer));
+    let _ = crate::store::secret_delete(session_store_key(&peer));
+    let _ = crate::store::secret_delete(remote_ik_key(&peer));
+    Ok(())
 }
 
 pub fn e2ee2_has_session(peer: String) -> Result<bool, E2eeError> {

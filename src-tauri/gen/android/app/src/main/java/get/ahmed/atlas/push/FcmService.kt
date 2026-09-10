@@ -160,7 +160,9 @@ class FcmService : FirebaseMessagingService() {
         val sender = senderId ?: return null
         val dir = Secrets.dir(applicationContext)?.absolutePath ?: return null
         val peerKey = PushApi.getIdentityKey(base, auth, sender).orEmpty()
-        return NativeCrypto.decrypt(dir, scheme, sender, chatId, peerKey, body)
+        val text = NativeCrypto.decrypt(dir, scheme, sender, chatId, peerKey, body) ?: return null
+        PushPreviews.put(applicationContext, messageId, text)
+        return text
     }
 
     private fun notify(

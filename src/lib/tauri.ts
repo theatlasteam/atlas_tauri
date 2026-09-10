@@ -7,6 +7,8 @@ import {
   wasmE2ee2Encrypt,
   wasmE2ee2Fingerprint,
   wasmE2ee2HasSession,
+  wasmE2ee2ForgetPeer,
+  wasmE2ee2RemoteIdentity,
   wasmE2ee2NewPrekeys,
   wasmE2ee2StartSession,
   wasmE2eeFingerprint,
@@ -132,6 +134,21 @@ export function e2ee2Decrypt(peer: string, body: string): Promise<string> {
 export function e2ee2HasSession(peer: string): Promise<boolean> {
   if (isTauri) return invokeTauri<boolean>("e2ee2_has_session", { peer });
   return wasmE2ee2HasSession(peer);
+}
+
+export function e2ee2RemoteIdentity(peer: string): Promise<string | null> {
+  if (isTauri) return invokeTauri<string | null>("e2ee2_remote_identity", { peer });
+  return wasmE2ee2RemoteIdentity(peer).then((v) => v || null);
+}
+
+export function e2ee2ForgetPeer(peer: string): Promise<void> {
+  if (isTauri) return invokeTauri("e2ee2_forget_peer", { peer });
+  return wasmE2ee2ForgetPeer(peer);
+}
+
+export function takePushPreview(messageId: string): Promise<string | null> {
+  if (!isTauri) return Promise.resolve(null);
+  return invokeTauri<string | null>("take_push_preview", { messageId });
 }
 
 export function e2ee2Fingerprint(bundle: PrekeyBundle): Promise<string> {

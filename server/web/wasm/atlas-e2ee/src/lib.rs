@@ -86,6 +86,16 @@ pub fn e2ee2_has_session(peer: String) -> Result<bool, JsError> {
 }
 
 #[wasm_bindgen]
+pub fn e2ee2_remote_identity(peer: String) -> Result<String, JsError> {
+    Ok(e2ee2::e2ee2_remote_identity(peer).map_err(err)?.unwrap_or_default())
+}
+
+#[wasm_bindgen]
+pub fn e2ee2_forget_peer(peer: String) -> Result<(), JsError> {
+    e2ee2::e2ee2_forget_peer(peer).map_err(err)
+}
+
+#[wasm_bindgen]
 pub fn e2ee2_fingerprint(bundle_json: String) -> Result<String, JsError> {
     let bundle: e2ee2::PublicBundle =
         serde_json::from_str(&bundle_json).map_err(|e| JsError::new(&e.to_string()))?;

@@ -75,6 +75,11 @@ class MainActivity : TauriActivity() {
       .show()
   }
 
+  override fun onResume() {
+    super.onResume()
+    syncPushToken()
+  }
+
   override fun onNewIntent(intent: android.content.Intent) {
     super.onNewIntent(intent)
     clearCallNotification(intent)

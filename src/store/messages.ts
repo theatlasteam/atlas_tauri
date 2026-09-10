@@ -14,7 +14,7 @@ import { allPlaintexts, cacheForChat, cachePut, forgetPlaintext, loadPlaintextsS
 import type { MessageDto } from "../data/generated";
 import { toMessage } from "../data/mapping";
 import type { Message } from "../data/types";
-import { e2eeAvailable, e2eeOpen, isTauri } from "../lib/tauri";
+import { e2eeAvailable, e2eeOpen, isTauri, takePushPreview } from "../lib/tauri";
 import { mentionsCompass } from "../lib/compassMention";
 import { loadCompassModel } from "../lib/compassModels";
 import { emitMessageReceived, emitMessageSent, transformBeforeSend } from "../plugins/runtime";
@@ -156,6 +156,18 @@ function createMessagesStore() {
     }
     decryptingVersions.add(decryptKey);
     void (async () => {
+      try {
+        const fromPush = await takePushPreview(messageId);
+        if (fromPush && !fromPush.startsWith("🔒 ")) {
+          const row = state[chatId]?.messages.find((m) => m.id === messageId);
+          rememberPlaintext(messageId, fromPush, row ? { ...row, text: fromPush } : undefined);
+          patch(chatId, messageId, { text: fromPush, decrypting: false, decryptFailed: false });
+          emitPlaintext(chatId, messageId, fromPush);
+          return;
+        }
+      } catch {
+        /* no FCM preview */
+      }
       // The first message of a new conversation carries the sender's X3DH
       // payload and establishes the session on open; a brand-new peer's
       // prekey bundle can still race its own sign-in publish, so retry a

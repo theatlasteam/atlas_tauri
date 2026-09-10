@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use vodozemac::olm::{
     Account, AccountPickle, OlmMessage, PreKeyMessage, Session, SessionConfig, SessionPickle,
 };
@@ -19,6 +19,7 @@ const ACCOUNT_KEY: &str = "olm_account";
 const PICKLE_KEY_KEY: &str = "olm_pickle_key";
 const SESSION_PREFIX: &str = "olm_session_";
 const SESSIONS_PREFIX: &str = "olm_sessions_";
+const REMOTE_IK_PREFIX: &str = "olm_remote_ik_";
 const MAX_SESSIONS_PER_PEER: usize = 8;
 
 static ACCOUNT: Mutex<Option<Account>> = Mutex::new(None);
@@ -93,6 +94,15 @@ fn session_store_key(peer: &str) -> String {
 
 fn sessions_store_key(peer: &str) -> String {
     format!("{SESSIONS_PREFIX}{peer}")
+}
+
+fn remote_ik_key(peer: &str) -> String {
+    format!("{REMOTE_IK_PREFIX}{peer}")
+}
+
+fn set_remote_ik(app: &AppHandle, peer: &str, ik: &str) -> Result<(), E2eeError> {
+    crate::secure::secret_set(app.clone(), remote_ik_key(peer), ik.to_string())
+        .map_err(|e| E2eeError::Storage(e.to_string()))
 }
 
 fn persist_sessions(app: &AppHandle, peer: &str, sessions: &[Session]) -> Result<(), E2eeError> {
@@ -202,7 +212,8 @@ pub fn e2ee2_start_session(
     put_account(&app, account)?;
     let mut sessions = take_sessions(&app, &peer)?;
     sessions.push(session);
-    put_sessions(&app, &peer, sessions)
+    put_sessions(&app, &peer, sessions)?;
+    set_remote_ik(&app, &peer, &bundle.identity_key)
 }
 
 #[tauri::command]
@@ -265,7 +276,27 @@ fn inbound(
     put_account(app, account)?;
     sessions.push(result.session);
     put_sessions(app, peer, sessions)?;
+    let _ = set_remote_ik(app, peer, &b64_encode(their_ik.to_bytes()));
     String::from_utf8(result.plaintext).map_err(|_| E2eeError::Bad("plaintext not utf-8".into()))
+}
+
+#[tauri::command]
+pub fn e2ee2_remote_identity(app: AppHandle, peer: String) -> Result<Option<String>, E2eeError> {
+    crate::secure::secret_get(app, remote_ik_key(&peer)).map_err(|e| E2eeError::Storage(e.to_string()))
+}
+
+#[tauri::command]
+pub fn e2ee2_forget_peer(app: AppHandle, peer: String) -> Result<(), E2eeError> {
+    let _ = take_sessions(&app, &peer);
+    SESSIONS
+        .lock()
+        .unwrap()
+        .get_or_insert_with(HashMap::new)
+        .remove(&peer);
+    let _ = crate::secure::secret_delete(app.clone(), sessions_store_key(&peer));
+    let _ = crate::secure::secret_delete(app.clone(), session_store_key(&peer));
+    let _ = crate::secure::secret_delete(app, remote_ik_key(&peer));
+    Ok(())
 }
 
 #[tauri::command]
@@ -279,6 +310,26 @@ pub fn e2ee2_has_session(app: AppHandle, peer: String) -> Result<bool, E2eeError
 #[tauri::command]
 pub fn e2ee2_fingerprint(bundle: PublicBundle) -> Result<String, E2eeError> {
     crate::e2ee::e2ee_fingerprint(bundle.identity_key)
+}
+
+/// Plaintext an Android FCM decrypt already opened (and advanced the ratchet for).
+/// Consumed so the in-app path does not try to decrypt the same ciphertext twice.
+#[tauri::command]
+pub fn take_push_preview(app: AppHandle, message_id: String) -> Result<Option<String>, E2eeError> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| E2eeError::Storage(e.to_string()))?;
+    let path = dir.join("push_previews.json");
+    let Ok(bytes) = std::fs::read(&path) else {
+        return Ok(None);
+    };
+    let mut map: HashMap<String, String> = serde_json::from_slice(&bytes).unwrap_or_default();
+    let text = map.remove(&message_id);
+    if text.is_some() {
+        let _ = std::fs::write(&path, serde_json::to_vec(&map).unwrap_or_else(|_| b"{}".to_vec()));
+    }
+    Ok(text)
 }
 
 /// Decrypt an olm-v1 body using `secrets.json` in `dir` (Android FCM process).

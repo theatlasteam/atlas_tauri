@@ -12,13 +12,15 @@
 // "No bundle yet" is a normal, self-resolving race (the peer publishes
 // theirs on sign-in) and is deliberately not cached.
 
-import { api } from "../data/api";
+import { api, ApiError } from "../data/api";
 import {
   e2ee2Bundle,
   e2ee2Decrypt,
   e2ee2Encrypt,
+  e2ee2ForgetPeer,
   e2ee2HasSession,
   e2ee2NewPrekeys,
+  e2ee2RemoteIdentity,
   e2ee2StartSession,
   e2eeAvailable,
   megolmDecrypt,
@@ -34,17 +36,38 @@ const PREKEY_LOW_WATER = 10;
 function createE2eeStore() {
   /** Serialization guard: one session setup per peer at a time. */
   const setups = new Map<string, Promise<boolean>>();
+  /** Peers whose last decrypt failed — next send starts a fresh outbound Olm session. */
+  const wedged = new Set<string>();
 
   /** Publish our bundle + top up one-time prekeys. Called at sign-in. */
   const publishIdentity = async (): Promise<void> => {
     if (!e2eeAvailable) return;
     const bundle = await e2ee2Bundle();
-    await api.publishBundle(bundle).catch((e) => {
-      // A 404/405 here means the server predates E2EE v2 — nothing will
-      // work until it's updated; say so loudly instead of failing silently.
-      console.error("[atlas] prekey bundle publish failed (server too old?):", e);
-      throw e;
-    });
+    try {
+      await api.publishBundle(bundle);
+    } catch (e) {
+      // Reinstall / new device: server still has the old identity. Clear it
+      // and publish this device's real keys so DMs aren't stuck 409ing.
+      if (e instanceof ApiError && e.status === 409) {
+        try {
+          const me = await api.me();
+          const remote = await api.getBundle(me.id);
+          if (remote.identityKey !== bundle.identityKey) {
+            await api.resetBundle();
+            await api.resetIdentity();
+            await api.publishBundle(bundle);
+          } else {
+            throw e;
+          }
+        } catch (inner) {
+          console.error("[atlas] prekey bundle publish failed:", inner);
+          throw inner;
+        }
+      } else {
+        console.error("[atlas] prekey bundle publish failed (server too old?):", e);
+        throw e;
+      }
+    }
     const { available } = await api.prekeyCount();
     if (available < PREKEY_LOW_WATER) {
       const pubs = await e2ee2NewPrekeys(PREKEY_BATCH);
@@ -65,26 +88,44 @@ function createE2eeStore() {
    * Ensure a ratchet session exists with this peer. Returns false when the
    * peer hasn't published a bundle yet (caller should retry shortly).
    */
-  const ensureSession = async (peer: string): Promise<boolean> => {
+  const startOutbound = async (peer: string): Promise<boolean> => {
+    try {
+      const bundle: PrekeyBundle = await api.getBundle(peer);
+      const known = await e2ee2RemoteIdentity(peer);
+      if (known && known !== bundle.identityKey) {
+        await e2ee2ForgetPeer(peer);
+      }
+      const opk = await api.claimPrekey(peer).then((p) => p.package).catch(() => null);
+      if (!opk) {
+        console.error("[atlas] olm: peer has no one-time prekeys yet");
+        return e2ee2HasSession(peer);
+      }
+      await e2ee2StartSession(peer, bundle, opk);
+      return true;
+    } catch (e) {
+      console.error("[atlas] session setup failed (peer bundle missing?):", e);
+      return e2ee2HasSession(peer);
+    }
+  };
+
+  const ensureSession = async (peer: string, forceNew = false): Promise<boolean> => {
     if (!e2eeAvailable) return false;
-    if (await e2ee2HasSession(peer)) return true;
+    try {
+      const bundle: PrekeyBundle = await api.getBundle(peer);
+      const known = await e2ee2RemoteIdentity(peer);
+      if (known && known !== bundle.identityKey) {
+        await e2ee2ForgetPeer(peer);
+        forceNew = true;
+      }
+    } catch {
+      /* bundle missing — fall through */
+    }
+    if (!forceNew && (await e2ee2HasSession(peer))) return true;
     let pending = setups.get(peer);
     if (!pending) {
       pending = (async () => {
         try {
-          const bundle: PrekeyBundle = await api.getBundle(peer);
-          // One-time prekeys are best-effort: if the pool is empty the
-          // session still establishes (3-DH instead of 4-DH).
-          const opk = await api.claimPrekey(peer).then((p) => p.package).catch(() => null);
-          if (!opk) {
-            console.error("[atlas] olm: peer has no one-time prekeys yet");
-            return false;
-          }
-          await e2ee2StartSession(peer, bundle, opk);
-          return true;
-        } catch (e) {
-          console.error("[atlas] session setup failed (peer bundle missing?):", e);
-          return false;
+          return await startOutbound(peer);
         } finally {
           setups.delete(peer);
         }
@@ -96,7 +137,8 @@ function createE2eeStore() {
 
   /** Encrypt for a peer with an established session. */
   const seal = async (peer: string, plaintext: string): Promise<string> => {
-    const ok = await ensureSession(peer);
+    const ok = await ensureSession(peer, wedged.has(peer));
+    wedged.delete(peer);
     if (!ok) {
       console.error(`[atlas] e2ee: no session with ${peer} — bundle fetch/X3DH failed (see error above)`);
       throw new Error("Can't send yet: this contact hasn't set up encryption on their device.");
@@ -108,7 +150,14 @@ function createE2eeStore() {
   };
 
   /** Decrypt a dr-v1 body from a peer. */
-  const open = (peer: string, body: string): Promise<string> => e2ee2Decrypt(peer, body);
+  const open = async (peer: string, body: string): Promise<string> => {
+    try {
+      return await e2ee2Decrypt(peer, body);
+    } catch (e) {
+      wedged.add(peer);
+      throw e;
+    }
+  };
 
   /** Encryption is always on for DMs when the platform supports it. */
   const enabledFor = (_chatId: string) => e2eeAvailable;
@@ -189,6 +238,7 @@ function createE2eeStore() {
     publishIdentity,
     replenishKeys,
     ensureSession,
+    forgetPeer: e2ee2ForgetPeer,
     seal,
     open,
     sealGroup,

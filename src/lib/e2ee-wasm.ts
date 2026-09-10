@@ -124,6 +124,15 @@ export const wasmE2ee2StartSession = (peer: string, bundle: unknown, opk: string
 export const wasmE2ee2Encrypt = (peer: string, pt: string) => withWasm((m) => m.e2ee2_encrypt(peer, pt));
 export const wasmE2ee2Decrypt = (peer: string, body: string) => withWasm((m) => m.e2ee2_decrypt(peer, body));
 export const wasmE2ee2HasSession = (peer: string) => withWasm((m) => m.e2ee2_has_session(peer));
+export const wasmE2ee2RemoteIdentity = (peer: string) =>
+  withWasm((m) => {
+    const fn = (m as { e2ee2_remote_identity?: (p: string) => string }).e2ee2_remote_identity;
+    return fn ? fn(peer) : "";
+  });
+export const wasmE2ee2ForgetPeer = (peer: string) =>
+  withWasm((m) => {
+    (m as { e2ee2_forget_peer?: (p: string) => void }).e2ee2_forget_peer?.(peer);
+  });
 export const wasmE2ee2Fingerprint = (bundle: unknown) =>
   withWasm((m) => m.e2ee2_fingerprint(JSON.stringify(bundle)));
 

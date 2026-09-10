@@ -354,9 +354,10 @@ async fn push_to_absent_members(
             return;
         }
     };
-    let offline: Vec<Uuid> =
-        candidates.into_iter().filter(|id| !state.hub.is_online(*id)).collect();
-    if offline.is_empty() {
+    // Always wake registered devices. A phone can have a live WebSocket while
+    // the app is backgrounded, and skipping FCM in that case is why lock-screen
+    // notifications never showed. The client already suppresses in-app dupes.
+    if candidates.is_empty() {
         return;
     }
 
@@ -382,7 +383,7 @@ async fn push_to_absent_members(
     crate::push::notify_detached(
         state.push.clone(),
         state.db.clone(),
-        offline,
+        candidates,
         crate::push::PushPayload::Message(crate::push::PushMessage {
             chat_id,
             message_id: dto.id,
