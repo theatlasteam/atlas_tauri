@@ -14,9 +14,11 @@ use base64::Engine;
 const ACCOUNT_KEY: &str = "olm_account";
 const PICKLE_KEY_KEY: &str = "olm_pickle_key";
 const SESSION_PREFIX: &str = "olm_session_";
+const SESSIONS_PREFIX: &str = "olm_sessions_";
+const MAX_SESSIONS_PER_PEER: usize = 8;
 
 static ACCOUNT: Mutex<Option<Account>> = Mutex::new(None);
-static SESSIONS: Mutex<Option<HashMap<String, Session>>> = Mutex::new(None);
+static SESSIONS: Mutex<Option<HashMap<String, Vec<Session>>>> = Mutex::new(None);
 
 fn b64_encode(bytes: impl AsRef<[u8]>) -> String {
     B64.encode(bytes)
@@ -77,34 +79,51 @@ fn session_store_key(peer: &str) -> String {
     format!("{SESSION_PREFIX}{peer}")
 }
 
-fn persist_session(peer: &str, session: &Session) -> Result<(), E2eeError> {
-    let key = pickle_key()?;
-    crate::store::secret_set(session_store_key(peer), session.pickle().encrypt(&key)).map_err(E2eeError::Storage)
+fn sessions_store_key(peer: &str) -> String {
+    format!("{SESSIONS_PREFIX}{peer}")
 }
 
-fn take_session(peer: &str) -> Result<Option<Session>, E2eeError> {
+fn decode_one_pickle(p: &str, key: &[u8; 32]) -> Result<Session, E2eeError> {
+    let pickle = SessionPickle::from_encrypted(p, key).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    Ok(Session::from_pickle(pickle))
+}
+
+fn persist_sessions(peer: &str, sessions: &[Session]) -> Result<(), E2eeError> {
+    let key = pickle_key()?;
+    let pickled: Vec<String> = sessions.iter().map(|s| s.pickle().encrypt(&key)).collect();
+    let json = serde_json::to_string(&pickled).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    crate::store::secret_set(sessions_store_key(peer), json).map_err(E2eeError::Storage)
+}
+
+fn take_sessions(peer: &str) -> Result<Vec<Session>, E2eeError> {
     let mut cache = SESSIONS.lock().unwrap_or_else(|p| p.into_inner());
     let map = cache.get_or_insert_with(HashMap::new);
     if let Some(s) = map.remove(peer) {
-        return Ok(Some(s));
+        return Ok(s);
     }
     drop(cache);
     let key = pickle_key()?;
-    if let Some(p) = crate::store::secret_get(session_store_key(peer)).map_err(E2eeError::Storage)? {
-        let pickle = SessionPickle::from_encrypted(&p, &key).map_err(|e| E2eeError::Storage(e.to_string()))?;
-        Ok(Some(Session::from_pickle(pickle)))
-    } else {
-        Ok(None)
+    if let Some(raw) = crate::store::secret_get(sessions_store_key(peer)).map_err(E2eeError::Storage)? {
+        let pickled: Vec<String> =
+            serde_json::from_str(&raw).map_err(|e| E2eeError::Storage(e.to_string()))?;
+        return pickled.iter().map(|p| decode_one_pickle(p, &key)).collect();
     }
+    if let Some(p) = crate::store::secret_get(session_store_key(peer)).map_err(E2eeError::Storage)? {
+        return Ok(vec![decode_one_pickle(&p, &key)?]);
+    }
+    Ok(vec![])
 }
 
-fn put_session(peer: &str, session: Session) -> Result<(), E2eeError> {
-    persist_session(peer, &session)?;
+fn put_sessions(peer: &str, mut sessions: Vec<Session>) -> Result<(), E2eeError> {
+    if sessions.len() > MAX_SESSIONS_PER_PEER {
+        sessions.drain(0..sessions.len() - MAX_SESSIONS_PER_PEER);
+    }
+    persist_sessions(peer, &sessions)?;
     SESSIONS
         .lock()
         .unwrap_or_else(|p| p.into_inner())
         .get_or_insert_with(HashMap::new)
-        .insert(peer.to_string(), session);
+        .insert(peer.to_string(), sessions);
     Ok(())
 }
 
@@ -156,13 +175,19 @@ pub fn e2ee2_start_session(
     let account = take_account()?;
     let session = account.create_outbound_session(SessionConfig::version_1(), ik, otk);
     put_account(account)?;
-    put_session(&peer, session)
+    let mut sessions = take_sessions(&peer)?;
+    sessions.push(session);
+    put_sessions(&peer, sessions)
 }
 
 pub fn e2ee2_encrypt(peer: String, plaintext: String) -> Result<String, E2eeError> {
-    let mut session = take_session(&peer)?.ok_or_else(|| E2eeError::Bad("no olm session for peer".into()))?;
+    let mut sessions = take_sessions(&peer)?;
+    let mut session = sessions
+        .pop()
+        .ok_or_else(|| E2eeError::Bad("no olm session for peer".into()))?;
     let msg = session.encrypt(plaintext);
-    put_session(&peer, session)?;
+    sessions.push(session);
+    put_sessions(&peer, sessions)?;
     let json = serde_json::to_vec(&msg).map_err(|e| E2eeError::Bad(e.to_string()))?;
     Ok(B64.encode(json))
 }
@@ -176,44 +201,47 @@ fn parse_olm_body(body: &str) -> Result<OlmMessage, E2eeError> {
 
 pub fn e2ee2_decrypt(peer: String, body: String) -> Result<String, E2eeError> {
     let msg: OlmMessage = parse_olm_body(&body)?;
-    if let Some(mut session) = take_session(&peer)? {
-        match session.decrypt(&msg) {
+    let mut sessions = take_sessions(&peer)?;
+    for i in (0..sessions.len()).rev() {
+        match sessions[i].decrypt(&msg) {
             Ok(pt) => {
-                put_session(&peer, session)?;
+                let used = sessions.remove(i);
+                sessions.push(used);
+                put_sessions(&peer, sessions)?;
                 return String::from_utf8(pt).map_err(|_| E2eeError::Bad("plaintext not utf-8".into()));
             }
-            Err(_) => {
-                if let OlmMessage::PreKey(pre) = &msg {
-                    return inbound(&peer, pre);
-                }
-                return Err(E2eeError::Decrypt);
-            }
+            Err(_) => continue,
         }
     }
     if let OlmMessage::PreKey(pre) = &msg {
-        inbound(&peer, pre)
+        inbound(&peer, pre, sessions)
     } else {
-        Err(E2eeError::Bad("no session and not a pre-key message".into()))
+        let had = !sessions.is_empty();
+        put_sessions(&peer, sessions)?;
+        Err(if had {
+            E2eeError::Decrypt
+        } else {
+            E2eeError::Bad("no session and not a pre-key message".into())
+        })
     }
 }
 
-fn inbound(peer: &str, pre: &PreKeyMessage) -> Result<String, E2eeError> {
+fn inbound(peer: &str, pre: &PreKeyMessage, mut sessions: Vec<Session>) -> Result<String, E2eeError> {
     let mut account = take_account()?;
     let result = account
         .create_inbound_session(pre.identity_key(), pre)
         .map_err(|e| E2eeError::Bad(e.to_string()))?;
     put_account(account)?;
-    put_session(peer, result.session)?;
+    sessions.push(result.session);
+    put_sessions(peer, sessions)?;
     String::from_utf8(result.plaintext).map_err(|_| E2eeError::Bad("plaintext not utf-8".into()))
 }
 
 pub fn e2ee2_has_session(peer: String) -> Result<bool, E2eeError> {
-    if let Some(s) = take_session(&peer)? {
-        put_session(&peer, s)?;
-        Ok(true)
-    } else {
-        Ok(false)
-    }
+    let sessions = take_sessions(&peer)?;
+    let any = !sessions.is_empty();
+    put_sessions(&peer, sessions)?;
+    Ok(any)
 }
 
 pub fn e2ee2_fingerprint(bundle: PublicBundle) -> Result<String, E2eeError> {

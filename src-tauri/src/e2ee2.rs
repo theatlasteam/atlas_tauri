@@ -18,9 +18,11 @@ use base64::Engine;
 const ACCOUNT_KEY: &str = "olm_account";
 const PICKLE_KEY_KEY: &str = "olm_pickle_key";
 const SESSION_PREFIX: &str = "olm_session_";
+const SESSIONS_PREFIX: &str = "olm_sessions_";
+const MAX_SESSIONS_PER_PEER: usize = 8;
 
 static ACCOUNT: Mutex<Option<Account>> = Mutex::new(None);
-static SESSIONS: Mutex<Option<HashMap<String, Session>>> = Mutex::new(None);
+static SESSIONS: Mutex<Option<HashMap<String, Vec<Session>>>> = Mutex::new(None);
 
 fn b64_encode(bytes: impl AsRef<[u8]>) -> String {
     B64.encode(bytes)
@@ -89,39 +91,58 @@ fn session_store_key(peer: &str) -> String {
     format!("{SESSION_PREFIX}{peer}")
 }
 
-fn persist_session(app: &AppHandle, peer: &str, session: &Session) -> Result<(), E2eeError> {
+fn sessions_store_key(peer: &str) -> String {
+    format!("{SESSIONS_PREFIX}{peer}")
+}
+
+fn persist_sessions(app: &AppHandle, peer: &str, sessions: &[Session]) -> Result<(), E2eeError> {
     let key = pickle_key(app)?;
-    let pickled = session.pickle().encrypt(&key);
-    crate::secure::secret_set(app.clone(), session_store_key(peer), pickled)
+    let pickled: Vec<String> = sessions.iter().map(|s| s.pickle().encrypt(&key)).collect();
+    let json = serde_json::to_string(&pickled).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    crate::secure::secret_set(app.clone(), sessions_store_key(peer), json)
         .map_err(|e| E2eeError::Storage(e.to_string()))
 }
 
-fn take_session(app: &AppHandle, peer: &str) -> Result<Option<Session>, E2eeError> {
+fn decode_one_pickle(p: &str, key: &[u8; 32]) -> Result<Session, E2eeError> {
+    let pickle =
+        SessionPickle::from_encrypted(p, key).map_err(|e| E2eeError::Storage(e.to_string()))?;
+    Ok(Session::from_pickle(pickle))
+}
+
+fn take_sessions(app: &AppHandle, peer: &str) -> Result<Vec<Session>, E2eeError> {
     let mut cache = SESSIONS.lock().unwrap();
     let map = cache.get_or_insert_with(HashMap::new);
     if let Some(s) = map.remove(peer) {
-        return Ok(Some(s));
+        return Ok(s);
     }
     drop(cache);
     let key = pickle_key(app)?;
+    if let Some(raw) = crate::secure::secret_get(app.clone(), sessions_store_key(peer))
+        .map_err(|e| E2eeError::Storage(e.to_string()))?
+    {
+        let pickled: Vec<String> =
+            serde_json::from_str(&raw).map_err(|e| E2eeError::Storage(e.to_string()))?;
+        return pickled.iter().map(|p| decode_one_pickle(p, &key)).collect();
+    }
+    // Legacy single-session pickle.
     if let Some(p) = crate::secure::secret_get(app.clone(), session_store_key(peer))
         .map_err(|e| E2eeError::Storage(e.to_string()))?
     {
-        let pickle =
-            SessionPickle::from_encrypted(&p, &key).map_err(|e| E2eeError::Storage(e.to_string()))?;
-        Ok(Some(Session::from_pickle(pickle)))
-    } else {
-        Ok(None)
+        return Ok(vec![decode_one_pickle(&p, &key)?]);
     }
+    Ok(vec![])
 }
 
-fn put_session(app: &AppHandle, peer: &str, session: Session) -> Result<(), E2eeError> {
-    persist_session(app, peer, &session)?;
+fn put_sessions(app: &AppHandle, peer: &str, mut sessions: Vec<Session>) -> Result<(), E2eeError> {
+    if sessions.len() > MAX_SESSIONS_PER_PEER {
+        sessions.drain(0..sessions.len() - MAX_SESSIONS_PER_PEER);
+    }
+    persist_sessions(app, peer, &sessions)?;
     SESSIONS
         .lock()
         .unwrap()
         .get_or_insert_with(HashMap::new)
-        .insert(peer.to_string(), session);
+        .insert(peer.to_string(), sessions);
     Ok(())
 }
 
@@ -179,15 +200,20 @@ pub fn e2ee2_start_session(
     let account = take_account(&app)?;
     let session = account.create_outbound_session(SessionConfig::version_1(), ik, otk);
     put_account(&app, account)?;
-    put_session(&app, &peer, session)
+    let mut sessions = take_sessions(&app, &peer)?;
+    sessions.push(session);
+    put_sessions(&app, &peer, sessions)
 }
 
 #[tauri::command]
 pub fn e2ee2_encrypt(app: AppHandle, peer: String, plaintext: String) -> Result<String, E2eeError> {
-    let mut session = take_session(&app, &peer)?
+    let mut sessions = take_sessions(&app, &peer)?;
+    let mut session = sessions
+        .pop()
         .ok_or_else(|| E2eeError::Bad("no olm session for peer".into()))?;
     let msg = session.encrypt(plaintext);
-    put_session(&app, &peer, session)?;
+    sessions.push(session);
+    put_sessions(&app, &peer, sessions)?;
     let json = serde_json::to_vec(&msg).map_err(|e| E2eeError::Bad(e.to_string()))?;
     Ok(B64.encode(json))
 }
@@ -200,46 +226,54 @@ fn parse_olm_body(body: &str) -> Result<OlmMessage, E2eeError> {
 #[tauri::command]
 pub fn e2ee2_decrypt(app: AppHandle, peer: String, body: String) -> Result<String, E2eeError> {
     let msg: OlmMessage = parse_olm_body(&body)?;
-    if let Some(mut session) = take_session(&app, &peer)? {
-        match session.decrypt(&msg) {
+    let mut sessions = take_sessions(&app, &peer)?;
+    for i in (0..sessions.len()).rev() {
+        match sessions[i].decrypt(&msg) {
             Ok(pt) => {
-                put_session(&app, &peer, session)?;
+                let used = sessions.remove(i);
+                sessions.push(used);
+                put_sessions(&app, &peer, sessions)?;
                 return String::from_utf8(pt).map_err(|_| E2eeError::Bad("plaintext not utf-8".into()));
             }
-            Err(_) => {
-                if let OlmMessage::PreKey(pre) = &msg {
-                    return inbound(&app, &peer, pre);
-                }
-                return Err(E2eeError::Decrypt);
-            }
+            Err(_) => continue,
         }
     }
     if let OlmMessage::PreKey(pre) = &msg {
-        inbound(&app, &peer, pre)
+        inbound(&app, &peer, pre, sessions)
     } else {
-        Err(E2eeError::Bad("no session and not a pre-key message".into()))
+        let had = !sessions.is_empty();
+        put_sessions(&app, &peer, sessions)?;
+        Err(if had {
+            E2eeError::Decrypt
+        } else {
+            E2eeError::Bad("no session and not a pre-key message".into())
+        })
     }
 }
 
-fn inbound(app: &AppHandle, peer: &str, pre: &PreKeyMessage) -> Result<String, E2eeError> {
+fn inbound(
+    app: &AppHandle,
+    peer: &str,
+    pre: &PreKeyMessage,
+    mut sessions: Vec<Session>,
+) -> Result<String, E2eeError> {
     let mut account = take_account(app)?;
     let their_ik = pre.identity_key();
     let result = account
         .create_inbound_session(their_ik, pre)
         .map_err(|e| E2eeError::Bad(e.to_string()))?;
     put_account(app, account)?;
-    put_session(app, peer, result.session)?;
+    sessions.push(result.session);
+    put_sessions(app, peer, sessions)?;
     String::from_utf8(result.plaintext).map_err(|_| E2eeError::Bad("plaintext not utf-8".into()))
 }
 
 #[tauri::command]
 pub fn e2ee2_has_session(app: AppHandle, peer: String) -> Result<bool, E2eeError> {
-    if let Some(s) = take_session(&app, &peer)? {
-        put_session(&app, &peer, s)?;
-        Ok(true)
-    } else {
-        Ok(false)
-    }
+    let sessions = take_sessions(&app, &peer)?;
+    let any = !sessions.is_empty();
+    put_sessions(&app, &peer, sessions)?;
+    Ok(any)
 }
 
 #[tauri::command]
@@ -267,5 +301,42 @@ mod tests {
         let reply = bob_s.encrypt("hello alice");
         let pt = alice_s.decrypt(&reply).unwrap();
         assert_eq!(pt, b"hello alice");
+    }
+
+    #[test]
+    fn dual_outbound_keeps_both_sessions() {
+        let mut alice = Account::new();
+        let mut bob = Account::new();
+        alice.generate_one_time_keys(1);
+        bob.generate_one_time_keys(1);
+        let alice_otk = *alice.one_time_keys().values().next().unwrap();
+        let bob_otk = *bob.one_time_keys().values().next().unwrap();
+        alice.mark_keys_as_published();
+        bob.mark_keys_as_published();
+        let mut alice_out =
+            alice.create_outbound_session(SessionConfig::version_1(), bob.curve25519_key(), bob_otk);
+        let mut bob_out = bob.create_outbound_session(
+            SessionConfig::version_1(),
+            alice.curve25519_key(),
+            alice_otk,
+        );
+        let m_ab = alice_out.encrypt("from alice");
+        let m_ba = bob_out.encrypt("from bob");
+        let OlmMessage::PreKey(pre_ab) = &m_ab else { panic!("prekey") };
+        let OlmMessage::PreKey(pre_ba) = &m_ba else { panic!("prekey") };
+        let alice_in = alice
+            .create_inbound_session(bob.curve25519_key(), pre_ba)
+            .unwrap();
+        let bob_in = bob
+            .create_inbound_session(alice.curve25519_key(), pre_ab)
+            .unwrap();
+        assert_eq!(alice_in.plaintext, b"from bob");
+        assert_eq!(bob_in.plaintext, b"from alice");
+        let mut alice_in_s = alice_in.session;
+        let reply = alice_in_s.encrypt("alice reply");
+        assert_eq!(bob_out.decrypt(&reply).unwrap(), b"alice reply");
+        let mut bob_in_s = bob_in.session;
+        let reply2 = bob_in_s.encrypt("bob reply");
+        assert_eq!(alice_out.decrypt(&reply2).unwrap(), b"bob reply");
     }
 }
