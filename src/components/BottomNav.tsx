@@ -1,7 +1,7 @@
+import { For, Show } from "solid-js";
 import { useLocation, useNavigate } from "@solidjs/router";
-import { Show } from "solid-js";
-import { BottomNav as UiBottomNav } from "@atlas/ui";
 import { NAV_TABS } from "../lib/nav";
+import AnimatedNavIcon, { playNavIcon } from "./AnimatedNavIcon";
 import { t } from "../lib/i18n";
 import { slotComponent, renderSlotComponent } from "../plugins/ui-slots";
 
@@ -26,16 +26,35 @@ export default function BottomNav() {
         </div>
       }
     >
-      <UiBottomNav
-        class="vt-nav z-30"
-        items={NAV_TABS.map((tab) => ({
-          id: tab.href,
-          label: t(tab.labelKey),
-          icon: <tab.icon size={22} />,
-          active: tab.match(location.pathname),
-          onClick: () => navigate(tab.href),
-        }))}
-      />
+      <nav
+        class="vt-nav z-30 flex shrink-0 items-stretch justify-around border-t border-border bg-surface/90 px-2 pt-1 backdrop-blur-md"
+        style={{ "padding-bottom": "max(var(--safe-bottom), 0.35rem)" }}
+      >
+        <For each={NAV_TABS}>
+          {(tab) => {
+            const active = () => tab.match(location.pathname);
+            return (
+              <button
+                type="button"
+                class="flex min-w-[4.5rem] flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[10px] font-medium transition"
+                classList={{
+                  "text-accent": active(),
+                  "text-ink-subtle hover:text-ink": !active(),
+                }}
+                onClick={() => {
+                  playNavIcon(tab.iconName);
+                  navigate(tab.href);
+                }}
+              >
+                <span class="grid h-7 w-7 place-items-center overflow-visible">
+                  <AnimatedNavIcon name={tab.iconName} size={22} />
+                </span>
+                {t(tab.labelKey)}
+              </button>
+            );
+          }}
+        </For>
+      </nav>
     </Show>
   );
 }

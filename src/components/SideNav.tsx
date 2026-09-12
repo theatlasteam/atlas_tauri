@@ -1,7 +1,7 @@
-import { Show } from "solid-js";
+import { For, Show } from "solid-js";
 import { useLocation, useNavigate } from "@solidjs/router";
-import { Sidebar } from "@atlas/ui";
 import { NAV_TABS } from "../lib/nav";
+import AnimatedNavIcon, { playNavIcon } from "./AnimatedNavIcon";
 import { t } from "../lib/i18n";
 import { slotComponent, renderSlotComponent } from "../plugins/ui-slots";
 
@@ -26,16 +26,32 @@ export default function SideNav() {
         </div>
       }
     >
-      <Sidebar
-        variant="rail"
-        items={NAV_TABS.map((tab) => ({
-          id: tab.href,
-          label: t(tab.labelKey),
-          icon: <tab.icon size={22} />,
-          active: tab.match(location.pathname),
-          onClick: () => navigate(tab.href),
-        }))}
-      />
+      <nav class="sticky top-0 flex h-full min-h-0 w-16 shrink-0 flex-col items-center border-r border-border bg-surface py-3">
+        <div class="flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto px-2">
+          <For each={NAV_TABS}>
+            {(tab) => {
+              const active = () => tab.match(location.pathname);
+              return (
+                <button
+                  type="button"
+                  title={t(tab.labelKey)}
+                  class="flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-150 ease-out"
+                  classList={{
+                    "bg-accent text-accent-ink": active(),
+                    "text-ink-muted hover:bg-accent-soft hover:text-ink": !active(),
+                  }}
+                  onClick={() => {
+                    playNavIcon(tab.iconName);
+                    navigate(tab.href);
+                  }}
+                >
+                  <AnimatedNavIcon name={tab.iconName} size={22} />
+                </button>
+              );
+            }}
+          </For>
+        </div>
+      </nav>
     </Show>
   );
 }

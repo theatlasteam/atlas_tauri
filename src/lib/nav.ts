@@ -1,15 +1,36 @@
-import { ChatIcon, ProfileIcon, SettingsIcon } from "../icons";
 import type { TranslationKey } from "./i18n";
+import type { NavIconName } from "../components/AnimatedNavIcon";
 
 export interface NavTab {
   href: string;
   labelKey: TranslationKey;
-  icon: (p: { size?: number; class?: string }) => import("solid-js").JSX.Element;
+  iconName: NavIconName;
   match: (pathname: string) => boolean;
 }
 
 export const NAV_TABS: NavTab[] = [
-  { href: "/", labelKey: "nav.chats", icon: ChatIcon, match: (p) => p === "/" || p.startsWith("/chat") },
-  { href: "/settings", labelKey: "nav.settings", icon: SettingsIcon, match: (p) => p.startsWith("/settings") },
-  { href: "/profile", labelKey: "nav.profile", icon: ProfileIcon, match: (p) => p.startsWith("/profile") },
+  {
+    href: "/",
+    labelKey: "nav.chats",
+    iconName: "chats",
+    match: (p) => p === "/" || p.startsWith("/chat"),
+  },
+  {
+    href: "/calls",
+    labelKey: "nav.calls",
+    iconName: "calls",
+    match: (p) => p.startsWith("/calls"),
+  },
+  {
+    href: "/settings",
+    labelKey: "nav.settings",
+    iconName: "settings",
+    match: (p) => p.startsWith("/settings"),
+  },
+  {
+    href: "/profile",
+    labelKey: "nav.profile",
+    iconName: "profile",
+    match: (p) => p.startsWith("/profile"),
+  },
 ];

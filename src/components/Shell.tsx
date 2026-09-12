@@ -46,8 +46,16 @@ export default function Shell(props: RouteSectionProps) {
 
   useBeforeLeave((e) => {
     if (typeof e.to !== "string" || typeof document.startViewTransition !== "function") return;
+    // Tab-bar switches must stay live: View Transitions snapshot `.vt-nav` and
+    // freeze it, which kills the icon animations.
+    const strip = (p: string) => p.replace(/^\/app(?=\/|$)/, "") || "/";
+    const from = strip(e.from.pathname);
+    const to = strip(e.to);
+    const tab = (p: string) =>
+      p === "/" || p === "/calls" || p === "/settings" || p === "/profile";
+    if (tab(from) && tab(to)) return;
     e.preventDefault();
-    const direction = getNavDirection(e.from.pathname, e.to);
+    const direction = getNavDirection(from, to);
     withViewTransition(direction, () => e.retry(true));
   });
 

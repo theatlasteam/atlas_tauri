@@ -13,6 +13,7 @@ import Plugins from "./screens/settings/Plugins";
 import Dev from "./screens/settings/Dev";
 import Verification from "./screens/settings/Verification";
 import NewChat from "./screens/NewChat";
+import Calls from "./screens/Calls";
 import CompassList from "./screens/CompassList";
 import CompassChat from "./screens/CompassChat";
 import SpaceView from "./screens/SpaceView";
@@ -68,6 +69,7 @@ function App() {
               <Route path="/profile" component={Profile} />
               <Route path="/user/:id" component={UserProfile} />
               <Route path="/new-chat" component={NewChat} />
+              <Route path="/calls" component={Calls} />
               <Route path="/compass" component={CompassList} />
               <Route path="/compass/:id" component={CompassChat} />
               <Route path="/spaces/:id" component={SpaceView} />
