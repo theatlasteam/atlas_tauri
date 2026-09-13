@@ -34,10 +34,11 @@ function setup(options = {}) {
       putPlaintext: async (id, _chat, text) => { plaintexts.set(id, text); }, forgetPlaintext: async (id) => { plaintexts.delete(id); },
     },
     "../data/mapping": mapping,
-    "../lib/tauri": { isTauri: true, e2eeAvailable: true },
+    "../lib/tauri": { isTauri: true, e2eeAvailable: true, takePushPreview: async () => null, e2eeOpen: async () => { throw new Error("no x25519 in tests"); } },
     "../lib/compassMention": { mentionsCompass: () => false },
+    "../lib/compassModels": { loadCompassModel: async () => null },
     "../plugins/runtime": { emitMessageReceived() {}, emitMessageSent() {}, transformBeforeSend: async (_, text) => text },
-    "./e2ee": { e2ee: { enabledFor: () => true, seal: async (_, s) => "cipher:" + s, open: async (_, s) => { decrypts++; return s.replace("cipher:", ""); } } },
+    "./e2ee": { e2ee: { enabledFor: () => true, seal: async (_, s) => "cipher:" + s, open: async (_, s) => { decrypts++; return s.replace("cipher:", ""); }, forgetPeer: async () => {}, openGroup: async () => "g" } },
     "./compassIdentity": { compassUserId: () => "compass" },
     "./session": { session: { user: () => ({ id: "me" }) } },
   }).messagesStore;

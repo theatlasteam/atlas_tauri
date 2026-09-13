@@ -166,8 +166,10 @@ function createMessagesStore() {
           }
         }
         finish("🔒 Unable to decrypt", true);
+        if (peerUserId) void e2ee.forgetPeer(peerUserId);
       } catch {
         finish("🔒 Unable to decrypt", true);
+        if (peerUserId) void e2ee.forgetPeer(peerUserId);
       }
     })().finally(() => decryptingVersions.delete(decryptKey));
   };
@@ -291,20 +293,20 @@ function createMessagesStore() {
       upsert(dto.chatId, { ...message, sourceText: undefined, attachment: undefined });
       return message;
     }
-    const knownVersion = plaintextVersions.get(dto.id) ?? previous?.contentVersion;
-    // Legacy unversioned caches are only safe for never-edited messages.
-    if ((knownVersion && knownVersion !== message.contentVersion) || (!knownVersion && message.editedAt)) forget(dto.id);
-    const cached = openedPlaintext.get(dto.id);
     // Double Ratchet cannot open our own ciphertext after send() already
     // advanced the sending chain. Feeding the echo into decrypt() poisons
-    // the session (it looks like a new DH from the peer). Keep the plaintext
-    // we already had on the optimistic row.
+    // the session. Keep the plaintext we already had — including after an
+    // edit, when contentVersion changes but we still know the words.
     if (message.mine && message.decrypting) {
-      ensure(dto.chatId);
+      const cachedOwn = openedPlaintext.get(dto.id);
       const pending = state[dto.chatId]?.messages.find(
         (m) => (message.clientTag && m.clientTag === message.clientTag && m.pending) || (m.pending && m.mine),
       );
-      const kept = cached ?? (!message.editedAt ? pending?.sourceText ?? pending?.text : undefined);
+      const kept =
+        (cachedOwn && !cachedOwn.startsWith("🔒 ") ? cachedOwn : undefined) ??
+        (previous && !previous.text.startsWith("🔒 ") ? previous.sourceText ?? previous.text : undefined) ??
+        pending?.sourceText ??
+        pending?.text;
       if (kept && kept !== "🔒 Encrypted message" && !kept.startsWith("🔒 ")) {
         rememberPlaintext(dto.id, kept, { ...message, text: kept, decrypting: false });
         message.text = kept;
@@ -317,6 +319,16 @@ function createMessagesStore() {
       upsert(dto.chatId, message);
       return message;
     }
+    const knownVersion = plaintextVersions.get(dto.id) ?? previous?.contentVersion;
+    const versionMatches = !!knownVersion && knownVersion === message.contentVersion;
+    if (!versionMatches) {
+      const cachedForNew =
+        !!openedPlaintext.get(dto.id) &&
+        !openedPlaintext.get(dto.id)!.startsWith("🔒 ") &&
+        plaintextVersions.get(dto.id) === message.contentVersion;
+      if (!cachedForNew) forget(dto.id);
+    }
+    const cached = openedPlaintext.get(dto.id);
     if (cached && message.decrypting) {
       if (message.contentVersion) plaintextVersions.set(dto.id, message.contentVersion);
       message.text = cached;

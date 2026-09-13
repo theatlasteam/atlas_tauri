@@ -811,7 +811,7 @@ export default function ChatView() {
           )}
         </Show>
 
-        <Show when={replyTo() && !isCommentThread()}>
+        <Show when={!isCommentThread() ? replyTo() : undefined}>
           {(reply) => (
             <div class="rise-in flex items-center gap-2 px-4 pt-2">
               <div class="min-w-0 flex-1 rounded-lg border-l-2 border-accent bg-surface-raised px-2.5 py-1.5">
@@ -897,6 +897,7 @@ export default function ChatView() {
           <MenuItem
             onSelect={() => {
               setMenuOpen(false);
+              if (!window.confirm(t("chatView.clearHistoryConfirm"))) return;
               void api.clearChatHistory(params.id).then(() => messagesStore.clearLocal(params.id));
             }}
           >

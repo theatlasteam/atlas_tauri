@@ -1009,3 +1009,32 @@ async fn dispatch(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_welcome_fetch_and_keyboard() {
+        let src = r#"
+welcome("Hi there");
+reply("/weather", "hold on");
+fetch("/weather", "https://wttr.in/?format=3");
+keyboard("/weather", [[{ "label": "Back", "data": "/start", "edit": true }]]);
+"#;
+        let parsed = parse_script(src);
+        assert_eq!(parsed.welcome, "Hi there");
+        let w = parsed.replies.iter().find(|r| r.on == "/weather").unwrap();
+        assert_eq!(w.fetch, "https://wttr.in/?format=3");
+        assert_eq!(w.say, "hold on");
+        assert_eq!(w.buttons[0][0].data, "/start");
+        assert!(w.buttons[0][0].edit);
+    }
+
+    #[test]
+    fn star_rule_still_matches() {
+        let parsed = parse_script(r#"reply("*", "You said {{text}}");"#);
+        assert_eq!(parsed.replies[0].on, "*");
+        assert!(parsed.welcome.is_empty());
+    }
+}
