@@ -9,9 +9,15 @@ export function e2ee2_encrypt(peer: string, plaintext: string): string;
 
 export function e2ee2_fingerprint(bundle_json: string): string;
 
+export function e2ee2_forget_peer(peer: string): void;
+
 export function e2ee2_has_session(peer: string): boolean;
 
 export function e2ee2_new_prekeys(count: number): string;
+
+export function e2ee2_remote_identity(peer: string): string;
+
+export function e2ee2_reset_account(): void;
 
 export function e2ee2_start_session(peer: string, bundle_json: string, one_time_prekey?: string | null): void;
 
@@ -43,8 +49,11 @@ export interface InitOutput {
     readonly e2ee2_decrypt: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly e2ee2_encrypt: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly e2ee2_fingerprint: (a: number, b: number) => [number, number, number, number];
+    readonly e2ee2_forget_peer: (a: number, b: number) => [number, number];
     readonly e2ee2_has_session: (a: number, b: number) => [number, number, number];
     readonly e2ee2_new_prekeys: (a: number) => [number, number, number, number];
+    readonly e2ee2_remote_identity: (a: number, b: number) => [number, number, number, number];
+    readonly e2ee2_reset_account: () => [number, number];
     readonly e2ee2_start_session: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly e2ee_fingerprint: (a: number, b: number) => [number, number, number, number];
     readonly e2ee_open: (a: number, b: number, c: number, d: number) => [number, number, number, number];
