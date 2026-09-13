@@ -314,3 +314,23 @@
     animation-duration: 1ms;
   }
 }
+
+.nav-icon-svg {
+  overflow: visible;
+}
+.nav-icon-svg.ph {
+  fill: currentColor;
+}
+.nav-icon-svg.ph-stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 16;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.nav-icon-svg .nav-glyph,
+.nav-icon-svg .bubble-a,
+.nav-icon-svg .bubble-b {
+  transform-box: view-box;
+  transform-origin: 128px 128px;
+}

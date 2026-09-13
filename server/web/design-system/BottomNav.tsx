@@ -24,12 +24,12 @@ export default function BottomNav(props: { items: BottomNavItem[]; class?: strin
         {(item) => {
           const cls = () =>
             cx(
-              "flex min-w-[4.5rem] flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[10px] font-medium transition",
+              "atlas-focus flex min-h-11 min-w-[4.5rem] flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[13px] font-medium",
               item.active ? "text-accent" : "text-ink-subtle hover:text-ink",
             );
           const body = (
             <>
-              <span class="grid h-6 place-items-center">{item.icon}</span>
+              <span class="grid h-7 w-7 place-items-center overflow-visible">{item.icon}</span>
               {item.label}
             </>
           );

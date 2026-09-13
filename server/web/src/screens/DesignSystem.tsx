@@ -1,14 +1,19 @@
 import { For, Show, createMemo, createSignal, onMount, type JSX } from "solid-js";
 import {
-  ChatsCircle,
-  Compass,
   Copy,
-  Gear,
+  House,
+  Key,
+  Keyboard,
   List,
   Moon,
-  Phone,
+  PaintBucket,
+  Path,
+  Sparkle,
+  SquaresFour,
   Sun,
-  User,
+  TextT,
+  ChatCircle,
+  Warning,
 } from "phosphor-solid-js";
 import {
   Alert,
@@ -26,6 +31,8 @@ import {
   IconButton,
   Logo,
   MessageBubble,
+  NavIcon,
+  playNavIcon,
   Sidebar,
   Slider,
   Switch,
@@ -46,21 +53,21 @@ const ACCENTS = [
   { id: "plum", hex: "#9c4fa0" },
 ] as const;
 
-const NAV = [
-  { id: "overview", label: "Overview", group: "Start" },
-  { id: "foundations", label: "Foundations", group: "Start" },
-  { id: "color", label: "Color", group: "Foundations" },
-  { id: "type", label: "Typography", group: "Foundations" },
-  { id: "motion", label: "Motion", group: "Foundations" },
-  { id: "a11y", label: "Accessibility", group: "Foundations" },
-  { id: "button", label: "Button", group: "Components" },
-  { id: "inputs", label: "Inputs", group: "Components" },
-  { id: "dialog", label: "Dialog", group: "Components" },
-  { id: "composer", label: "Composer", group: "Messaging" },
-  { id: "messages", label: "Messages", group: "Messaging" },
-  { id: "nav", label: "Navigation", group: "Patterns" },
-  { id: "brand", label: "Logo & brand", group: "Brand" },
-] as const;
+const NAV: { id: string; label: string; group: string; icon: () => JSX.Element }[] = [
+  { id: "overview", label: "Overview", group: "Start", icon: () => <House size={18} /> },
+  { id: "foundations", label: "Foundations", group: "Start", icon: () => <SquaresFour size={18} /> },
+  { id: "color", label: "Color", group: "Foundations", icon: () => <PaintBucket size={18} /> },
+  { id: "type", label: "Typography", group: "Foundations", icon: () => <TextT size={18} /> },
+  { id: "motion", label: "Motion", group: "Foundations", icon: () => <Sparkle size={18} /> },
+  { id: "a11y", label: "Accessibility", group: "Foundations", icon: () => <Key size={18} /> },
+  { id: "button", label: "Button", group: "Components", icon: () => <SquaresFour size={18} /> },
+  { id: "inputs", label: "Inputs", group: "Components", icon: () => <Keyboard size={18} /> },
+  { id: "dialog", label: "Dialog", group: "Components", icon: () => <Warning size={18} /> },
+  { id: "composer", label: "Composer", group: "Messaging", icon: () => <ChatCircle size={18} /> },
+  { id: "messages", label: "Messages", group: "Messaging", icon: () => <ChatCircle size={18} /> },
+  { id: "nav", label: "Navigation", group: "Patterns", icon: () => <Path size={18} /> },
+  { id: "brand", label: "Logo & brand", group: "Brand", icon: () => <Sparkle size={18} /> },
+];
 
 function Code(props: { children: string }) {
   const [ok, setOk] = createSignal(false);
@@ -159,11 +166,20 @@ export default function DesignSystem(props: { onOpenApp?: () => void } = {}) {
   const sidebar = (
     <Sidebar
       variant="expanded"
-      header={<Logo width={88} />}
+      header={
+        <a href="#overview" class="flex items-center gap-2.5 px-1 py-1 no-underline">
+          <Logo width={32} static />
+          <span>
+            <span class="block font-heading text-sm font-semibold leading-tight text-ink">Atlas</span>
+            <span class="block text-[13px] leading-tight text-ink-subtle">Design system</span>
+          </span>
+        </a>
+      }
       items={filteredNav().map((n) => ({
         id: n.id,
         href: `#${n.id}`,
         label: n.label,
+        icon: n.icon(),
         active: false,
         onClick: () => setMenuOpen(false),
       }))}
@@ -253,8 +269,18 @@ export default function DesignSystem(props: { onOpenApp?: () => void } = {}) {
           <DoDont
             doTitle="Accent for brand and selection"
             dontTitle="Accent for danger"
-            do={<Button>Send</Button>}
-            dont={<Button variant="danger">Send</Button>}
+            do={
+              <div class="flex flex-wrap items-center gap-2">
+                <Button>Send</Button>
+                <Button variant="soft">Selected</Button>
+              </div>
+            }
+            dont={
+              <div class="flex flex-wrap items-center gap-2">
+                <Button variant="danger">Send</Button>
+                <Button variant="danger">Save</Button>
+              </div>
+            }
           />
         </H>
 
@@ -270,15 +296,35 @@ export default function DesignSystem(props: { onOpenApp?: () => void } = {}) {
         </H>
 
         <H id="motion" title="Motion" lead="Fast 140ms, UI 220ms, expressive 800ms. Never transition every button globally.">
-          <p class="text-[15px] text-ink-muted">prefers-reduced-motion collapses logo reveal and dialog morph to an instant change.</p>
+          <DoDont
+            doTitle="One-shot on select"
+            dontTitle="Loop forever"
+            do={
+              <button type="button" class="atlas-focus flex h-11 items-center gap-2 rounded-xl px-3" onClick={() => playNavIcon("settings")}>
+                <NavIcon name="settings" />
+                <span class="text-sm">Tap settings</span>
+              </button>
+            }
+            dont={
+              <div class="flex h-11 items-center gap-2 px-3 text-ink-subtle">
+                <span class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                <span class="text-sm">Always spinning</span>
+              </div>
+            }
+          />
         </H>
 
         <H id="a11y" title="Accessibility" lead="Focus-visible accent ring, 44×44 hit targets on touch, WCAG AA on every preset.">
-          <ul class="list-disc space-y-1 pl-5 text-[15px] text-ink-muted">
-            <li>Dialog: role=dialog, labelledby, trap, Escape, restore focus.</li>
-            <li>Combobox: aria-expanded, aria-controls, arrows, Enter, Escape.</li>
-            <li>Slider: Home/End, aria-valuetext.</li>
-          </ul>
+          <DoDont
+            doTitle="44px hit + label"
+            dontTitle="8px icon, no name"
+            do={<IconButton ariaLabel="Settings"><NavIcon name="settings" size={18} /></IconButton>}
+            dont={
+              <button type="button" class="h-4 w-4 text-ink-subtle" aria-hidden>
+                <NavIcon name="settings" size={12} />
+              </button>
+            }
+          />
         </H>
 
         <H id="button" kicker="Components" title="Button" status="stable" lead="Primary / soft / ghost / danger. Background is inline CSS so production purge cannot drop danger.">
@@ -335,6 +381,23 @@ export default function DesignSystem(props: { onOpenApp?: () => void } = {}) {
             </Bialog>
             <Button variant="ghost" onClick={() => { setToast(true); setTimeout(() => setToast(false), 2000); }}>Toast</Button>
           </div>
+          <DoDont
+            doTitle="Short title, safe action stays"
+            dontTitle="Vague title, all buttons equal"
+            do={
+              <div class="flex justify-end gap-2">
+                <Button variant="ghost">Cancel</Button>
+                <Button variant="danger">Delete</Button>
+              </div>
+            }
+            dont={
+              <div class="flex justify-end gap-2">
+                <Button>OK</Button>
+                <Button>OK</Button>
+                <Button>OK</Button>
+              </div>
+            }
+          />
           <Dialog open={dialog()} onOpenChange={setDialog} title="Leave group?" description="You can be added back later." footer={<Button onClick={() => setDialog(false)}>OK</Button>}>
             <p class="text-sm text-ink-muted">Members will see that you left.</p>
           </Dialog>
@@ -346,8 +409,13 @@ export default function DesignSystem(props: { onOpenApp?: () => void } = {}) {
           <DoDont
             doTitle="Stable 44px action"
             dontTitle="Jumping width"
-            do={<p class="text-sm text-ink-muted">Mic and send share one circle.</p>}
-            dont={<p class="text-sm text-ink-muted">Don’t swap a wide Send for a tiny mic.</p>}
+            do={<Composer value="Hi" onChange={() => {}} />}
+            dont={
+              <div class="flex items-center gap-2">
+                <input class="min-w-0 flex-1 rounded-full border border-border px-3 py-1 text-sm" value="Hi" readOnly />
+                <button type="button" class="rounded-full bg-accent px-5 py-1 text-xs text-accent-ink">Send</button>
+              </div>
+            }
           />
         </H>
 
@@ -366,29 +434,62 @@ export default function DesignSystem(props: { onOpenApp?: () => void } = {}) {
         </H>
 
         <H id="nav" kicker="Patterns" title="Navigation" status="stable" lead="Rail on tablet, drawer under 768px, expanded ≥1024px. Active state is shape + contrast, not color alone.">
-          <BottomNav
-            items={[
-              { id: "chats", label: "Chats", icon: <ChatsCircle size={22} />, active: nav() === "chats", onClick: () => setNav("chats") },
-              { id: "calls", label: "Calls", icon: <Phone size={22} />, active: nav() === "calls", onClick: () => setNav("calls") },
-              { id: "compass", label: "Compass", icon: <Compass size={22} />, active: nav() === "compass", onClick: () => setNav("compass") },
-              { id: "profile", label: "You", icon: <User size={22} />, active: nav() === "profile", onClick: () => setNav("profile") },
-              { id: "settings", label: "Settings", icon: <Gear size={22} />, active: nav() === "settings", onClick: () => setNav("settings") },
-            ]}
+          <div class="overflow-hidden rounded-2xl border border-border">
+            <BottomNav
+              items={[
+                { id: "chats", label: "Chats", icon: <NavIcon name="chats" />, active: nav() === "chats", onClick: () => { setNav("chats"); playNavIcon("chats"); } },
+                { id: "calls", label: "Calls", icon: <NavIcon name="calls" />, active: nav() === "calls", onClick: () => { setNav("calls"); playNavIcon("calls"); } },
+                { id: "compass", label: "Compass", icon: <NavIcon name="compass" />, active: nav() === "compass", onClick: () => { setNav("compass"); playNavIcon("compass"); } },
+                { id: "profile", label: "You", icon: <NavIcon name="profile" />, active: nav() === "profile", onClick: () => { setNav("profile"); playNavIcon("profile"); } },
+                { id: "settings", label: "Settings", icon: <NavIcon name="settings" />, active: nav() === "settings", onClick: () => { setNav("settings"); playNavIcon("settings"); } },
+              ]}
+            />
+          </div>
+          <DoDont
+            doTitle="One active tab + one-shot motion"
+            dontTitle="Tiny unlabeled icons"
+            do={
+              <div class="flex justify-around rounded-xl bg-surface py-2">
+                <button type="button" class="flex flex-col items-center text-[13px] text-accent" onClick={() => playNavIcon("chats")}>
+                  <NavIcon name="chats" />
+                  Chats
+                </button>
+                <button type="button" class="flex flex-col items-center text-[13px] text-ink-subtle" onClick={() => playNavIcon("calls")}>
+                  <NavIcon name="calls" />
+                  Calls
+                </button>
+              </div>
+            }
+            dont={
+              <div class="flex justify-around rounded-xl bg-surface py-2 opacity-70">
+                <span class="text-[10px] text-accent">●</span>
+                <span class="text-[10px]">○</span>
+                <span class="text-[10px]">○</span>
+              </div>
+            }
           />
           <EmptyState title="No chats yet" subtitle="Start a conversation from search." />
           <Alert tone="warning">You’re offline. Messages will send when you’re back.</Alert>
         </H>
 
-        <H id="brand" kicker="Brand" title="Logo" status="stable" lead="Shape is a mask. Accent gradient feathers from the top. Compact static Logo for dense chrome.">
-          <div class="grid place-items-center rounded-2xl bg-surface-raised py-10">
-            <Logo width={220} />
+        <H id="brand" kicker="Brand" title="Logo" status="stable" lead="Shape is a mask. Accent gradient feathers from the top. Use the compact mark with a wordmark in chrome.">
+          <div class="flex flex-wrap items-center gap-5 rounded-2xl border border-border bg-surface-raised px-5 py-6">
+            <Logo width={72} />
+            <div>
+              <p class="font-heading text-2xl font-semibold text-ink">Atlas</p>
+              <p class="mt-1 max-w-sm text-[15px] text-ink-muted">Tap an accent swatch in Color — the gradient reveals from the top. Dense UI uses the 32px static mark.</p>
+            </div>
           </div>
-          <p class="text-center text-sm text-ink-muted">Change accent above — the mark reveals the new gradient.</p>
           <DoDont
-            doTitle="Keep proportions"
-            dontTitle="Stretch the mark"
-            do={<Logo width={100} static />}
-            dont={<div class="h-10 w-40 overflow-hidden opacity-60"><Logo width={160} static /></div>}
+            doTitle="Keep proportions + wordmark"
+            dontTitle="Stretch or drop the name"
+            do={
+              <div class="flex items-center gap-2">
+                <Logo width={36} static />
+                <span class="font-heading text-sm font-semibold">Atlas</span>
+              </div>
+            }
+            dont={<div class="h-8 w-36 overflow-hidden opacity-50"><Logo width={140} static /></div>}
           />
         </H>
       </div>

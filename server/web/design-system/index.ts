@@ -44,6 +44,8 @@ export { default as Dialog } from "./Dialog";
 export { default as Bialog } from "./Bialog";
 export { default as MorphDialog } from "./Bialog";
 export { default as Logo } from "./Logo";
+export { default as NavIcon, playNavIcon } from "./NavIcon";
+export type { NavIconName } from "./NavIcon";
 export { default as Alert } from "./Alert";
 export type { AlertTone } from "./Alert";
 export { default as Banner } from "./Banner";
