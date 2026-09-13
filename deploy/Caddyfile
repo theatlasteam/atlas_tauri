@@ -1,0 +1,35 @@
+# Production Caddy for atlasmsg.app. Keep /mcp, /api, /ws, /s on the API.
+atlasmsg.app {
+	encode gzip zstd
+	root * /opt/atlas/server/web/dist
+	handle /s/* {
+		reverse_proxy 127.0.0.1:8080
+	}
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8080
+	}
+	handle /ws {
+		reverse_proxy 127.0.0.1:8080
+	}
+	handle /mcp* {
+		reverse_proxy 127.0.0.1:8080
+	}
+	handle /app* {
+		try_files {path} {path}/ /app/index.html
+		file_server
+	}
+	handle {
+		try_files {path} {path}/ /index.html
+		file_server
+	}
+}
+
+s.atlasmsg.app {
+	encode gzip zstd
+	reverse_proxy 127.0.0.1:8080
+}
+
+ai.atlasmsg.app {
+	encode gzip zstd
+	reverse_proxy 127.0.0.1:8080
+}

@@ -338,10 +338,30 @@ struct ReadDocsParams {}
 
 /// Build the axum router for the MCP endpoint (mounted at /mcp).
 pub(crate) fn router(state: AppState) -> axum::Router<AppState> {
+    // rmcp defaults allowed_hosts to loopback only (DNS-rebinding guard).
+    // Public Host values like atlasmsg.app were 403ing every real client.
+    let mut mcp_cfg = StreamableHttpServerConfig::default();
+    let mut hosts = vec![
+        "localhost".into(),
+        "127.0.0.1".into(),
+        "[::1]".into(),
+        "atlasmsg.app".into(),
+        "www.atlasmsg.app".into(),
+        "s.atlasmsg.app".into(),
+    ];
+    if let Ok(extra) = std::env::var("MCP_ALLOWED_HOSTS") {
+        for h in extra.split(',') {
+            let h = h.trim();
+            if !h.is_empty() {
+                hosts.push(h.to_string());
+            }
+        }
+    }
+    mcp_cfg.allowed_hosts = hosts;
     let service = StreamableHttpService::new(
         move || Ok(PluginMcpServer::new(state.clone())),
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default(),
+        mcp_cfg,
     );
     axum::Router::new().nest_service("/mcp", service)
 }

@@ -9,7 +9,7 @@ stored on the server, and installed from the app's Plugins marketplace.
 AI assistants can create, validate and publish plugins against this store
 through a Model Context Protocol server:
 
-- Endpoint: `https://atlasmsg.app/mcp` (streamable HTTP)
+- Endpoint: `https://atlasmsg.app/mcp` (streamable HTTP; same path on `s.atlasmsg.app`)
 - Tools: `list_plugins`, `get_plugin`, `validate_plugin`, `create_plugin`,
   `update_plugin`, `delete_plugin`, `read_docs` (this document)
 - Write tools require an Atlas session token passed as the `token` argument

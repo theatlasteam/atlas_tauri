@@ -13,7 +13,7 @@ mod ws;
 
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Request, State};
-use axum::http::{header, HeaderValue, Method, StatusCode};
+use axum::http::{header, HeaderName, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, delete, get, patch, post, put};
 use axum::{Json, Router};
@@ -54,8 +54,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let cors = CorsLayer::new()
         .allow_origin(allow_origin)
-        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::PUT, Method::DELETE])
-        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PATCH,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            header::ACCEPT,
+            HeaderName::from_static("mcp-session-id"),
+            HeaderName::from_static("last-event-id"),
+            HeaderName::from_static("mcp-protocol-version"),
+        ]);
 
     let bind_addr = cfg.bind_addr.clone();
     let state = AppState::new(db, cfg, compass_user_id, official.user_id, official.chat_id);
