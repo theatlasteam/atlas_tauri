@@ -14,12 +14,15 @@ export default function Combobox(props: {
   class?: string;
   /** Allow typing a value that is not in the list. */
   allowCustom?: boolean;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = createSignal(false);
   const [query, setQuery] = createSignal("");
   const [active, setActive] = createSignal(0);
+  const listId = `atlas-combo-${Math.random().toString(36).slice(2, 9)}`;
   let root: HTMLDivElement | undefined;
   let input: HTMLInputElement | undefined;
+  let listEl: HTMLDivElement | undefined;
 
   const selected = createMemo(() => props.options.find((o) => o.value === props.value));
 
@@ -47,7 +50,11 @@ export default function Combobox(props: {
     if (!open()) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((i) => Math.min(i + 1, Math.max(filtered().length - 1, 0)));
+      setActive((i) => {
+        const n = Math.min(i + 1, Math.max(filtered().length - 1, 0));
+        queueMicrotask(() => listEl?.querySelectorAll("[role=option]")[n]?.scrollIntoView({ block: "nearest" }));
+        return n;
+      });
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((i) => Math.max(i - 1, 0));
@@ -87,8 +94,10 @@ export default function Combobox(props: {
           ref={(el) => (input = el)}
           role="combobox"
           aria-expanded={open()}
+          aria-controls={listId}
           aria-autocomplete="list"
-          class="w-full rounded-xl border border-border bg-surface px-3 py-2 pr-9 text-ink outline-none transition placeholder:text-ink-subtle focus:border-accent"
+          disabled={props.disabled}
+          class="atlas-focus min-h-11 w-full rounded-xl border border-border bg-surface px-3 py-2 pr-9 text-[15px] text-ink outline-none placeholder:text-ink-subtle"
           placeholder={props.placeholder ?? "Search…"}
           value={open() ? query() : (selected()?.label ?? props.value)}
           onFocus={() => {
@@ -120,6 +129,8 @@ export default function Combobox(props: {
         <Transition name="pop">
           <Show when={open()}>
             <div
+              id={listId}
+              ref={(el) => (listEl = el)}
               role="listbox"
               class="absolute left-0 right-0 top-[calc(100%+6px)] z-50 origin-top overflow-hidden rounded-2xl border border-border bg-surface-raised p-1.5 shadow-floating"
             >

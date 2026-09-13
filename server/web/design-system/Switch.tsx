@@ -10,7 +10,7 @@ export default function Switch(props: {
       aria-checked={props.checked}
       aria-label={props.label}
       onClick={() => props.onChange(!props.checked)}
-      class="relative flex h-[44px] w-[68px] shrink-0 items-center"
+      class="atlas-focus relative flex h-[44px] w-[68px] shrink-0 items-center rounded-full"
       data-checked={props.checked ? "" : undefined}
     >
       <span

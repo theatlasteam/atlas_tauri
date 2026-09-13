@@ -1,75 +1,39 @@
-import { Show, createSignal, For, type JSX, onCleanup, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, onMount, type JSX } from "solid-js";
 import {
-  BoundingBox,
-  CaretDown,
-  ChartBar,
   ChatsCircle,
   Compass,
   Copy,
-  DotsThree,
-  File,
   Gear,
-  House,
-  Image,
-  ListBullets,
+  List,
   Moon,
-  Palette,
-  PencilSimple,
-  Plus,
-  PushPin,
-  Sparkle,
-  SquaresFour,
+  Phone,
   Sun,
-  Tray,
-  Trash,
   User,
-  WarningCircle,
 } from "phosphor-solid-js";
-import logo from "../assets/logo.svg";
 import {
   Alert,
   AppShell,
-  Avatar,
   Badge,
-  Banner,
+  Bialog,
   BottomNav,
-  Breadcrumbs,
   Button,
   Card,
   Checkbox,
-  Bialog,
+  Combobox,
+  Composer,
   Dialog,
   EmptyState,
   IconButton,
-  Kbd,
-  List,
-  ListItem,
-  Menu,
-  Navbar,
-  NavbarActions,
-  NavbarBrand,
-  NavbarLink,
-  NavbarLinks,
-  AiMessage,
-  Combobox,
-  Composer,
-  Conversation,
-  type ConversationMessage,
+  Logo,
   MessageBubble,
-  LimitBar,
-  Progress,
   Sidebar,
-  Skeleton,
   Slider,
   Switch,
-  Tabs,
-  TextArea,
   TextField,
   Toast,
-  Tooltip,
 } from "@atlas/ui";
 
-const ACCENTS: { id: string; hex: string }[] = [
+const ACCENTS = [
   { id: "amber", hex: "#c9772e" },
   { id: "jade", hex: "#2f8f6e" },
   { id: "violet", hex: "#7b5ec9" },
@@ -80,34 +44,76 @@ const ACCENTS: { id: string; hex: string }[] = [
   { id: "coral", hex: "#d9603f" },
   { id: "indigo", hex: "#4550b8" },
   { id: "plum", hex: "#9c4fa0" },
-];
+] as const;
 
-const SECTIONS = [
-  { id: "overview", label: "Overview", icon: <House size={18} /> },
-  { id: "buttons", label: "Buttons", icon: <SquaresFour size={18} /> },
-  { id: "inputs", label: "Inputs", icon: <Palette size={18} /> },
-  { id: "alerts", label: "Alert", icon: <WarningCircle size={18} /> },
-  { id: "progress", label: "Progress", icon: <ChartBar size={18} /> },
-  { id: "limitbar", label: "Limit bar", icon: <BoundingBox size={18} /> },
-  { id: "dialog", label: "Dialog", icon: <ChatsCircle size={18} /> },
-  { id: "bialog", label: "Bialog", icon: <Trash size={18} /> },
-  { id: "toast", label: "Toast", icon: <Tray size={18} /> },
-  { id: "empty", label: "Empty state", icon: <Tray size={18} /> },
-  { id: "navigation", label: "Navigation", icon: <Compass size={18} /> },
-  { id: "badges", label: "Badges", icon: <User size={18} /> },
-  { id: "list", label: "List", icon: <ListBullets size={18} /> },
-  { id: "skeleton", label: "Skeleton", icon: <SquaresFour size={18} /> },
-  { id: "messages", label: "Messages", icon: <ChatsCircle size={18} /> },
-  { id: "composer", label: "Composer", icon: <ChatsCircle size={18} /> },
-  { id: "ai", label: "AI", icon: <Sparkle size={18} /> },
-];
+const NAV = [
+  { id: "overview", label: "Overview", group: "Start" },
+  { id: "foundations", label: "Foundations", group: "Start" },
+  { id: "color", label: "Color", group: "Foundations" },
+  { id: "type", label: "Typography", group: "Foundations" },
+  { id: "motion", label: "Motion", group: "Foundations" },
+  { id: "a11y", label: "Accessibility", group: "Foundations" },
+  { id: "button", label: "Button", group: "Components" },
+  { id: "inputs", label: "Inputs", group: "Components" },
+  { id: "dialog", label: "Dialog", group: "Components" },
+  { id: "composer", label: "Composer", group: "Messaging" },
+  { id: "messages", label: "Messages", group: "Messaging" },
+  { id: "nav", label: "Navigation", group: "Patterns" },
+  { id: "brand", label: "Logo & brand", group: "Brand" },
+] as const;
 
-function Section(props: { id: string; title: string; lead?: string; children: JSX.Element }) {
+function Code(props: { children: string }) {
+  const [ok, setOk] = createSignal(false);
   return (
-    <section id={props.id} class="scroll-mt-6 space-y-4">
+    <div class="relative">
+      <pre class="overflow-x-auto rounded-xl border border-border bg-surface-raised p-3 font-mono text-[13px] text-ink">{props.children}</pre>
+      <button
+        type="button"
+        class="atlas-focus absolute right-2 top-2 grid h-11 w-11 place-items-center rounded-full bg-surface text-ink-muted"
+        aria-label="Copy"
+        onClick={() => {
+          void navigator.clipboard.writeText(props.children);
+          setOk(true);
+          setTimeout(() => setOk(false), 1200);
+        }}
+      >
+        {ok() ? "✓" : <Copy size={16} />}
+      </button>
+    </div>
+  );
+}
+
+function DoDont(props: { doTitle: string; dontTitle: string; do: JSX.Element; dont: JSX.Element }) {
+  return (
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="rounded-2xl border border-success/40 bg-surface p-4">
+        <p class="mb-3 text-sm font-semibold text-success">Do · {props.doTitle}</p>
+        {props.do}
+      </div>
+      <div class="rounded-2xl border border-danger/40 bg-surface p-4">
+        <p class="mb-3 text-sm font-semibold text-danger">Don’t · {props.dontTitle}</p>
+        {props.dont}
+      </div>
+    </div>
+  );
+}
+
+function H(props: { id: string; kicker?: string; title: string; lead?: string; status?: string; children: JSX.Element }) {
+  return (
+    <section id={props.id} class="scroll-mt-24 space-y-6 border-b border-border py-12 last:border-0">
       <div>
-        <h2 class="font-heading text-xl font-semibold text-ink">{props.title}</h2>
-        {props.lead && <p class="mt-1 text-sm text-ink-muted">{props.lead}</p>}
+        <Show when={props.kicker}>
+          <p class="text-sm font-medium uppercase tracking-wide text-ink-subtle">{props.kicker}</p>
+        </Show>
+        <div class="mt-1 flex flex-wrap items-center gap-2">
+          <h2 class="font-heading text-3xl font-semibold tracking-tight text-ink">{props.title}</h2>
+          <Show when={props.status}>
+            <Badge>{props.status}</Badge>
+          </Show>
+        </div>
+        <Show when={props.lead}>
+          <p class="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-muted">{props.lead}</p>
+        </Show>
       </div>
       {props.children}
     </section>
@@ -119,577 +125,272 @@ export default function DesignSystem(props: { onOpenApp?: () => void } = {}) {
     (document.documentElement.dataset.theme as "light" | "dark") ?? "light",
   );
   const [accent, setAccent] = createSignal(document.documentElement.dataset.accent || "amber");
+  const [query, setQuery] = createSignal("");
+  const [menuOpen, setMenuOpen] = createSignal(false);
+  const [dialog, setDialog] = createSignal(false);
+  const [toast, setToast] = createSignal(false);
   const [on, setOn] = createSignal(true);
   const [checked, setChecked] = createSignal(false);
-  const [tab, setTab] = createSignal("account");
-  const [dialog, setDialog] = createSignal(false);
-  const [nav, setNav] = createSignal("overview");
-  const [bottom, setBottom] = createSignal("chats");
-  const [slider, setSlider] = createSignal(0.62);
-  const [toast, setToast] = createSignal(false);
-  const [banner, setBanner] = createSignal(true);
+  const [slider, setSlider] = createSignal(0.4);
   const [select, setSelect] = createSignal("en");
-  const [composerDraft, setComposerDraft] = createSignal("");
-  const [recording, setRecording] = createSignal(false);
-  const [prompt, setPrompt] = createSignal("");
-  const [promptLoading, setPromptLoading] = createSignal(false);
-  const [loaderPattern, setLoaderPattern] = createSignal<"hollow" | "random">("hollow");
-  const [model, setModel] = createSignal("grok-4.5");
-  const [thread, setThread] = createSignal<ConversationMessage[]>([
-    { id: "a1", role: "assistant", content: "Want a hand summarizing that thread?" },
-    { id: "u1", role: "user", content: "Yes — keep it to three bullets." },
-    {
-      id: "a2",
-      role: "assistant",
-      content: "Keys stay on-device. Groups use the same protocol. Calls are end-to-end as well.",
-    },
-  ]);
+  const [draft, setDraft] = createSignal("");
+  const [nav, setNav] = createSignal("chats");
+
+  const filteredNav = createMemo(() => {
+    const q = query().trim().toLowerCase();
+    if (!q) return NAV;
+    return NAV.filter((n) => n.label.toLowerCase().includes(q) || n.id.includes(q) || n.group.toLowerCase().includes(q));
+  });
 
   function applyTheme(next: "light" | "dark") {
     setTheme(next);
     document.documentElement.setAttribute("data-theme", next);
   }
-  function applyAccent(next: string) {
-    setAccent(next);
-    document.documentElement.setAttribute("data-accent", next);
+  function applyAccent(id: string) {
+    setAccent(id);
+    document.documentElement.setAttribute("data-accent", id);
   }
-
-  let toastTimer = 0;
-  function showToast() {
-    setToast(true);
-    window.clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(() => setToast(false), 2200);
-  }
-
-  onCleanup(() => window.clearTimeout(toastTimer));
 
   onMount(() => {
-    const ids = SECTIONS.map((s) => s.id);
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (visible?.target.id) setNav(visible.target.id);
-      },
-      { rootMargin: "-20% 0px -70% 0px", threshold: [0, 0.25, 0.5] },
-    );
-    for (const id of ids) {
-      const el = document.getElementById(id);
-      if (el) obs.observe(el);
-    }
-    onCleanup(() => obs.disconnect());
+    const hash = window.location.hash.replace("#", "");
+    if (hash) document.getElementById(hash)?.scrollIntoView();
   });
+
+  const sidebar = (
+    <Sidebar
+      variant="expanded"
+      header={<Logo width={88} />}
+      items={filteredNav().map((n) => ({
+        id: n.id,
+        href: `#${n.id}`,
+        label: n.label,
+        active: false,
+        onClick: () => setMenuOpen(false),
+      }))}
+    />
+  );
 
   return (
     <AppShell
-      sidebar={
-        <Sidebar
-          variant="expanded"
-          header={
-            <a href="/" onClick={(e) => { if (props.onOpenApp) { e.preventDefault(); props.onOpenApp(); } }} class="flex items-center gap-2 px-1 py-1.5 font-heading text-sm font-semibold text-ink">
-              <img src={logo} alt="" width="22" height="16" />
-              Atlas UI
-            </a>
-          }
-          groups={[
-            {
-              label: "Docs",
-              items: SECTIONS.map((s) => ({
-                id: s.id,
-                href: `#${s.id}`,
-                label: s.label,
-                icon: s.icon,
-                active: nav() === s.id,
-                onClick: () => setNav(s.id),
-              })),
-            },
-            {
-              label: "Elsewhere",
-              items: [
-                { id: "app", href: "/app", label: "Messenger", icon: <ChatsCircle size={18} /> },
-                { id: "site", href: "/", label: "Marketing", icon: <Gear size={18} /> },
-              ],
-            },
-          ]}
-          footer={
-            <div class="flex items-center gap-2 px-1 py-1 text-xs text-ink-subtle">
-              <Avatar name="Atlas" size={22} />
-              @atlas/ui
-            </div>
-          }
-        />
+      nav="auto"
+      menuOpen={menuOpen()}
+      onMenuOpen={setMenuOpen}
+      menuButton={
+        <button
+          type="button"
+          class="atlas-focus m-2 grid h-11 w-11 place-items-center rounded-xl border border-border bg-surface md:hidden"
+          aria-label="Open design navigation"
+          aria-expanded={menuOpen()}
+          onClick={() => setMenuOpen(true)}
+        >
+          <List size={20} />
+        </button>
       }
+      sidebar={sidebar}
       top={
-        <Navbar variant="bar">
-          <NavbarBrand href="/design">
-            <span class="hidden sm:inline">Design system</span>
-            <span class="sm:hidden">UI</span>
-          </NavbarBrand>
-          <NavbarLinks>
-            <NavbarLink href="/">Home</NavbarLink>
-            <NavbarLink href="/plugins">Plugins</NavbarLink>
-            <NavbarLink href="/bots">Bots</NavbarLink>
-            <NavbarLink href="/docs">Docs</NavbarLink>
-            <NavbarLink href="/design">Design</NavbarLink>
-          </NavbarLinks>
-          <NavbarActions>
-            <Tooltip label={theme() === "dark" ? "Light mode" : "Dark mode"}>
-              <IconButton
-                ariaLabel="Toggle theme"
-                onClick={() => applyTheme(theme() === "dark" ? "light" : "dark")}
-              >
-                {theme() === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-              </IconButton>
-            </Tooltip>
-            <Menu
-              trigger={
-                <IconButton ariaLabel="More">
-                  <DotsThree size={18} />
-                </IconButton>
-              }
-              items={[
-                { id: "copy", label: "Copy import", icon: <Copy size={16} />, onSelect: () => showToast() },
-                { id: "app", label: "Open app", icon: <SquaresFour size={16} />, onSelect: () => props.onOpenApp ? props.onOpenApp() : (window.location.href = "/app") },
-              ]}
-            />
-          </NavbarActions>
-        </Navbar>
-      }
-    >
-      <Show when={banner()}>
-        <Banner
-          onDismiss={() => setBanner(false)}
-          action={
-            <Button size="sm" variant="ghost" href="/app">
+        <header class="flex flex-wrap items-center gap-2 border-b border-border bg-appbar px-3 py-2">
+          <p class="mr-auto font-heading text-sm font-semibold">Atlas design system</p>
+          <input
+            class="atlas-focus min-h-11 min-w-[10rem] flex-1 rounded-full border border-border bg-surface px-3 text-sm md:max-w-xs"
+            placeholder="Search…"
+            value={query()}
+            onInput={(e) => setQuery(e.currentTarget.value)}
+            aria-label="Search the spec"
+          />
+          <IconButton ariaLabel="Toggle theme" onClick={() => applyTheme(theme() === "dark" ? "light" : "dark")}>
+            {theme() === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          </IconButton>
+          <Show when={props.onOpenApp}>
+            <Button size="sm" href="/app" onClick={() => props.onOpenApp?.()}>
               Open app
             </Button>
-          }
-        >
-          Same tokens as the messenger. Try an accent, then scroll — the sidebar stays put.
-        </Banner>
-      </Show>
-
-      <div class="mx-auto max-w-3xl space-y-16 px-6 py-10 pb-24">
-        <Section id="overview" title="Atlas UI" lead="Shared Solid primitives for the messenger, PWA, and this site. Import from @atlas/ui.">
-          <Breadcrumbs items={[{ href: "/", label: "Atlas" }, { href: "/design", label: "Design" }, { label: "Overview" }]} />
-          <Card title="Accent" description="Tokens tint surfaces from the active hue. Same ramp as the app.">
-            <div class="flex flex-wrap gap-2">
-              <For each={ACCENTS}>
-                {(item) => (
-                  <button
-                    type="button"
-                    onClick={() => applyAccent(item.id)}
-                    class="h-8 w-8 rounded-full border border-border transition hover:scale-105"
-                    style={{ background: item.hex }}
-                    classList={{ "ring-2 ring-ink ring-offset-2 ring-offset-bg": accent() === item.id }}
-                    aria-label={item.id}
-                  />
-                )}
-              </For>
-            </div>
-            <p class="mt-3 text-xs text-ink-subtle">
-              Active <span class="font-medium text-ink">{accent()}</span> · import{" "}
-              <code class="rounded-md bg-bg px-1.5 py-0.5 font-mono text-[11px] text-accent">{"import { Button } from \"@atlas/ui\""}</code>
-            </p>
-          </Card>
-        </Section>
-
-        <Section id="buttons" title="Buttons" lead="Pills with primary / soft / ghost / danger. Icon buttons and menus sit next to them.">
-          <Card>
-            <div class="flex flex-wrap items-center gap-2.5">
-              <Button>Primary</Button>
-              <Button variant="soft">Soft</Button>
-              <Button variant="ghost">Ghost</Button>
-              <Button variant="danger">Danger</Button>
-              <Button size="sm">Small</Button>
-              <Button size="lg">Large</Button>
-              <Button disabled>Disabled</Button>
-              <Tooltip label="New chat">
-                <IconButton ariaLabel="New chat">
-                  <Plus size={16} />
-                </IconButton>
-              </Tooltip>
-              <Menu
-                trigger={
-                  <Button variant="ghost" size="sm">
-                    Menu <CaretDown size={12} />
-                  </Button>
-                }
-                items={[
-                  { id: "edit", label: "Edit", icon: <PencilSimple size={16} /> },
-                  { id: "pin", label: "Pin", icon: <PushPin size={16} /> },
-                  { id: "del", label: "Delete", icon: <Trash size={16} />, danger: true, onSelect: () => setDialog(true) },
-                ]}
-              />
-            </div>
-            <p class="mt-4 text-xs text-ink-subtle">
-              Keyboard <Kbd>⌘</Kbd> <Kbd>K</Kbd> is a typical command palette shortcut.
-            </p>
-          </Card>
-        </Section>
-
-        <Section id="inputs" title="Inputs" lead="Fields, selects, switches, sliders — all using the same border and focus ring.">
-          <div class="grid gap-4 sm:grid-cols-2">
-            <Card class="space-y-4 sm:col-span-2">
-              <div class="grid gap-4 sm:grid-cols-2">
-                <TextField label="Display name" placeholder="Ada Lovelace" hint="Shown to people you chat with." />
-                <Combobox
-                  label="Language"
-                  value={select()}
-                  onChange={setSelect}
-                  placeholder="Search languages…"
-                  hint="Type to filter, arrows to move, Enter to pick."
-                  options={[
-                    { value: "en", label: "English", hint: "en" },
-                    { value: "ru", label: "Русский", hint: "ru" },
-                    { value: "de", label: "Deutsch", hint: "de" },
-                    { value: "es", label: "Español", hint: "es" },
-                    { value: "fr", label: "Français", hint: "fr" },
-                    { value: "ja", label: "日本語", hint: "ja" },
-                    { value: "zh", label: "中文", hint: "zh" },
-                  ]}
-                />
-              </div>
-              <Combobox
-                label="Accent"
-                value={accent()}
-                onChange={applyAccent}
-                placeholder="Search accents…"
-                options={ACCENTS.map((a) => ({ value: a.id, label: a.id, hint: a.hex }))}
-              />
-              <TextArea label="Bio" placeholder="A short note…" hint="Markdown is fine." />
-              <div class="flex flex-wrap items-center justify-between gap-4">
-                <Switch checked={on()} onChange={setOn} label="Notifications" />
-                <span class="text-sm text-ink-muted">{on() ? "On" : "Off"}</span>
-                <Checkbox checked={checked()} onChange={setChecked} label="Read receipts" />
-              </div>
-              <Slider label="Media quality" value={slider()} onChange={setSlider} />
-              <Slider label="Volume" min={0} max={100} value={slider() * 100} onChange={(v) => setSlider(v / 100)} />
+          </Show>
+        </header>
+      }
+    >
+      <div class="mx-auto max-w-4xl px-4 pb-24 pt-4 sm:px-8">
+        <H id="overview" kicker="Atlas" title="A living messenger system" lead="Warm surfaces, round mark, accent as material — not a paint chip. This spec is the product contract for @atlas/ui." status="stable">
+          <div class="grid gap-4 sm:grid-cols-3">
+            <Card class="p-4">
+              <p class="font-heading font-semibold">One material</p>
+              <p class="mt-1 text-sm text-ink-muted">Accent tints background, chrome, and brand together.</p>
+            </Card>
+            <Card class="p-4">
+              <p class="font-heading font-semibold">Messenger-first</p>
+              <p class="mt-1 text-sm text-ink-muted">Composer, bubbles, and 44px hits before decorative chrome.</p>
+            </Card>
+            <Card class="p-4">
+              <p class="font-heading font-semibold">Documented</p>
+              <p class="mt-1 text-sm text-ink-muted">Anatomy, states, Do/Don’t, keyboard, and copyable Solid.</p>
             </Card>
           </div>
-        </Section>
+        </H>
 
-        <Section id="alerts" title="Alert">
-          <Card>
-            <div class="space-y-3">
-              <Alert title="Keys ready">This device is enrolled for E2EE.</Alert>
-              <Alert tone="warning" title="Unsigned build">
-                macOS will warn until the app is notarized.
-              </Alert>
-              <Alert tone="danger" title="Couldn’t send">
-                Check the network and try again.
-              </Alert>
-            </div>
-          </Card>
-        </Section>
+        <H id="foundations" kicker="Foundations" title="Tokens" lead="tokens.css is the only place color, radius, motion, and type roles are defined. App.css keeps wallpapers and user fonts.">
+          <Code>{`:root {
+  --motion-fast: 140ms;
+  --motion-ui: 220ms;
+  --motion-expressive: 800ms;
+  --control-hit: 44px;
+}`}</Code>
+        </H>
 
-        <Section id="progress" title="Progress">
-          <Card>
-            <div class="space-y-4">
-              <Progress label="Uploading voice note" value={slider() * 100} />
-              <Progress label="Almost done" value={92} />
-            </div>
-          </Card>
-        </Section>
+        <H id="color" title="Color" lead="Semantic names, not paint names. Danger / warning / success / verified never follow accent.">
+          <div class="flex flex-wrap gap-2">
+            <For each={ACCENTS}>
+              {(a) => (
+                <button
+                  type="button"
+                  class="atlas-focus h-11 w-11 rounded-xl"
+                  style={{ background: a.hex }}
+                  aria-label={a.id}
+                  aria-pressed={accent() === a.id}
+                  onClick={() => applyAccent(a.id)}
+                />
+              )}
+            </For>
+          </div>
+          <DoDont
+            doTitle="Accent for brand and selection"
+            dontTitle="Accent for danger"
+            do={<Button>Send</Button>}
+            dont={<Button variant="danger">Send</Button>}
+          />
+        </H>
 
-        <Section id="limitbar" title="Limit bar">
-          <Card>
-            <LimitBar
-              label="Storage"
-              max={100}
-              items={[
-                { value: 42, label: "Images" },
-                { value: 18, label: "Voice" },
-                { value: 9, label: "Other" },
+        <H id="type" title="Typography" lead="Manrope for headings and brand. Inter (site) / Manrope (app chrome) for body. Caption floor is 13px.">
+          <div class="space-y-2">
+            <p class="font-heading text-4xl font-semibold">Display</p>
+            <p class="font-heading text-3xl font-semibold">Heading 1</p>
+            <p class="text-[17px]">Body large — 17px reading.</p>
+            <p class="text-[15px]">Body — 15px UI.</p>
+            <p class="text-sm font-medium">Label — 14px actions.</p>
+            <p class="text-[13px] text-ink-muted">Caption — 13px metadata.</p>
+          </div>
+        </H>
+
+        <H id="motion" title="Motion" lead="Fast 140ms, UI 220ms, expressive 800ms. Never transition every button globally.">
+          <p class="text-[15px] text-ink-muted">prefers-reduced-motion collapses logo reveal and dialog morph to an instant change.</p>
+        </H>
+
+        <H id="a11y" title="Accessibility" lead="Focus-visible accent ring, 44×44 hit targets on touch, WCAG AA on every preset.">
+          <ul class="list-disc space-y-1 pl-5 text-[15px] text-ink-muted">
+            <li>Dialog: role=dialog, labelledby, trap, Escape, restore focus.</li>
+            <li>Combobox: aria-expanded, aria-controls, arrows, Enter, Escape.</li>
+            <li>Slider: Home/End, aria-valuetext.</li>
+          </ul>
+        </H>
+
+        <H id="button" kicker="Components" title="Button" status="stable" lead="Primary / soft / ghost / danger. Background is inline CSS so production purge cannot drop danger.">
+          <div class="flex flex-wrap gap-2">
+            <Button>Primary</Button>
+            <Button variant="soft">Soft</Button>
+            <Button variant="ghost">Ghost</Button>
+            <Button variant="danger">Danger</Button>
+            <Button loading>Loading</Button>
+            <Button disabled>Disabled</Button>
+          </div>
+          <DoDont
+            doTitle="One primary verb"
+            dontTitle="Two primaries"
+            do={
+              <div class="flex gap-2">
+                <Button>Save</Button>
+                <Button variant="ghost">Cancel</Button>
+              </div>
+            }
+            dont={
+              <div class="flex gap-2">
+                <Button>Save</Button>
+                <Button>Publish</Button>
+              </div>
+            }
+          />
+          <Code>{`<Button variant="danger" loading={busy()}>Delete</Button>`}</Code>
+        </H>
+
+        <H id="inputs" title="Inputs" status="stable" lead="Custom Combobox only — never a native select for product UI.">
+          <div class="grid max-w-md gap-4">
+            <TextField label="Display name" placeholder="Atlas" />
+            <Combobox
+              label="Language"
+              value={select()}
+              onChange={setSelect}
+              options={[
+                { value: "en", label: "English" },
+                { value: "ru", label: "Русский" },
               ]}
             />
-          </Card>
-        </Section>
+            <Switch checked={on()} onChange={setOn} label="Read receipts" />
+            <Checkbox checked={checked()} onChange={setChecked} label="Notifications" />
+            <Slider value={slider()} onChange={setSlider} label="Volume" />
+          </div>
+        </H>
 
-        <Section id="dialog" title="Dialog">
-          <Card>
-            <Button variant="soft" onClick={() => setDialog(true)}>
-              Open dialog
-            </Button>
-          </Card>
-          <Dialog
-            open={dialog()}
-            onOpenChange={setDialog}
-            title="Delete conversation?"
-            description="This only removes it from this device. The other person still has their copy."
-            footer={
-              <>
-                <Button variant="ghost" onClick={() => setDialog(false)}>
-                  Cancel
-                </Button>
-                <Button variant="danger" onClick={() => setDialog(false)}>
-                  Delete
-                </Button>
-              </>
-            }
-          >
-            <p class="text-sm text-ink-muted">You can restore it from backups if you have them enabled.</p>
+        <H id="dialog" title="Dialog" status="stable" lead="Centered on desktop, sheet on mobile. MorphDialog (alias Bialog) expands from a button.">
+          <div class="flex flex-wrap gap-2">
+            <Button onClick={() => setDialog(true)}>Open dialog</Button>
+            <Bialog title="Delete account?" description="This cannot be undone." label="Morph dialog" variant="danger" onConfirm={() => {}}>
+              <p class="text-sm text-ink-muted">History, keys, and bots go with it.</p>
+            </Bialog>
+            <Button variant="ghost" onClick={() => { setToast(true); setTimeout(() => setToast(false), 2000); }}>Toast</Button>
+          </div>
+          <Dialog open={dialog()} onOpenChange={setDialog} title="Leave group?" description="You can be added back later." footer={<Button onClick={() => setDialog(false)}>OK</Button>}>
+            <p class="text-sm text-ink-muted">Members will see that you left.</p>
           </Dialog>
-        </Section>
+          <Toast open={toast()}>Copied</Toast>
+        </H>
 
-        <Section
-          id="bialog"
-          title="Bialog"
-          lead="A button that becomes the dialog — it grows from the click instead of popping up in the middle of the screen."
-        >
-          <Card>
-            <div class="flex flex-wrap items-center gap-3">
-              <Bialog
-                variant="danger"
-                label={
-                  <>
-                    <Trash size={16} />
-                    Delete account
-                  </>
-                }
-                title="Delete your account?"
-                description="This permanently removes your profile, chats, and keys from Atlas. You cannot undo this."
-                cancelLabel="Keep account"
-              >
-                <p class="text-ink-muted">Sessions on other devices will be signed out. Shared groups stay; you just leave them.</p>
-              </Bialog>
-              <Bialog
-                variant="soft"
-                label="Export data"
-                title="Export your data?"
-                description="We’ll pack your chats into an archive. It can take a minute."
-              />
+        <H id="composer" kicker="Messaging" title="Composer" status="beta" lead="One surface. Empty → mic, text → send, same 44px slot.">
+          <Composer value={draft()} onChange={setDraft} onSubmit={() => setDraft("")} placeholder="Message" />
+          <DoDont
+            doTitle="Stable 44px action"
+            dontTitle="Jumping width"
+            do={<p class="text-sm text-ink-muted">Mic and send share one circle.</p>}
+            dont={<p class="text-sm text-ink-muted">Don’t swap a wide Send for a tiny mic.</p>}
+          />
+        </H>
+
+        <H id="messages" title="Messages" status="stable" lead="Sent uses accent. Received uses raised surface. Group consecutive authors; max 560px desktop / 86% mobile.">
+          <div class="space-y-1 rounded-2xl bg-bg p-4">
+            <div class="flex justify-start">
+              <MessageBubble side="received">Keys stay on this device.</MessageBubble>
             </div>
-          </Card>
-        </Section>
+            <div class="flex justify-start">
+              <MessageBubble side="received">Groups use Megolm.</MessageBubble>
+            </div>
+            <div class="mt-3 flex justify-end">
+              <MessageBubble side="sent">Got it.</MessageBubble>
+            </div>
+          </div>
+        </H>
 
-        <Section id="toast" title="Toast">
-          <Card>
-            <Button variant="ghost" onClick={showToast}>
-              Show toast
-            </Button>
-          </Card>
-          <Toast open={toast()}>Copied import path</Toast>
-        </Section>
-
-        <Section id="empty" title="Empty state">
-          <Card padded={false}>
-            <EmptyState
-              icon={<ChatsCircle size={26} />}
-              title="No messages yet"
-              subtitle="Start a conversation — it stays on this device until you send it."
-              action={<Button size="sm">New chat</Button>}
-            />
-          </Card>
-        </Section>
-
-        <Section id="navigation" title="Navigation" lead="Navbar, sidebar (this page), tabs, and a mobile bottom bar.">
-          <Tabs
-            value={tab()}
-            onChange={setTab}
+        <H id="nav" kicker="Patterns" title="Navigation" status="stable" lead="Rail on tablet, drawer under 768px, expanded ≥1024px. Active state is shape + contrast, not color alone.">
+          <BottomNav
             items={[
-              { id: "account", label: "Account" },
-              { id: "privacy", label: "Privacy" },
-              { id: "plugins", label: "Plugins" },
+              { id: "chats", label: "Chats", icon: <ChatsCircle size={22} />, active: nav() === "chats", onClick: () => setNav("chats") },
+              { id: "calls", label: "Calls", icon: <Phone size={22} />, active: nav() === "calls", onClick: () => setNav("calls") },
+              { id: "compass", label: "Compass", icon: <Compass size={22} />, active: nav() === "compass", onClick: () => setNav("compass") },
+              { id: "profile", label: "You", icon: <User size={22} />, active: nav() === "profile", onClick: () => setNav("profile") },
+              { id: "settings", label: "Settings", icon: <Gear size={22} />, active: nav() === "settings", onClick: () => setNav("settings") },
             ]}
           />
-          <Card padded={false} class="overflow-hidden">
-            <div class="border-b border-border bg-bg px-4 py-2 text-xs font-medium text-ink-subtle">Phone chrome</div>
-            <div class="mx-auto max-w-xs">
-              <div class="flex h-48 flex-col bg-bg">
-                <div class="flex-1 p-4 text-sm text-ink-muted">Chat list</div>
-                <BottomNav
-                  items={[
-                    {
-                      id: "chats",
-                      label: "Chats",
-                      icon: <ChatsCircle size={20} />,
-                      active: bottom() === "chats",
-                      onClick: () => setBottom("chats"),
-                    },
-                    {
-                      id: "compass",
-                      label: "Compass",
-                      icon: <Compass size={20} />,
-                      active: bottom() === "compass",
-                      onClick: () => setBottom("compass"),
-                    },
-                    {
-                      id: "you",
-                      label: "You",
-                      icon: <User size={20} />,
-                      active: bottom() === "you",
-                      onClick: () => setBottom("you"),
-                    },
-                  ]}
-                />
-              </div>
-            </div>
-          </Card>
-        </Section>
+          <EmptyState title="No chats yet" subtitle="Start a conversation from search." />
+          <Alert tone="warning">You’re offline. Messages will send when you’re back.</Alert>
+        </H>
 
-        <Section id="badges" title="Badges">
-          <Card>
-            <div class="flex flex-wrap items-center gap-2">
-              <Badge>Muted</Badge>
-              <Badge color="accent">Accent</Badge>
-              <Badge color="success">Online</Badge>
-              <Badge color="danger">Blocked</Badge>
-              <Avatar name="Ada Lovelace" />
-              <Avatar name="Alan Turing" size={44} />
-              <Avatar name="Atlas" size={28} />
-            </div>
-          </Card>
-        </Section>
-
-        <Section id="list" title="List">
-          <List>
-            <ListItem
-              leading={<Avatar name="Ada Lovelace" size={40} />}
-              title="Ada Lovelace"
-              description="The analytical engine notes"
-              trailing={<Badge color="accent">E2EE</Badge>}
-              onClick={() => undefined}
-            />
-            <ListItem
-              leading={<Avatar name="Alan Turing" size={40} />}
-              title="Alan Turing"
-              description="On computable numbers…"
-              trailing={<span class="text-xs text-ink-subtle">2m</span>}
-              onClick={() => undefined}
-            />
-            <ListItem
-              leading={<Avatar name="Grace Hopper" size={40} />}
-              title="Grace Hopper"
-              description="Drafting the compiler notes"
-              trailing={<Badge>3</Badge>}
-              onClick={() => undefined}
-            />
-          </List>
-        </Section>
-
-        <Section id="skeleton" title="Skeleton">
-          <Card>
-            <div class="flex items-center gap-3">
-              <Skeleton class="h-12 w-12 rounded-full" />
-              <div class="flex-1 space-y-2">
-                <Skeleton class="h-3 w-1/3" />
-                <Skeleton class="h-3 w-2/3" />
-              </div>
-            </div>
-          </Card>
-        </Section>
-
-        <Section id="messages" title="Messages">
-          <Card>
-            <div class="space-y-3">
-              <MessageBubble side="received" name="Ada" time="14:02">
-                Are you free after standup?
-              </MessageBubble>
-              <MessageBubble side="sent" time="14:03" status="read">
-                Give me ten minutes.
-              </MessageBubble>
-              <MessageBubble side="received" name="Ada" time="14:03">
-                Ping me when you’re done.
-              </MessageBubble>
-              <MessageBubble side="sent" time="14:04" status="sent">
-                On my way.
-              </MessageBubble>
-              <MessageBubble side="received" name="Atlas" time="14:05" comments={{ count: 0 }}>
-                Channel post — comments on.
-              </MessageBubble>
-              <MessageBubble side="received" name="Atlas" time="14:06" comments={{ count: 12 }}>
-                Twelve people replied.
-              </MessageBubble>
-              <MessageBubble
-                side="received"
-                name="Weather Bot"
-                time="14:07"
-                keyboard={[
-                  { label: "Weather", data: "/weather", icon: "☀️" },
-                  { label: "Help", data: "/help", icon: "❓" },
-                  { label: "Atlas", url: "https://atlasmsg.app", icon: "✨", row: 1 },
-                ]}
-              >
-                Welcome! Pick something.
-              </MessageBubble>
-            </div>
-          </Card>
-        </Section>
-
-        <Section id="composer" title="Composer">
-          <Card>
-            <Composer
-              value={composerDraft()}
-              onChange={setComposerDraft}
-              recording={recording()}
-              placeholder="Message"
-              addItems={[
-                { id: "photo", label: "Photo", icon: <Image size={16} /> },
-                { id: "file", label: "File", icon: <File size={16} /> },
-              ]}
-              onVoice={() => setRecording((v) => !v)}
-              onSubmit={() => {
-                setComposerDraft("");
-                setRecording(false);
-              }}
-            />
-            <p class="mt-2 text-xs text-ink-subtle">Empty → mic · type → send · + for extras</p>
-          </Card>
-        </Section>
-
-        <Section id="ai" title="AI" lead="Each piece on its own, then assembled.">
-          <Card title="AiMessage" description="Assistant copy, or the thinking row.">
-            <div class="space-y-6">
-              <AiMessage name="Atlas">Three bullets, no preamble. Keys on-device, same protocol in groups, E2EE calls.</AiMessage>
-              <AiMessage thinking thinkingLabel="Churring..." name="Atlas" loaderPattern={loaderPattern()} />
-            </div>
-          </Card>
-
-          <Card title="Conversation" description="Thread plus composer." padded={false}>
-            <div class="h-[26rem]">
-              <Conversation
-                class="h-full rounded-none border-0"
-                messages={thread()}
-                thinking={promptLoading()}
-                thinkingLabel="Churring..."
-                loaderPattern={loaderPattern()}
-                assistantName="Atlas"
-                prompt={{
-                  value: prompt(),
-                  onChange: setPrompt,
-                  placeholder: "Message",
-                  models: [
-                    { id: "grok-4.5", label: "Grok 4.5", hint: "default" },
-                    { id: "grok-4", label: "Grok 4" },
-                    { id: "grok-3-mini", label: "Grok 3 mini", hint: "fast" },
-                  ],
-                  model: model(),
-                  onModelChange: setModel,
-                  addItems: [
-                    {
-                      id: "pattern",
-                      label: loaderPattern() === "hollow" ? "Loader: random" : "Loader: hollow",
-                      icon: <Sparkle size={16} />,
-                      onSelect: () => setLoaderPattern((p) => (p === "hollow" ? "random" : "hollow")),
-                    },
-                  ],
-                  onSubmit: (text) => {
-                    setThread((msgs) => [...msgs, { id: crypto.randomUUID(), role: "user", content: text }]);
-                    setPrompt("");
-                    setPromptLoading(true);
-                    window.setTimeout(() => {
-                      setThread((msgs) => [
-                        ...msgs,
-                        { id: crypto.randomUUID(), role: "assistant", content: text },
-                      ]);
-                      setPromptLoading(false);
-                    }, 1800);
-                  },
-                }}
-              />
-            </div>
-          </Card>
-        </Section>
+        <H id="brand" kicker="Brand" title="Logo" status="stable" lead="Shape is a mask. Accent gradient feathers from the top. Compact static Logo for dense chrome.">
+          <div class="grid place-items-center rounded-2xl bg-surface-raised py-10">
+            <Logo width={220} />
+          </div>
+          <p class="text-center text-sm text-ink-muted">Change accent above — the mark reveals the new gradient.</p>
+          <DoDont
+            doTitle="Keep proportions"
+            dontTitle="Stretch the mark"
+            do={<Logo width={100} static />}
+            dont={<div class="h-10 w-40 overflow-hidden opacity-60"><Logo width={160} static /></div>}
+          />
+        </H>
       </div>
     </AppShell>
   );

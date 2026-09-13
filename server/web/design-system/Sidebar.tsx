@@ -91,18 +91,52 @@ export default function Sidebar(props: {
   );
 }
 
-/** Full-viewport chrome: sticky sidebar + optional top bar, scrolling main pane. */
+/** Full-viewport chrome. `nav` is auto | expanded | rail | drawer. */
 export function AppShell(props: {
   sidebar?: JSX.Element;
   top?: JSX.Element;
   children: JSX.Element;
   class?: string;
+  nav?: "auto" | "expanded" | "rail" | "drawer";
+  menuOpen?: boolean;
+  onMenuOpen?: (open: boolean) => void;
+  menuButton?: JSX.Element;
 }) {
+  const nav = () => props.nav ?? "auto";
+
   return (
     <div class={cx("flex h-dvh min-h-0 overflow-hidden bg-bg text-ink", props.class)}>
-      {props.sidebar}
+      <Show when={nav() !== "drawer"}>
+        <div
+          class={cx(
+            "hidden shrink-0 md:flex",
+            nav() === "rail" ? "md:flex" : "lg:flex",
+            nav() === "expanded" && "flex",
+          )}
+        >
+          {props.sidebar}
+        </div>
+      </Show>
+      <Show when={props.menuOpen}>
+        <div class="fixed inset-0 z-40 md:hidden">
+          <button
+            type="button"
+            class="absolute inset-0 bg-black/40"
+            aria-label="Close menu"
+            onClick={() => props.onMenuOpen?.(false)}
+          />
+          <div class="relative z-10 flex h-full w-[min(18rem,86vw)] flex-col bg-surface shadow-floating">
+            {props.sidebar}
+          </div>
+        </div>
+      </Show>
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Show when={props.top}>{props.top}</Show>
+        <Show when={props.top || props.menuButton}>
+          <div class="flex items-center gap-2">
+            {props.menuButton}
+            {props.top}
+          </div>
+        </Show>
         <main class="min-h-0 flex-1 overflow-y-auto">{props.children}</main>
       </div>
     </div>

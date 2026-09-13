@@ -22,6 +22,10 @@ export default {
         "bubble-sent-ink": "var(--color-bubble-sent-ink)",
         "bubble-received": "var(--color-bubble-received)",
         "bubble-received-ink": "var(--color-bubble-received-ink)",
+        danger: "var(--color-danger)",
+        warning: "var(--color-warning)",
+        success: "var(--color-success)",
+        verified: "var(--color-verified)",
       },
       fontFamily: {
         sans: "var(--font-sans)",

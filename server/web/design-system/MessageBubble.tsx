@@ -79,7 +79,7 @@ export function MessageSurface(
     <div
       {...rest}
       class={cx(
-        "inline-block max-w-full overflow-hidden text-left text-[15px] leading-snug",
+        "inline-block max-w-[86%] overflow-hidden text-left text-[15px] leading-snug sm:max-w-[560px]",
         sent()
           ? "rounded-[16px] rounded-br-[5px] bg-bubble-sent text-bubble-sent-ink"
           : "rounded-[16px] rounded-bl-[5px] bg-bubble-received text-bubble-received-ink",

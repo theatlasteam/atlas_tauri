@@ -37,10 +37,8 @@ export default function Composer(props: {
   placeholder?: string;
   disabled?: boolean;
   recording?: boolean;
-  /** Treat as sendable even if the text field is empty (e.g. an attachment). */
   forceSend?: boolean;
   class?: string;
-  /** Menu on the + control. If omitted, `onAdd` fires. */
   addItems?: MenuItemDef[];
   onAdd?: () => void;
   addIcon?: JSX.Element;
@@ -48,6 +46,7 @@ export default function Composer(props: {
   actionRef?: (el: HTMLButtonElement) => void;
   onActionPointerDown?: (e: PointerEvent) => void;
   onActionPointerUp?: (e: PointerEvent) => void;
+  banner?: JSX.Element;
 }) {
   const canSend = () => props.value.trim().length > 0 || !!props.forceSend;
 
@@ -64,7 +63,7 @@ export default function Composer(props: {
       onClick={() => {
         if (!props.addItems?.length) props.onAdd?.();
       }}
-      class="grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted transition hover:bg-surface hover:text-ink active:scale-95 disabled:opacity-40"
+      class="atlas-focus grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-40"
       aria-label={props.addLabel ?? "Add"}
     >
       {props.addIcon ?? <PlusIcon />}
@@ -72,44 +71,62 @@ export default function Composer(props: {
   );
 
   return (
-    <div class={cx("flex items-center gap-1.5", props.class)}>
-      <Show when={props.addItems?.length} fallback={addBtn}>
-        <Menu align="left" trigger={addBtn} items={props.addItems!} />
+    <div
+      class={cx(
+        "flex flex-col overflow-hidden rounded-[22px] border border-border bg-surface",
+        props.class,
+      )}
+    >
+      <Show when={props.banner}>
+        <div class="border-b border-border px-3 py-2">{props.banner}</div>
       </Show>
-      <input
-        type="text"
-        value={props.value}
-        disabled={props.disabled || props.recording}
-        placeholder={props.placeholder ?? "Message"}
-        class="min-w-0 flex-1 rounded-full border border-border bg-surface px-4 py-2.5 text-sm text-ink outline-none placeholder:text-ink-subtle focus:border-accent"
-        onInput={(e) => props.onChange(e.currentTarget.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.isComposing) {
-            e.preventDefault();
-            submit();
-          }
-        }}
-      />
-      <button
-        type="button"
-        ref={(el) => props.actionRef?.(el)}
-        disabled={props.disabled}
-        onClick={() => (canSend() ? submit() : props.onVoice?.())}
-        onPointerDown={(e) => props.onActionPointerDown?.(e)}
-        onPointerUp={(e) => props.onActionPointerUp?.(e)}
-        onPointerLeave={(e) => props.onActionPointerUp?.(e)}
-        onPointerCancel={(e) => props.onActionPointerUp?.(e)}
-        onContextMenu={(e) => e.preventDefault()}
-        class={cx(
-          "grid h-11 w-11 shrink-0 place-items-center rounded-full transition hover:brightness-105 active:scale-95 disabled:opacity-40",
-          props.recording && !canSend() ? "animate-pulse bg-red-600 text-white" : "bg-accent text-accent-ink",
-        )}
-        aria-label={canSend() ? "Send" : props.recording ? "Stop recording" : "Voice message"}
-      >
-        <Show when={canSend()} fallback={props.recording ? <StopIcon /> : <MicIcon />}>
-          <PaperPlaneTilt size={18} weight="bold" />
+      <div class="flex items-end gap-1 p-1.5">
+        <Show when={props.addItems?.length} fallback={addBtn}>
+          <Menu align="left" trigger={addBtn} items={props.addItems!} />
         </Show>
-      </button>
+        <textarea
+          rows={1}
+          value={props.value}
+          disabled={props.disabled || props.recording}
+          placeholder={props.placeholder ?? "Message"}
+          class="atlas-focus max-h-40 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-subtle"
+          onInput={(e) => {
+            const el = e.currentTarget;
+            props.onChange(el.value);
+            el.style.height = "auto";
+            el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+        />
+        <button
+          type="button"
+          ref={(el) => props.actionRef?.(el)}
+          disabled={props.disabled}
+          onClick={() => (canSend() ? submit() : props.onVoice?.())}
+          onPointerDown={(e) => props.onActionPointerDown?.(e)}
+          onPointerUp={(e) => props.onActionPointerUp?.(e)}
+          onPointerLeave={(e) => props.onActionPointerUp?.(e)}
+          onPointerCancel={(e) => props.onActionPointerUp?.(e)}
+          onContextMenu={(e) => e.preventDefault()}
+          class="atlas-focus relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full disabled:opacity-40"
+          style={{
+            background: props.recording && !canSend() ? "var(--color-danger)" : "var(--color-accent)",
+            color: props.recording && !canSend() ? "#fff" : "var(--color-accent-ink)",
+          }}
+          aria-label={canSend() ? "Send" : props.recording ? "Stop recording" : "Voice message"}
+        >
+          <span class="grid place-items-center">
+            <Show when={canSend()} fallback={props.recording ? <StopIcon /> : <MicIcon />}>
+              <PaperPlaneTilt size={18} weight="bold" />
+            </Show>
+          </span>
+        </button>
+      </div>
     </div>
   );
 }

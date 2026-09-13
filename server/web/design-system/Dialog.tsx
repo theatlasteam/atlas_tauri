@@ -72,10 +72,9 @@ export default function Dialog(props: {
       <Transition name="pop">
         <Show when={props.open}>
           <div class="pointer-events-none fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
-            <div ref={panel} role="dialog" aria-modal="true" aria-label={props.title} tabIndex={-1}
-              class="pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-md origin-bottom overflow-y-auto overscroll-contain rounded-t-3xl border border-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-floating outline-none sm:origin-center sm:rounded-3xl">
-              <h2 class="text-lg font-semibold text-ink">{props.title}</h2>
-              <Show when={props.description}><p class="mt-1 text-sm text-ink-muted">{props.description}</p></Show>
+            <div ref={panel} role="dialog" aria-modal="true" aria-labelledby="atlas-dialog-title" aria-describedby={props.description ? "atlas-dialog-desc" : undefined} tabIndex={-1} class="pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-md origin-bottom overflow-y-auto overscroll-contain rounded-t-3xl border border-border bg-surface-raised p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-floating outline-none sm:origin-center sm:rounded-3xl">
+              <h2 id="atlas-dialog-title" class="text-lg font-semibold text-ink">{props.title}</h2>
+              <Show when={props.description}><p id="atlas-dialog-desc" class="mt-1 text-sm text-ink-muted">{props.description}</p></Show>
               <div class="mt-4">{props.children}</div>
               <Show when={props.footer}><div class="mt-5 flex flex-wrap justify-end gap-2">{props.footer}</div></Show>
             </div>

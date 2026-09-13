@@ -7,7 +7,8 @@ function firstGrapheme(s: string): string {
   const raw = s.trim();
   if (!raw) return "";
   try {
-    const it = new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(raw);
+    const Seg = (Intl as unknown as { Segmenter: new (l: string | undefined, o: { granularity: string }) => { segment: (s: string) => Iterable<{ segment: string }> } }).Segmenter;
+    const it = new Seg(undefined, { granularity: "grapheme" }).segment(raw);
     for (const part of it) return part.segment;
   } catch {
     /* older engines */

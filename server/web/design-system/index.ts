@@ -42,6 +42,8 @@ export { default as BottomNav } from "./BottomNav";
 export type { BottomNavItem } from "./BottomNav";
 export { default as Dialog } from "./Dialog";
 export { default as Bialog } from "./Bialog";
+export { default as MorphDialog } from "./Bialog";
+export { default as Logo } from "./Logo";
 export { default as Alert } from "./Alert";
 export type { AlertTone } from "./Alert";
 export { default as Banner } from "./Banner";

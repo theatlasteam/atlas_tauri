@@ -124,6 +124,7 @@ export default function Slider(props: {
         aria-valuemin={min()}
         aria-valuemax={max()}
         aria-valuenow={props.value}
+        aria-valuetext={String(props.value)}
         aria-label={props.label}
         aria-disabled={props.disabled}
         class="relative flex h-[44px] w-full cursor-grab touch-none select-none items-center outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-accent/40"
