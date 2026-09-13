@@ -33,10 +33,11 @@ internal object NativeCrypto {
         chatId: String,
         peerPublicKey: String,
         body: String,
+        messageId: String = "",
     ): String? {
         if (!available) return null
         return try {
-            nativeDecrypt(secretsDir, scheme, peerId, chatId, peerPublicKey, body)
+            nativeDecrypt(secretsDir, scheme, peerId, chatId, peerPublicKey, body, messageId)
         } catch (e: Throwable) {
             Log.w(TAG, "native decrypt failed: ${e.message}")
             null
@@ -50,5 +51,6 @@ internal object NativeCrypto {
         chatId: String,
         peerPublicKey: String,
         body: String,
+        messageId: String,
     ): String?
 }

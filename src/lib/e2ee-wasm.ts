@@ -133,6 +133,10 @@ export const wasmE2ee2ForgetPeer = (peer: string) =>
   withWasm((m) => {
     (m as { e2ee2_forget_peer?: (p: string) => void }).e2ee2_forget_peer?.(peer);
   });
+export const wasmE2ee2ResetAccount = () =>
+  withWasm((m) => {
+    (m as { e2ee2_reset_account?: () => void }).e2ee2_reset_account?.();
+  });
 export const wasmE2ee2Fingerprint = (bundle: unknown) =>
   withWasm((m) => m.e2ee2_fingerprint(JSON.stringify(bundle)));
 

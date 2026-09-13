@@ -8,6 +8,7 @@ import {
   wasmE2ee2Fingerprint,
   wasmE2ee2HasSession,
   wasmE2ee2ForgetPeer,
+  wasmE2ee2ResetAccount,
   wasmE2ee2RemoteIdentity,
   wasmE2ee2NewPrekeys,
   wasmE2ee2StartSession,
@@ -144,6 +145,11 @@ export function e2ee2RemoteIdentity(peer: string): Promise<string | null> {
 export function e2ee2ForgetPeer(peer: string): Promise<void> {
   if (isTauri) return invokeTauri("e2ee2_forget_peer", { peer });
   return wasmE2ee2ForgetPeer(peer);
+}
+
+export function e2ee2ResetAccount(): Promise<void> {
+  if (isTauri) return invokeTauri("e2ee2_reset_account");
+  return wasmE2ee2ResetAccount();
 }
 
 export function takePushPreview(messageId: string): Promise<string | null> {

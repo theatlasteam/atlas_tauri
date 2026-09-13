@@ -192,6 +192,7 @@ function createSessionStore() {
    */
   const resetIdentity = async () => {
     if (!e2eeAvailable) return;
+    await e2ee.resetAccount();
     await api.resetBundle().catch(() => {});
     await api.resetIdentity();
     await publishIdentity();

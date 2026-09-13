@@ -248,6 +248,23 @@ pub fn e2ee2_remote_identity(peer: String) -> Result<Option<String>, E2eeError> 
     crate::store::secret_get(remote_ik_key(&peer)).map_err(E2eeError::Storage)
 }
 
+pub fn e2ee2_reset_account() -> Result<(), E2eeError> {
+    let dump = crate::store::dump();
+    let mut map: HashMap<String, String> = serde_json::from_str(&dump).unwrap_or_default();
+    map.retain(|k, _| {
+        !k.starts_with("olm_session_")
+            && !k.starts_with("olm_sessions_")
+            && !k.starts_with("olm_remote_ik_")
+            && k != "olm_account"
+            && k != "olm_peer_ids"
+    });
+    crate::store::hydrate(&serde_json::to_string(&map).unwrap_or_else(|_| "{}".into()));
+    *ACCOUNT.lock().unwrap_or_else(|p| p.into_inner()) = None;
+    *SESSIONS.lock().unwrap_or_else(|p| p.into_inner()) = Some(HashMap::new());
+    let acc = Account::new();
+    put_account(acc)
+}
+
 pub fn e2ee2_forget_peer(peer: String) -> Result<(), E2eeError> {
     let _ = take_sessions(&peer);
     SESSIONS

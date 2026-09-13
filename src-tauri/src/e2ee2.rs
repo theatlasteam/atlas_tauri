@@ -20,6 +20,7 @@ const PICKLE_KEY_KEY: &str = "olm_pickle_key";
 const SESSION_PREFIX: &str = "olm_session_";
 const SESSIONS_PREFIX: &str = "olm_sessions_";
 const REMOTE_IK_PREFIX: &str = "olm_remote_ik_";
+const PEER_LIST_KEY: &str = "olm_peer_ids";
 const MAX_SESSIONS_PER_PEER: usize = 8;
 
 static ACCOUNT: Mutex<Option<Account>> = Mutex::new(None);
@@ -102,7 +103,22 @@ fn remote_ik_key(peer: &str) -> String {
 
 fn set_remote_ik(app: &AppHandle, peer: &str, ik: &str) -> Result<(), E2eeError> {
     crate::secure::secret_set(app.clone(), remote_ik_key(peer), ik.to_string())
-        .map_err(|e| E2eeError::Storage(e.to_string()))
+        .map_err(|e| E2eeError::Storage(e.to_string()))?;
+    remember_peer(app, peer)
+}
+
+fn remember_peer(app: &AppHandle, peer: &str) -> Result<(), E2eeError> {
+    let mut ids: Vec<String> = crate::secure::secret_get(app.clone(), PEER_LIST_KEY.to_string())
+        .ok()
+        .flatten()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    if !ids.iter().any(|p| p == peer) {
+        ids.push(peer.to_string());
+        crate::secure::secret_set(app.clone(), PEER_LIST_KEY.to_string(), serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into()))
+            .map_err(|e| E2eeError::Storage(e.to_string()))?;
+    }
+    Ok(())
 }
 
 fn persist_sessions(app: &AppHandle, peer: &str, sessions: &[Session]) -> Result<(), E2eeError> {
@@ -299,6 +315,28 @@ pub fn e2ee2_forget_peer(app: AppHandle, peer: String) -> Result<(), E2eeError> 
     Ok(())
 }
 
+/// New Olm account, drop every per-peer session. Callers must republish the bundle.
+#[tauri::command]
+pub fn e2ee2_reset_account(app: AppHandle) -> Result<(), E2eeError> {
+    let peers: Vec<String> = crate::secure::secret_get(app.clone(), PEER_LIST_KEY.to_string())
+        .ok()
+        .flatten()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    for peer in &peers {
+        let _ = e2ee2_forget_peer(app.clone(), peer.clone());
+    }
+    *ACCOUNT.lock().unwrap() = None;
+    *SESSIONS.lock().unwrap() = Some(HashMap::new());
+    let _ = crate::secure::secret_delete(app.clone(), ACCOUNT_KEY.to_string());
+    let _ = crate::secure::secret_delete_prefix(&app, SESSION_PREFIX);
+    let _ = crate::secure::secret_delete_prefix(&app, SESSIONS_PREFIX);
+    let _ = crate::secure::secret_delete_prefix(&app, REMOTE_IK_PREFIX);
+    let _ = crate::secure::secret_delete(app.clone(), PEER_LIST_KEY.to_string());
+    let acc = Account::new();
+    put_account(&app, acc)
+}
+
 #[tauri::command]
 pub fn e2ee2_has_session(app: AppHandle, peer: String) -> Result<bool, E2eeError> {
     let sessions = take_sessions(&app, &peer)?;
@@ -321,6 +359,7 @@ pub fn take_push_preview(app: AppHandle, message_id: String) -> Result<Option<St
         .app_data_dir()
         .map_err(|e| E2eeError::Storage(e.to_string()))?;
     let path = dir.join("push_previews.json");
+    // Android FCM writes next to secrets.json, which is this same directory.
     let Ok(bytes) = std::fs::read(&path) else {
         return Ok(None);
     };

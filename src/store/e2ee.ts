@@ -21,6 +21,7 @@ import {
   e2ee2HasSession,
   e2ee2NewPrekeys,
   e2ee2RemoteIdentity,
+  e2ee2ResetAccount,
   e2ee2StartSession,
   e2eeAvailable,
   megolmDecrypt,
@@ -239,6 +240,11 @@ function createE2eeStore() {
     replenishKeys,
     ensureSession,
     forgetPeer: e2ee2ForgetPeer,
+    resetAccount: async () => {
+      wedged.clear();
+      setups.clear();
+      if (e2eeAvailable) await e2ee2ResetAccount();
+    },
     seal,
     open,
     sealGroup,

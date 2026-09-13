@@ -98,107 +98,77 @@ function createMessagesStore() {
     };
     const decryptKey = JSON.stringify([chatId, messageId, version]);
     if (decryptingVersions.has(decryptKey)) return;
-    const already = openedPlaintext.get(messageId);
-    if (already && !already.startsWith("🔒 ")) {
-      patch(chatId, messageId, { text: already, decrypting: false, decryptFailed: false, sourceText: already });
-      emitPlaintext(chatId, messageId, already);
-      return;
-    }
-    if (
-      !e2eeAvailable ||
-      (scheme !== "olm-v1" && scheme !== "dr-v1" && scheme !== "x25519-v1" && scheme !== "megolm-v1")
-    ) {
-      patch(chatId, messageId, { text: "🔒 Encrypted message (unsupported here)", decrypting: false });
-      return;
-    }
-    if (scheme === "megolm-v1") {
-      const senderId = peerUserId ?? "";
-      decryptingVersions.add(decryptKey);
-      void (async () => {
-        try {
-          const text = await e2ee.openGroup(chatId, senderId, body, myId());
-          if (!isCurrent()) return;
-          const row = state[chatId]?.messages.find((m) => m.id === messageId);
-          rememberPlaintext(messageId, text, row ? { ...row, text } : undefined);
-          patch(chatId, messageId, { text, decrypting: false, decryptFailed: false });
-        } catch {
-          if (!isCurrent()) return;
-          patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
-        }
-      })().finally(() => decryptingVersions.delete(decryptKey));
-      return;
-    }
-    // Legacy x25519-v1 bodies (pre-ratchet history) still open through the
-    // old static-DH path; new traffic is dr-v1 only.
-    if (scheme === "x25519-v1") {
-      const otherId = peerUserId ?? "";
-      decryptingVersions.add(decryptKey);
-      void (async () => {
-        try {
-          const { identityKey } = await api.getIdentity(otherId);
-          if (!identityKey) throw new Error("no key");
-          const text = await e2eeOpen(identityKey, body);
-          if (!isCurrent()) return;
-          const row = state[chatId]?.messages.find((m) => m.id === messageId);
-          rememberPlaintext(messageId, text, row ? { ...row, text } : undefined);
-          patch(chatId, messageId, { text, decrypting: false, decryptFailed: false });
-        } catch {
-          if (!isCurrent()) return;
-          patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
-        }
-      })().finally(() => decryptingVersions.delete(decryptKey));
-      return;
-    }
-    const otherId = peerUserId ?? "";
-    if (!otherId) {
-      patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
-      return;
-    }
     decryptingVersions.add(decryptKey);
     void (async () => {
+      const finish = (text: string, failed = false) => {
+        if (!isCurrent()) return;
+        if (failed) {
+          patch(chatId, messageId, { text, decrypting: false, decryptFailed: true });
+          return;
+        }
+        const row = state[chatId]?.messages.find((m) => m.id === messageId);
+        rememberPlaintext(messageId, text, row ? { ...row, text } : undefined);
+        patch(chatId, messageId, { text, decrypting: false, decryptFailed: false, sourceText: text });
+        emitPlaintext(chatId, messageId, text);
+      };
       try {
         const fromPush = await takePushPreview(messageId);
         if (fromPush && !fromPush.startsWith("🔒 ")) {
-          const row = state[chatId]?.messages.find((m) => m.id === messageId);
-          rememberPlaintext(messageId, fromPush, row ? { ...row, text: fromPush } : undefined);
-          patch(chatId, messageId, { text: fromPush, decrypting: false, decryptFailed: false });
-          emitPlaintext(chatId, messageId, fromPush);
+          finish(fromPush);
           return;
         }
       } catch {
         /* no FCM preview */
       }
-      // The first message of a new conversation carries the sender's X3DH
-      // payload and establishes the session on open; a brand-new peer's
-      // prekey bundle can still race its own sign-in publish, so retry a
-      // few times before surfacing a real failure.
-      const attempts = [0, 1000, 3000, 6000, 12000];
-      for (let i = 0; i < attempts.length; i++) {
-        if (attempts[i]) await sleep(attempts[i]);
-        if (!isCurrent()) return;
-        const hit = openedPlaintext.get(messageId);
-        if (hit && !hit.startsWith("🔒 ")) {
-          patch(chatId, messageId, { text: hit, decrypting: false, decryptFailed: false, sourceText: hit });
-          emitPlaintext(chatId, messageId, hit);
-          return;
-        }
-        try {
-          const text = await Promise.race([
-            e2ee.open(otherId, body),
-            sleep(8000).then(() => {
-              throw new Error("decrypt timeout");
-            }),
-          ]);
-          if (!isCurrent()) return;
-          const row = state[chatId]?.messages.find((m) => m.id === messageId);
-          rememberPlaintext(messageId, text, row ? { ...row, text } : undefined);
-          patch(chatId, messageId, { text, decrypting: false, decryptFailed: false });
-          return;
-        } catch (e) {
-          console.warn("[atlas] decrypt attempt failed", messageId, e);
-        }
+      const already = openedPlaintext.get(messageId);
+      if (already && !already.startsWith("🔒 ")) {
+        finish(already);
+        return;
       }
-      if (isCurrent()) patch(chatId, messageId, { text: "🔒 Unable to decrypt", decrypting: false, decryptFailed: true });
+      if (
+        !e2eeAvailable ||
+        (scheme !== "olm-v1" && scheme !== "dr-v1" && scheme !== "x25519-v1" && scheme !== "megolm-v1")
+      ) {
+        finish("🔒 Encrypted message (unsupported here)", true);
+        return;
+      }
+      try {
+        if (scheme === "megolm-v1") {
+          finish(await e2ee.openGroup(chatId, peerUserId ?? "", body, myId()));
+          return;
+        }
+        if (scheme === "x25519-v1") {
+          const { identityKey } = await api.getIdentity(peerUserId ?? "");
+          if (!identityKey) throw new Error("no key");
+          finish(await e2eeOpen(identityKey, body));
+          return;
+        }
+        const otherId = peerUserId ?? "";
+        if (!otherId) {
+          finish("🔒 Unable to decrypt", true);
+          return;
+        }
+        const attempts = [0, 1000, 3000, 6000, 12000];
+        for (let i = 0; i < attempts.length; i++) {
+          if (attempts[i]) await sleep(attempts[i]);
+          if (!isCurrent()) return;
+          try {
+            const text = await Promise.race([
+              e2ee.open(otherId, body),
+              sleep(8000).then(() => {
+                throw new Error("decrypt timeout");
+              }),
+            ]);
+            finish(text);
+            return;
+          } catch (e) {
+            console.warn("[atlas] decrypt attempt failed", messageId, e);
+          }
+        }
+        finish("🔒 Unable to decrypt", true);
+      } catch {
+        finish("🔒 Unable to decrypt", true);
+      }
     })().finally(() => decryptingVersions.delete(decryptKey));
   };
 

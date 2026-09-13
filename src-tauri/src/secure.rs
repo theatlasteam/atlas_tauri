@@ -148,3 +148,19 @@ pub fn secret_set(app: AppHandle, key: String, value: String) -> Result<(), Secu
 pub fn secret_delete(app: AppHandle, key: String) -> Result<(), SecureError> {
     backend::delete(&app, &key)
 }
+
+/// Drop every secrets.json / keyring entry whose key starts with `prefix`.
+pub fn secret_delete_prefix(app: &AppHandle, prefix: &str) -> Result<(), SecureError> {
+    let keys: Vec<String> = {
+        let _guard = FILE_LOCK.lock().unwrap();
+        file_read(app)?
+            .keys()
+            .filter(|k| k.starts_with(prefix))
+            .cloned()
+            .collect()
+    };
+    for k in keys {
+        let _ = backend::delete(app, &k);
+    }
+    Ok(())
+}

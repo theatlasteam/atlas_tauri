@@ -32,6 +32,7 @@ pub fn run() {
             e2ee2::e2ee2_has_session,
             e2ee2::e2ee2_remote_identity,
             e2ee2::e2ee2_forget_peer,
+            e2ee2::e2ee2_reset_account,
             e2ee2::e2ee2_fingerprint,
             e2ee2::take_push_preview,
             e2ee_megolm::megolm_encrypt,

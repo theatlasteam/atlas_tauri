@@ -8,7 +8,7 @@ import { api } from "../data/api";
 import { previewText, toChat, toMessage } from "../data/mapping";
 import { onResync, onServerEvent, wsSend } from "../data/socket";
 import type { Chat, Folder } from "../data/types";
-import { e2eeAvailable, e2eeOpen, e2eeSeal } from "../lib/tauri";
+import { e2eeAvailable } from "../lib/tauri";
 import { notifyIncoming } from "../lib/notify";
 import { preferences } from "./preferences";
 import { messagesStore } from "./messages";
@@ -132,25 +132,13 @@ function createChatsStore() {
       wsSend({ type: "typing", chat_id: chatId, preview: draft, scheme: "plain" });
       return;
     }
+    // Olm cannot seal a draft without advancing the message ratchet, so
+    // encrypted DMs only send the "typing" flag — never a ciphertext preview.
     if (!e2eeAvailable) {
-      wsSend({ type: "typing", chat_id: chatId }); // indicator only, never a plaintext draft
+      wsSend({ type: "typing", chat_id: chatId });
       return;
     }
-    try {
-      // Draft previews seal against the peer's identity key directly (not the
-      // message ratchet — a draft isn't a message, and ratcheting it would
-      // desync message-key counters). Fresh identity-key lookup each time.
-      const { identityKey } = await api.getIdentity(peerUserId);
-      if (!identityKey) return; // no key published yet — nothing safe to send
-      wsSend({
-        type: "typing",
-        chat_id: chatId,
-        preview: await e2eeSeal(identityKey, draft),
-        scheme: "x25519-v1",
-      });
-    } catch {
-      // Sealing failed: send nothing rather than falling back to plaintext.
-    }
+    wsSend({ type: "typing", chat_id: chatId });
   };
 
   const setMuted = async (chatId: string, muted: boolean) => {
@@ -237,19 +225,6 @@ function createChatsStore() {
     if (!preferences.liveTyping) return;
     if (scheme === "plain" || scheme === undefined) {
       setPreview(chatId, userId, preview);
-      return;
-    }
-    if (!e2eeAvailable || scheme !== "x25519-v1") return;
-    try {
-      const { identityKey } = await api.getIdentity(userId);
-      if (!identityKey) return;
-      const text = await e2eeOpen(identityKey, preview);
-      // A slow decrypt can land after the typist already stopped; don't
-      // resurrect a preview whose indicator has already expired.
-      if (state.typing[chatId]?.includes(userId)) setPreview(chatId, userId, text);
-    } catch {
-      // An undecryptable draft is not worth surfacing — the plain "typing…"
-      // indicator is already showing.
     }
   };
 

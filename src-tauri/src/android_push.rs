@@ -47,6 +47,7 @@ pub extern "system" fn Java_get_ahmed_atlas_push_NativeCrypto_nativeDecrypt(
     chat_id: JString,
     peer_public_key: JString,
     body: JString,
+    message_id: JString,
 ) -> jstring {
     let null = std::ptr::null_mut();
 
@@ -56,6 +57,7 @@ pub extern "system" fn Java_get_ahmed_atlas_push_NativeCrypto_nativeDecrypt(
     let Ok(chat_id) = env.get_string(&chat_id).map(String::from) else { return null };
     let Ok(peer_b64) = env.get_string(&peer_public_key).map(String::from) else { return null };
     let Ok(body) = env.get_string(&body).map(String::from) else { return null };
+    let Ok(message_id) = env.get_string(&message_id).map(String::from) else { return null };
 
     let path = std::path::Path::new(&dir);
     let plaintext = match scheme.as_str() {
@@ -70,8 +72,21 @@ pub extern "system" fn Java_get_ahmed_atlas_push_NativeCrypto_nativeDecrypt(
     };
 
     let Some(plaintext) = plaintext else { return null };
+    if !message_id.is_empty() {
+        save_preview(path, &message_id, &plaintext);
+    }
     match env.new_string(plaintext) {
         Ok(s) => s.into_raw(),
         Err(_) => null,
     }
+}
+
+fn save_preview(dir: &std::path::Path, message_id: &str, text: &str) {
+    let path = dir.join("push_previews.json");
+    let mut map: HashMap<String, String> = std::fs::read(&path)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default();
+    map.insert(message_id.to_string(), text.to_string());
+    let _ = std::fs::write(path, serde_json::to_vec(&map).unwrap_or_else(|_| b"{}".to_vec()));
 }
