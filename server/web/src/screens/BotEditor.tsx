@@ -215,6 +215,7 @@ export default function BotEditor() {
   const [handle, setHandle] = createSignal("");
   const [name, setName] = createSignal("");
   const [webhook, setWebhook] = createSignal("");
+  const [delivery, setDelivery] = createSignal<"script" | "webhook" | "polling">("script");
   const [botToken, setBotToken] = createSignal<string | null>(null);
   const [files, setFiles] = createSignal<Record<string, string>>({ ...DEFAULT_FILES });
   const [activeName, setActiveName] = createSignal("src/bot.js");
@@ -347,6 +348,7 @@ export default function BotEditor() {
     setHandle(bot.handle);
     setName(bot.name);
     setWebhook(bot.webhookUrl);
+    setDelivery((bot.delivery as "script" | "webhook" | "polling") || "script");
     setBotToken(bot.token ?? null);
     const next = decodeScript(bot.script);
     setFiles(next);
@@ -368,7 +370,7 @@ export default function BotEditor() {
   const lines = () => current().split("\n").length;
   const gutterText = () => Array.from({ length: lines() }, (_, i) => String(i + 1)).join("\n") + "\n";
   const highlighted = () => highlightCode(current(), activeName());
-  const snapshot = () => encodeScript(files()) + "\n" + webhook() + "\n" + name();
+  const snapshot = () => encodeScript(files()) + "\n" + webhook() + "\n" + name() + "\n" + delivery();
   const dirty = () => lastSaved() === null || snapshot() !== lastSaved();
 
   createEffect(() => {
@@ -404,7 +406,12 @@ export default function BotEditor() {
     try {
       const bot = await createBot(handle(), name() || handle());
       setBotToken(bot.token ?? null);
-      await updateBot(bot.id, { script: encodeScript(files()), webhookUrl: webhook(), name: name() || handle() });
+      await updateBot(bot.id, {
+        script: encodeScript(files()),
+        webhookUrl: webhook(),
+        name: name() || handle(),
+        delivery: delivery(),
+      });
       await refetch();
       history.replaceState({}, "", `/bots?id=${encodeURIComponent(bot.id)}`);
       setCreating(false);
@@ -423,7 +430,12 @@ export default function BotEditor() {
     setSaving(true);
     setError(null);
     try {
-      await updateBot(id, { script: encodeScript(files()), webhookUrl: webhook(), name: name() });
+      await updateBot(id, {
+        script: encodeScript(files()),
+        webhookUrl: webhook(),
+        name: name(),
+        delivery: delivery(),
+      });
       setLastSaved(snapshot());
       setNotice("Saved");
       await refetch();
@@ -780,7 +792,7 @@ export default function BotEditor() {
                 <div class="fixed inset-0 z-40 bg-black/60" onClick={() => setSettingsOpen(false)} />
                 <div class="fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-md flex-col gap-4 overflow-y-auto border-l border-[#2a241c] bg-[#14110d] p-5 shadow-2xl">
                   <div class="flex items-center justify-between">
-                    <p class="font-heading text-sm font-semibold text-[#f2ede2]">Token & webhook</p>
+                    <p class="font-heading text-sm font-semibold text-[#f2ede2]">Token & delivery</p>
                     <button type="button" class="text-xs text-[#8a8171] hover:text-[#f2ede2]" onClick={() => setSettingsOpen(false)}>
                       Esc
                     </button>
@@ -819,6 +831,19 @@ export default function BotEditor() {
                         </Show>
                       </div>
                     </Show>
+                  </div>
+                  <div>
+                    <label class="mb-1.5 block text-xs text-[#8a8171]">{t("botsEditor.delivery")}</label>
+                    <select
+                      class="w-full rounded-md border border-[#2a241c] bg-[#0f0d0b] px-3 py-2 text-sm text-[#d4d4d4]"
+                      value={delivery()}
+                      onChange={(e) => setDelivery(e.currentTarget.value as "script" | "webhook" | "polling")}
+                    >
+                      <option value="script">Built-in script (reply / keyboard)</option>
+                      <option value="webhook">Webhook POST</option>
+                      <option value="polling">Long polling (aiogram-style)</option>
+                    </select>
+                    <p class="mt-1.5 text-xs leading-relaxed text-[#6b6357]">{t("botsEditor.deliveryHint")}</p>
                   </div>
                   <div>
                     <label class="mb-1.5 block text-xs text-[#8a8171]">{t("botsEditor.webhook")}</label>

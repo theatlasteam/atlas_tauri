@@ -162,6 +162,7 @@ pub enum ServerEvent {
     /// learns who was already there.
     Focus { chat_id: Uuid, user_id: Uuid, present: bool },
     ChatCreated { chat: ChatDto },
+    ChatCleared { chat_id: Uuid },
 
     CallOffer { call_id: Uuid, from: UserDto, sdp: String, media: String },
     CallAnswer { call_id: Uuid, sdp: String },

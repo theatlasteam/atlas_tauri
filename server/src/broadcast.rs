@@ -36,6 +36,15 @@ pub struct BroadcastButton {
     /// Grid row (0-based). Buttons with the same row sit side by side.
     #[serde(default)]
     pub row: u8,
+    /// Mini-app URL opened in an in-chat webview (Telegram WebApp-style).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub app: String,
+    /// Server GETs this https URL and uses the body as the (edited) reply.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub fetch: String,
+    /// If true, tapping `data` edits this message instead of sending a new one.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub edit: bool,
 }
 
 pub struct Official {
@@ -248,10 +257,15 @@ fn sanitize_buttons_n(buttons: Vec<BroadcastButton>, max: usize) -> Result<Vec<B
             return Err(AppError::BadRequest("button label must be 1-48 characters".into()));
         }
         let url = sanitize_url(&b.url)?;
+        let app = sanitize_url(&b.app)?;
+        let fetch = sanitize_url(&b.fetch)?;
+        if !fetch.is_empty() && !fetch.starts_with("https://") {
+            return Err(AppError::BadRequest("button fetch must be https".into()));
+        }
         let data = b.data.trim().chars().take(200).collect::<String>();
         let icon = b.icon.chars().take(8).collect::<String>();
-        if url.is_empty() && data.is_empty() {
-            return Err(AppError::BadRequest("button needs a url or data".into()));
+        if url.is_empty() && data.is_empty() && app.is_empty() && fetch.is_empty() {
+            return Err(AppError::BadRequest("button needs a url, data, app or fetch".into()));
         }
         out.push(BroadcastButton {
             label: label.to_string(),
@@ -259,6 +273,9 @@ fn sanitize_buttons_n(buttons: Vec<BroadcastButton>, max: usize) -> Result<Vec<B
             data,
             icon,
             row: b.row,
+            app,
+            fetch,
+            edit: b.edit,
         });
     }
     Ok(out)

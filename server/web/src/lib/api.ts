@@ -202,6 +202,8 @@ export interface BotDto {
   script: string;
   createdAt: string;
   token?: string;
+  delivery?: string;
+  welcome?: string;
 }
 
 async function botFetch(path: string, init: RequestInit = {}): Promise<Response> {
@@ -240,7 +242,7 @@ export async function createBot(handle: string, name: string): Promise<BotDto> {
 
 export async function updateBot(
   id: string,
-  patch: { webhookUrl?: string; script?: string; name?: string },
+  patch: { webhookUrl?: string; script?: string; name?: string; delivery?: string },
 ): Promise<BotDto> {
   const res = await botFetch(`/api/bots/${encodeURIComponent(id)}`, {
     method: "PATCH",

@@ -35,4 +35,4 @@ editedAt?: string,
  * Unsent by its author. `body` and `attachment` are empty; the row is
  * kept so replies pointing at it, and read cursors past it, still resolve.
  */
-deleted: boolean, buttons?: Array<{ label: string, url: string, data?: string, icon?: string, row?: number }>, };
+deleted: boolean, buttons?: Array<{ label: string, url: string, data?: string, icon?: string, row?: number, app?: string, fetch?: string, edit?: boolean }>, };

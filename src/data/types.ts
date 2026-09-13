@@ -75,8 +75,17 @@ export interface Message {
   pending?: boolean;
   failed?: boolean;
   clientTag?: string;
-  /** Official / bot actions. `url` opens a link; `data` is sent back as a message. */
-  buttons?: { label: string; url: string; data?: string; icon?: string; row?: number }[];
+  /** Official / bot actions. `url` opens a link; `data` is a callback; `app` is a mini-app. */
+  buttons?: {
+    label: string;
+    url: string;
+    data?: string;
+    icon?: string;
+    row?: number;
+    app?: string;
+    fetch?: string;
+    edit?: boolean;
+  }[];
 }
 
 export interface Chat {
@@ -107,6 +116,7 @@ export interface Chat {
   blockedMe?: boolean;
   /** DM only: peer is a bot — messages stay plaintext. */
   peerIsBot?: boolean;
+  botWelcome?: string;
 }
 
 export interface Folder {

@@ -328,6 +328,10 @@ pub struct ChatDto {
     pub blocked_me: bool,
     /// For DMs: the peer is an Atlas bot (plaintext DMs; no E2EE keys).
     pub peer_is_bot: bool,
+    /// Bot empty-state copy from `welcome()` in the bot script.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub bot_welcome: Option<String>,
 }
 
 /// A user I've blocked, as returned by GET /api/blocks.

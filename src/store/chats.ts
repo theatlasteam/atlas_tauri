@@ -325,6 +325,12 @@ function createChatsStore() {
         });
         break;
       }
+      case "chat_cleared": {
+        messagesStore.clearLocal(event.chat_id);
+        const target = chat(event.chat_id);
+        if (target) patchChat(event.chat_id, { lastMessage: "", lastMessageAt: "", unreadCount: 0 });
+        break;
+      }
       case "chat_created": {
         const mapped = toChat(event.chat, me);
         if (!chat(mapped.id)) {

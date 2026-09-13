@@ -108,6 +108,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/chats/{id}", get(routes::chats::get_chat))
         .route("/api/chats/{id}/members", get(routes::chats::list_members))
         .route("/api/chats/{id}/mute", post(routes::chats::set_muted))
+        .route("/api/chats/{id}/history", delete(routes::chats::clear_history))
+        .route("/api/chats/{id}/callback", post(routes::bots::chat_callback))
         .route(
             "/api/chats/{id}/messages",
             get(routes::messages::list_messages).post(routes::messages::send_message),
@@ -124,6 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route("/api/bots/{id}/token", post(routes::bots::rotate_token))
         .route("/api/bot/messages", post(routes::bots::bot_send))
+        .route("/api/bot/updates", get(routes::bots::bot_updates))
         .route("/api/spaces", post(routes::spaces::create))
         .route("/api/spaces/{id}", get(routes::spaces::get))
         .route("/api/spaces/{id}/public", get(routes::spaces::get_public))

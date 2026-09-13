@@ -694,6 +694,37 @@ pub async fn edit_message(
     Ok(Json(fanout_update(&state, updated).await?))
 }
 
+pub async fn update_plain_bot_message(
+    state: &AppState,
+    bot_user: Uuid,
+    message_id: Uuid,
+    body: &str,
+    buttons: Option<Vec<crate::broadcast::BroadcastButton>>,
+) -> Result<MessageDto, AppError> {
+    let row = own_message(state, message_id, bot_user).await?;
+    if row.scheme != "plain" {
+        return Err(AppError::BadRequest("only plaintext bot messages can be edited this way".into()));
+    }
+    let raw = body.as_bytes();
+    if raw.is_empty() || raw.len() > MAX_BODY_BYTES {
+        return Err(AppError::BadRequest("body must be 1..=65536 bytes".into()));
+    }
+    let buttons_json = match buttons {
+        Some(b) if !b.is_empty() => Some(serde_json::to_value(b).unwrap_or(serde_json::Value::Null)),
+        _ => None,
+    };
+    let updated: MessageRow = sqlx::query_as(&format!(
+        "UPDATE messages SET body = $2, buttons = $3, edited_at = now()
+         WHERE id = $1 RETURNING {MESSAGE_COLUMNS}"
+    ))
+    .bind(message_id)
+    .bind(raw)
+    .bind(&buttons_json)
+    .fetch_one(&state.db)
+    .await?;
+    fanout_update(state, updated).await
+}
+
 /// Unsend: wipe the body, keep the row. See migrations/0008.
 pub async fn delete_message(
     State(state): State<AppState>,

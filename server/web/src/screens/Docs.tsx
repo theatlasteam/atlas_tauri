@@ -81,6 +81,8 @@ const BOT_NAV = [
   ["create", "Create a bot"],
   ["manifest", "Manifest"],
   ["reply", "reply()"],
+  ["buttons", "Buttons & mini apps"],
+  ["polling", "Long polling"],
   ["webhook", "Webhook"],
   ["token", "Token"],
   ["send", "Send API"],
@@ -353,8 +355,8 @@ function BotsBody() {
       <P>
         A bot is a special Atlas user you own. People search the handle and DM it
         in plaintext (bots have no E2EE keys). You reply from{" "}
-        <code class="font-mono text-ink">src/bot.js</code> rules, from a webhook you
-        host, or both.
+        <code class="font-mono text-ink">src/bot.js</code> rules, from a webhook, or
+        by long-polling like aiogram (<code class="font-mono text-ink">GET /api/bot/updates</code>).
       </P>
       <P>
         Create and edit bots at{" "}
@@ -413,18 +415,20 @@ function BotsBody() {
       </P>
       <Code
         file="src/bot.js"
-        code={`reply("/start", "Welcome! Pick something.");
+        code={`welcome("Hi — tap Start to talk to me.");
+
+reply("/start", "Welcome! Pick something.");
 keyboard("/start", [
   [
-    { "label": "Weather", "data": "/weather", "icon": "☀️" },
-    { "label": "Help", "data": "/help", "icon": "❓" }
+    { "label": "Weather", "data": "/weather", "icon": "☀️", "edit": true },
+    { "label": "Help", "data": "/help", "icon": "❓", "edit": true }
   ],
-  [{ "label": "Atlas", "url": "https://atlasmsg.app", "icon": "✨" }]
+  [{ "label": "Open app", "app": "https://s.atlasmsg.app/s/YOUR_SPACE" }]
 ]);
 
-reply("/weather", "Looks clear from here.");
-image("/weather", "https://example.com/sky.jpg");
-icon("/weather", "☀️");
+reply("/weather", "Fetching…");
+fetch("/weather", "https://wttr.in/?format=3");
+keyboard("/weather", [[{ "label": "Back", "data": "/start", "edit": true }]]);
 
 reply("*", "You said {{text}}");`}
       />
@@ -435,18 +439,57 @@ reply("*", "You said {{text}}");`}
           ["keyboard(on, rows)", "Grid under the bubble. Each inner array is a row."],
           ["image(on, https url)", "Atlas fetches the image (https, ≤5 MiB) and attaches it."],
           ["icon(on, emoji)", "Puts that emoji at the top of the reply."],
+          ["welcome(text)", "Shown in an empty chat with a Start button."],
+          ["fetch(on, https)", "Atlas GETs the URL and uses the body as the reply."],
         ]}
       />
+
+      <H id="buttons">Buttons, navigation, mini apps</H>
       <P>
-        Button <code class="font-mono text-ink">data</code> is sent back as a DM when
-        tapped (like the user typed it). <code class="font-mono text-ink">url</code>{" "}
-        opens a link. <code class="font-mono text-ink">icon</code> is Twemoji next to
-        the label.
+        Tapping a button with <code class="font-mono text-ink">data</code> runs that
+        trigger and, with <code class="font-mono text-ink">edit: true</code>, rewrites
+        the same bubble (menus, wizards). <code class="font-mono text-ink">url</code>{" "}
+        opens a link. <code class="font-mono text-ink">app</code> opens a mini-app
+        iframe; the page can <code class="font-mono text-ink">parent.postMessage({"{ atlasWebAppData: \"…\" }"})</code>{" "}
+        to send a callback. <code class="font-mono text-ink">fetch</code> on a button
+        loads live text into the bubble.
       </P>
       <P>
         Bot-to-bot loops are ignored: if the author is already a bot, Atlas does
         not dispatch. Rules only run on plaintext DMs, not groups or encrypted
         chats.
+      </P>
+
+      <H id="polling">Long polling (aiogram-style)</H>
+      <P>
+        In Token & delivery, choose Long polling. Atlas will not auto-run script
+        replies. Your process holds the token and calls:
+      </P>
+      <Code
+        file="python"
+        code={`import time, requests
+TOKEN = "atlasbot_…"
+API = "https://atlasmsg.app/api/bot"
+H = {"Authorization": f"Bearer {TOKEN}"}
+offset = 0
+while True:
+    r = requests.get(f"{API}/updates", headers=H, params={"offset": offset, "timeout": 25}, timeout=30)
+    for u in r.json().get("result", []):
+        offset = u["updateId"] + 1
+        chat = u["chatId"]
+        text = u.get("text") or u.get("data") or ""
+        requests.post(f"{API}/messages", headers=H, json={
+            "chatId": chat,
+            "text": f"you said {text}",
+            "messageId": u.get("messageId"),  # set to edit that bubble
+        })`}
+      />
+      <P>
+        <code class="font-mono text-ink">GET /api/bot/updates?offset=&timeout=</code>{" "}
+        waits up to 30s. Pass the next <code class="font-mono text-ink">updateId + 1</code>{" "}
+        as offset to ack. Send with <code class="font-mono text-ink">POST /api/bot/messages</code>.
+        Include <code class="font-mono text-ink">messageId</code> to edit an existing
+        message instead of posting a new one.
       </P>
 
       <H id="webhook">Webhook</H>
@@ -506,7 +549,8 @@ Content-Type: application/json
           ["PATCH", "/api/bots/{id}", "session — { name, webhookUrl, script }"],
           ["DELETE", "/api/bots/{id}", "session"],
           ["POST", "/api/bots/{id}/token", "session — rotate"],
-          ["POST", "/api/bot/messages", "bot token — send"],
+          ["POST", "/api/bot/messages", "bot token — send (messageId edits)"],
+          ["GET", "/api/bot/updates", "bot token — long poll"],
         ]}
       />
 

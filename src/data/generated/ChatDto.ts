@@ -35,4 +35,4 @@ blockedByMe: boolean,
 /**
  * For DMs: whether the peer has blocked me. Always false for groups.
  */
-blockedMe: boolean, peerIsBot: boolean, };
+blockedMe: boolean, peerIsBot: boolean, botWelcome?: string, };

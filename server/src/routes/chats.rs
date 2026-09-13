@@ -36,6 +36,7 @@ struct ChatListRow {
     blocked_by_me: bool,
     blocked_me: bool,
     peer_is_bot: Option<bool>,
+    bot_welcome: Option<String>,
     lm_id: Option<Uuid>,
     lm_author: Option<Uuid>,
     lm_scheme: Option<String>,
@@ -62,6 +63,7 @@ const CHAT_LIST_SQL: &str = "
         pu.last_seen_at AS peer_last_seen_at,
         pu.last_seen_visible AS peer_last_seen_visible,
         pu.is_bot AS peer_is_bot,
+        COALESCE(bot.welcome, '') AS bot_welcome,
         EXISTS(SELECT 1 FROM blocks b WHERE b.blocker_id = cm.user_id AND b.blocked_id = p.user_id) AS blocked_by_me,
         EXISTS(SELECT 1 FROM blocks b WHERE b.blocker_id = p.user_id AND b.blocked_id = cm.user_id) AS blocked_me,
         lm.id AS lm_id, lm.author_id AS lm_author, lm.scheme AS lm_scheme,
@@ -80,6 +82,7 @@ const CHAT_LIST_SQL: &str = "
         WHERE x.chat_id = c.id AND x.user_id <> cm.user_id LIMIT 1
     ) p ON c.kind = 'dm'
     LEFT JOIN users pu ON pu.id = p.user_id
+    LEFT JOIN bots bot ON bot.user_id = pu.id
     LEFT JOIN LATERAL (
         SELECT m.id, m.author_id, m.scheme, m.body, m.sent_at, m.unlock_at,
                m.edited_at, m.deleted_at FROM messages m
@@ -150,6 +153,11 @@ fn row_to_dto(row: ChatListRow, folder_ids: Vec<Uuid>, online: bool) -> ChatDto 
         blocked_by_me: row.blocked_by_me,
         blocked_me: row.blocked_me,
         peer_is_bot: is_dm && row.peer_is_bot.unwrap_or(false),
+        bot_welcome: if is_dm {
+            row.bot_welcome.filter(|s| !s.is_empty())
+        } else {
+            None
+        },
     }
 }
 
@@ -415,6 +423,38 @@ pub async fn set_muted(
         .await?;
     if res.rows_affected() == 0 {
         return Err(AppError::NotFound);
+    }
+    Ok(Json(json!({ "ok": true })))
+}
+
+/// Wipe every message in a DM (bot "clear history"). Groups stay.
+pub async fn clear_history(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(chat_id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let kind: Option<String> = sqlx::query_scalar(
+        "SELECT c.kind FROM chats c
+         JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = $2
+         WHERE c.id = $1",
+    )
+    .bind(chat_id)
+    .bind(auth.user_id)
+    .fetch_optional(&state.db)
+    .await?;
+    let Some(kind) = kind else {
+        return Err(AppError::NotFound);
+    };
+    if kind != "dm" {
+        return Err(AppError::BadRequest("only DMs can be cleared".into()));
+    }
+    sqlx::query("DELETE FROM messages WHERE chat_id = $1")
+        .bind(chat_id)
+        .execute(&state.db)
+        .await?;
+    let event = ServerEvent::ChatCleared { chat_id };
+    for member in crate::ws::chat_member_ids(&state, chat_id).await? {
+        state.hub.send_to_user(member, &event);
     }
     Ok(Json(json!({ "ok": true })))
 }

@@ -274,7 +274,14 @@ export default function MessageBubble(props: {
   /** Channel comments. Omit on DMs/groups so the bubble stays as wide as its text. */
   comments?: MessageComments;
   /** Bot / channel inline keyboard. */
-  onButton?: (button: { label: string; url?: string; data?: string }) => void;
+  onButton?: (button: {
+    label: string;
+    url?: string;
+    data?: string;
+    app?: string;
+    fetch?: string;
+    edit?: boolean;
+  }) => void;
 }) {
   const isFirst = () => props.isFirstInGroup ?? true;
   const isLast = () => props.isLastInGroup ?? true;
@@ -321,13 +328,22 @@ export default function MessageBubble(props: {
     if (!list?.length) return undefined;
     return list.map((b) => ({
       label: b.label,
-      url: b.url || undefined,
+      url: b.app ? undefined : b.url || undefined,
       data: b.data || undefined,
       icon: b.icon || undefined,
       row: b.row,
-      onClick: b.data
-        ? () => props.onButton?.({ label: b.label, url: b.url, data: b.data })
-        : undefined,
+      onClick:
+        b.data || b.app || b.fetch
+          ? () =>
+              props.onButton?.({
+                label: b.label,
+                url: b.url,
+                data: b.data,
+                app: b.app,
+                fetch: b.fetch,
+                edit: b.edit,
+              })
+          : undefined,
     }));
   };
 

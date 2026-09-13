@@ -110,6 +110,27 @@ export default function ChatView() {
   /** Time capsule armed for the next send (ISO), or null for "send now". */
   const [capsuleAt, setCapsuleAt] = createSignal<string | null>(null);
   const [capsuleOpen, setCapsuleOpen] = createSignal(false);
+  const [webApp, setWebApp] = createSignal<{ url: string; messageId: string } | null>(null);
+
+  createEffect(() => {
+    const app = webApp();
+    if (!app) return;
+    const onMsg = (ev: MessageEvent) => {
+      const d = ev.data;
+      if (!d || typeof d !== "object") return;
+      if (d.atlasWebAppClose || d.eventType === "web_app_close") {
+        setWebApp(null);
+        return;
+      }
+      const payload = d.atlasWebAppData ?? d.data;
+      if (typeof payload === "string" && payload) {
+        void api.botCallback(params.id, app.messageId, payload);
+        setWebApp(null);
+      }
+    };
+    window.addEventListener("message", onMsg);
+    onCleanup(() => window.removeEventListener("message", onMsg));
+  });
   /** The message the composer is currently rewriting, if any. */
   const [editing, setEditing] = createSignal<Message | null>(null);
   /** Group chats: authorId -> resolved profile (name, fallback avatar, photo flag). */
@@ -548,11 +569,35 @@ export default function ChatView() {
             <Show
               when={messages().length > 0}
               fallback={
-                <EmptyState
-                  icon={ChatIcon}
-                  title={t("chatView.noMessagesTitle")}
-                  subtitle={t("chatView.noMessagesSubtitle")}
-                />
+                <Show
+                  when={chat()?.peerIsBot}
+                  fallback={
+                    <EmptyState
+                      icon={ChatIcon}
+                      title={t("chatView.noMessagesTitle")}
+                      subtitle={t("chatView.noMessagesSubtitle")}
+                    />
+                  }
+                >
+                  <div class="mx-auto flex max-w-sm flex-col items-center gap-4 px-6 py-16 text-center">
+                    <p class="whitespace-pre-wrap text-[15px] leading-relaxed text-ink">
+                      {chat()?.botWelcome || t("chatView.botWelcomeFallback")}
+                    </p>
+                    <button
+                      type="button"
+                      class="rounded-pill bg-accent px-6 py-2.5 text-sm font-semibold text-accent-ink"
+                      onClick={() => {
+                        const c = chat();
+                        void messagesStore.send(params.id, "/start", {
+                          peerUserId: c?.peerUserId,
+                          peerIsBot: true,
+                        });
+                      }}
+                    >
+                      {t("chatView.botStart")}
+                    </button>
+                  </div>
+                </Show>
               }
             >
               <Show when={loadingOlder()}>
@@ -603,12 +648,14 @@ export default function ChatView() {
                           }
                           onActions={(m, anchor) => setActionsFor({ message: m, anchor })}
                           onButton={(btn) => {
-                            if (!btn.data) return;
-                            const c = chat();
-                            void messagesStore.send(params.id, btn.data, {
-                              peerUserId: c?.peerUserId,
-                              peerIsBot: true,
-                            });
+                            if (btn.app) {
+                              setWebApp({ url: btn.app, messageId: message.id });
+                              return;
+                            }
+                            if (btn.data || btn.fetch) {
+                              void api.botCallback(params.id, message.id, btn.data || btn.fetch || "");
+                              return;
+                            }
                           }}
                           comments={
                             channelFeed()
@@ -846,6 +893,17 @@ export default function ChatView() {
 
       {/* Chat menu: mute (encryption is always on for DMs — no toggle) */}
       <Menu open={menuOpen()} onOpenChange={setMenuOpen} anchorRef={() => menuBtn} placement="bottom-end">
+        <Show when={chat()?.kind === "dm"}>
+          <MenuItem
+            onSelect={() => {
+              setMenuOpen(false);
+              void api.clearChatHistory(params.id).then(() => messagesStore.clearLocal(params.id));
+            }}
+          >
+            <span>{t("chatView.clearHistory")}</span>
+            <TrashIcon size={16} />
+          </MenuItem>
+        </Show>
         <MenuItem
           onSelect={() => {
             setMenuOpen(false);
@@ -971,6 +1029,25 @@ export default function ChatView() {
           }}
         </Show>
       </Popover>
+
+      <Show when={webApp()}>
+        {(app) => (
+          <div class="fixed inset-0 z-[80] flex flex-col bg-bg">
+            <div class="flex items-center justify-between border-b border-border px-3 py-2">
+              <span class="text-sm font-medium">{t("chatView.miniApp")}</span>
+              <button type="button" class="rounded-pill px-3 py-1.5 text-sm text-ink-muted hover:bg-surface" onClick={() => setWebApp(null)}>
+                {t("chatView.closeMiniApp")}
+              </button>
+            </div>
+            <iframe
+              class="min-h-0 flex-1 border-0 bg-white"
+              src={app().url}
+              title={t("chatView.miniApp")}
+              sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+            />
+          </div>
+        )}
+      </Show>
     </div>
   );
 }

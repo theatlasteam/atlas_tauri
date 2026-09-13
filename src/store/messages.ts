@@ -733,6 +733,9 @@ function createMessagesStore() {
     applyReaction,
     toggleReaction,
     onPlaintext,
+    clearLocal: (chatId: string) => {
+      setState(chatId, { messages: [], reachedStart: true, loaded: true });
+    },
   };
 }
 

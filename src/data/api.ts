@@ -226,6 +226,9 @@ export const api = {
     request<MessageDto>("PATCH", `/api/messages/${id}`, msg),
   /** Unsend for everyone. The row survives as a tombstone. */
   deleteMessage: (id: string) => request<MessageDto>("DELETE", `/api/messages/${id}`),
+  clearChatHistory: (chatId: string) => request<{ ok: boolean }>("DELETE", `/api/chats/${chatId}/history`),
+  botCallback: (chatId: string, messageId: string, data: string) =>
+    request<{ ok: boolean }>("POST", `/api/chats/${chatId}/callback`, { messageId, data }),
   markRead: (chatId: string, messageId?: string) =>
     request<{ ok: boolean }>("POST", `/api/chats/${chatId}/read`, { messageId }),
   searchMessages: (q: string, limit = 30) =>

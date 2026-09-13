@@ -33,6 +33,10 @@ pub struct BotDto {
     pub webhook_url: String,
     pub script: String,
     pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    pub delivery: String,
+    #[serde(default)]
+    pub welcome: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
 }
@@ -50,6 +54,7 @@ pub struct UpdateBot {
     pub webhook_url: Option<String>,
     pub script: Option<String>,
     pub name: Option<String>,
+    pub delivery: Option<String>,
 }
 
 #[derive(Deserialize, Default, Clone)]
@@ -64,12 +69,16 @@ struct ReplyRule {
     image: String,
     #[serde(default)]
     icon: String,
+    #[serde(default)]
+    fetch: String,
 }
 
 #[derive(Deserialize, Default)]
 struct BotScript {
     #[serde(default)]
     replies: Vec<ReplyRule>,
+    #[serde(default)]
+    welcome: String,
 }
 
 fn mint_token() -> String {
@@ -86,8 +95,8 @@ fn default_script() -> String {
         "files": {
             "manifest.json": "{\n  \"id\": \"bot.example\",\n  \"name\": \"My bot\",\n  \"version\": \"0.1.0\",\n  \"main\": \"src/bot.js\"\n}",
             "icon.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <rect width=\"64\" height=\"64\" rx=\"14\" fill=\"#c9772e\"/>\n  <text x=\"32\" y=\"42\" text-anchor=\"middle\" font-size=\"28\" fill=\"#fff\">B</text>\n</svg>\n",
-            "src/bot.js": "// First matching reply() wins. \"*\" matches anything. {{text}} is the DM.\n// keyboard(trigger, rows) — Telegram-style grid. image(trigger, https url).\n\nreply(\"/start\", \"Welcome! Pick something.\");\nkeyboard(\"/start\", [\n  [{ \"label\": \"Weather\", \"data\": \"/weather\", \"icon\": \"☀️\" }, { \"label\": \"Help\", \"data\": \"/help\", \"icon\": \"❓\" }],\n  [{ \"label\": \"Atlas\", \"url\": \"https://atlasmsg.app\", \"icon\": \"✨\" }]\n]);\n\nreply(\"/weather\", \"Looks clear from here.\");\nreply(\"/help\", \"Tap a button or send /start.\");\nreply(\"*\", \"You said {{text}}\");\n",
-            "README.md": "# My bot\n\n`reply()`, `keyboard()`, `image()` — see /docs/bots.\n",
+            "src/bot.js": "// First matching reply() wins. \"*\" matches anything. {{text}} is the DM.\n// keyboard() — Telegram grid. data+edit: tap rewrites this bubble.\n// fetch(trigger, https) — Atlas GETs live text. app: mini-app URL.\n\nwelcome(\"Hi — tap Start to talk to me.\");\n\nreply(\"/start\", \"Welcome! Pick something.\");\nkeyboard(\"/start\", [\n  [{ \"label\": \"Weather\", \"data\": \"/weather\", \"icon\": \"☀️\", \"edit\": true }, { \"label\": \"Help\", \"data\": \"/help\", \"icon\": \"❓\", \"edit\": true }],\n  [{ \"label\": \"Atlas\", \"url\": \"https://atlasmsg.app\", \"icon\": \"✨\" }]\n]);\n\nreply(\"/weather\", \"Fetching…\");\nfetch(\"/weather\", \"https://wttr.in/?format=3\");\nkeyboard(\"/weather\", [\n  [{ \"label\": \"Back\", \"data\": \"/start\", \"edit\": true }]\n]);\n\nreply(\"/help\", \"Tap a button or send /start.\");\nkeyboard(\"/help\", [\n  [{ \"label\": \"Back\", \"data\": \"/start\", \"edit\": true }]\n]);\nreply(\"*\", \"You said {{text}}\");\n",
+            "README.md": "# My bot\n\n`welcome()`, `reply()`, `keyboard()`, `image()`, `fetch()` — see /docs/bots.\nLong-poll with GET /api/bot/updates like aiogram, or set a webhook.\n",
         }
     })
     .to_string()
@@ -261,10 +270,44 @@ fn parse_script(script: &str) -> BotScript {
         }
         rest = &rest[idx + 5..];
     }
-    BotScript { replies }
+    rest = src.as_str();
+    while let Some(idx) = rest.find("fetch(") {
+        let after = &rest[idx + 6..];
+        if let Some((on, after)) = take_quoted(after) {
+            if let Some((url, tail)) = take_quoted(after.trim_start().trim_start_matches(',')) {
+                let i = upsert_rule(&mut replies, &on);
+                replies[i].fetch = url;
+                rest = tail;
+                continue;
+            }
+        }
+        rest = &rest[idx + 6..];
+    }
+    let mut welcome = String::new();
+    rest = src.as_str();
+    if let Some(idx) = rest.find("welcome(") {
+        let after = &rest[idx + 8..];
+        if let Some((w, _)) = take_quoted(after) {
+            welcome = w;
+        }
+    }
+    BotScript { replies, welcome }
 }
 
-fn dto_from_row(r: (Uuid, Uuid, String, String, String, String, DateTime<Utc>, String)) -> BotDto {
+type BotRow = (
+    Uuid,
+    Uuid,
+    String,
+    String,
+    String,
+    String,
+    DateTime<Utc>,
+    String,
+    String,
+    String,
+);
+
+fn dto_from_row(r: BotRow) -> BotDto {
     BotDto {
         id: r.0,
         user_id: r.1,
@@ -274,14 +317,17 @@ fn dto_from_row(r: (Uuid, Uuid, String, String, String, String, DateTime<Utc>, S
         script: r.5,
         created_at: r.6,
         token: if r.7.is_empty() { None } else { Some(r.7) },
+        welcome: r.8,
+        delivery: r.9,
     }
 }
 
-const BOT_SELECT: &str = "SELECT b.id, b.user_id, u.handle, u.name, b.webhook_url, b.script, b.created_at, COALESCE(b.token, '')
+const BOT_SELECT: &str = "SELECT b.id, b.user_id, u.handle, u.name, b.webhook_url, b.script, b.created_at,
+            COALESCE(b.token, ''), COALESCE(b.welcome, ''), COALESCE(b.delivery, 'script')
          FROM bots b JOIN users u ON u.id = b.user_id";
 
 pub async fn list_mine(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<Vec<BotDto>>> {
-    let rows: Vec<(Uuid, Uuid, String, String, String, String, DateTime<Utc>, String)> = sqlx::query_as(&format!(
+    let rows: Vec<BotRow> = sqlx::query_as(&format!(
         "{BOT_SELECT}
          WHERE b.owner_id = $1
          ORDER BY b.created_at DESC"
@@ -353,8 +399,8 @@ pub async fn create(
     .await?;
 
     sqlx::query(
-        "INSERT INTO bots (id, owner_id, user_id, token_hash, token, script)
-         VALUES ($1, $2, $3, $4, $5, $6)",
+        "INSERT INTO bots (id, owner_id, user_id, token_hash, token, script, welcome, delivery)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'script')",
     )
     .bind(bot_id)
     .bind(auth.user_id)
@@ -362,6 +408,7 @@ pub async fn create(
     .bind(&hash)
     .bind(&token)
     .bind(default_script())
+    .bind("Hi — tap Start to talk to me.")
     .execute(&state.db)
     .await?;
 
@@ -374,6 +421,8 @@ pub async fn create(
         script: default_script(),
         created_at: Utc::now(),
         token: Some(token),
+        welcome: "Hi — tap Start to talk to me.".into(),
+        delivery: "script".into(),
     }))
 }
 
@@ -383,16 +432,28 @@ pub async fn update(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateBot>,
 ) -> ApiResult<Json<BotDto>> {
+    let welcome = body.script.as_deref().map(|s| parse_script(s).welcome);
+    let delivery = body.delivery.as_deref().map(|d| {
+        match d {
+            "polling" | "webhook" | "script" => d,
+            _ => "script",
+        }
+        .to_string()
+    });
     let n = sqlx::query(
         "UPDATE bots SET
             webhook_url = COALESCE($3, webhook_url),
-            script = COALESCE($4, script)
+            script = COALESCE($4, script),
+            welcome = COALESCE($5, welcome),
+            delivery = COALESCE($6, delivery)
          WHERE id = $1 AND owner_id = $2",
     )
     .bind(id)
     .bind(auth.user_id)
     .bind(body.webhook_url.as_deref())
     .bind(body.script.as_deref())
+    .bind(welcome.as_deref())
+    .bind(delivery.as_deref())
     .execute(&state.db)
     .await?
     .rows_affected();
@@ -409,12 +470,10 @@ pub async fn update(
         .execute(&state.db)
         .await?;
     }
-    let row: (Uuid, Uuid, String, String, String, String, DateTime<Utc>, String) = sqlx::query_as(&format!(
-        "{BOT_SELECT} WHERE b.id = $1"
-    ))
-    .bind(id)
-    .fetch_one(&state.db)
-    .await?;
+    let row: BotRow = sqlx::query_as(&format!("{BOT_SELECT} WHERE b.id = $1"))
+        .bind(id)
+        .fetch_one(&state.db)
+        .await?;
     Ok(Json(dto_from_row(row)))
 }
 
@@ -436,12 +495,10 @@ pub async fn rotate_token(
     if n == 0 {
         return Err(AppError::NotFound);
     }
-    let row: (Uuid, Uuid, String, String, String, String, DateTime<Utc>, String) = sqlx::query_as(&format!(
-        "{BOT_SELECT} WHERE b.id = $1"
-    ))
-    .bind(id)
-    .fetch_one(&state.db)
-    .await?;
+    let row: BotRow = sqlx::query_as(&format!("{BOT_SELECT} WHERE b.id = $1"))
+        .bind(id)
+        .fetch_one(&state.db)
+        .await?;
     Ok(Json(dto_from_row(row)))
 }
 
@@ -474,6 +531,8 @@ pub struct BotSend {
     #[serde(default)]
     pub image_url: String,
     pub attachment_id: Option<Uuid>,
+    /// When set, rewrite this existing bot message (navigation).
+    pub message_id: Option<Uuid>,
 }
 
 async fn attach_from_url(state: &AppState, owner: Uuid, url: &str) -> Result<Uuid, AppError> {
@@ -612,6 +671,22 @@ pub async fn bot_send(
     if body.text.len() > 8000 {
         return Err(AppError::BadRequest("text too long".into()));
     }
+    if let Some(mid) = body.message_id {
+        let buttons = if body.buttons.is_empty() {
+            None
+        } else {
+            Some(sanitize_buttons(body.buttons)?)
+        };
+        let dto = crate::routes::messages::update_plain_bot_message(
+            &state,
+            auth.bot_user_id,
+            mid,
+            &body.text,
+            buttons,
+        )
+        .await?;
+        return Ok(Json(dto));
+    }
     let dto = post_bot_message(
         &state,
         auth.bot_user_id,
@@ -625,16 +700,212 @@ pub async fn bot_send(
     Ok(Json(dto))
 }
 
+#[derive(Deserialize)]
+pub struct UpdatesQuery {
+    #[serde(default)]
+    offset: i64,
+    #[serde(default = "default_timeout")]
+    timeout: u64,
+}
+
+fn default_timeout() -> u64 {
+    20
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BotUpdate {
+    pub update_id: i64,
+    pub chat_id: Uuid,
+    pub from: Uuid,
+    pub kind: String,
+    pub text: String,
+    pub data: String,
+    pub message_id: Option<Uuid>,
+}
+
+/// Long-poll like Telegram getUpdates / aiogram. Confirm by passing the next offset.
+pub async fn bot_updates(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    axum::extract::Query(q): axum::extract::Query<UpdatesQuery>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let auth = BotAuth::from_header(&state, &headers).await?;
+    if q.offset > 0 {
+        sqlx::query("DELETE FROM bot_updates WHERE bot_user_id = $1 AND id < $2")
+            .bind(auth.bot_user_id)
+            .bind(q.offset)
+            .execute(&state.db)
+            .await?;
+    }
+    let timeout = q.timeout.min(30).max(0);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout);
+    loop {
+        let rows: Vec<(i64, Uuid, Uuid, String, String, String, Option<Uuid>)> = sqlx::query_as(
+            "SELECT id, chat_id, from_user, kind, text, data, message_id
+             FROM bot_updates WHERE bot_user_id = $1 AND id >= $2
+             ORDER BY id ASC LIMIT 100",
+        )
+        .bind(auth.bot_user_id)
+        .bind(q.offset.max(0))
+        .fetch_all(&state.db)
+        .await?;
+        if !rows.is_empty() {
+            let result: Vec<BotUpdate> = rows
+                .into_iter()
+                .map(|r| BotUpdate {
+                    update_id: r.0,
+                    chat_id: r.1,
+                    from: r.2,
+                    kind: r.3,
+                    text: r.4,
+                    data: r.5,
+                    message_id: r.6,
+                })
+                .collect();
+            return Ok(Json(serde_json::json!({ "ok": true, "result": result })));
+        }
+        if std::time::Instant::now() >= deadline {
+            return Ok(Json(serde_json::json!({ "ok": true, "result": [] })));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(350)).await;
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CallbackBody {
+    pub message_id: Uuid,
+    #[serde(default)]
+    pub data: String,
+}
+
+/// Human tapped an inline button. Script bots rewrite the bubble; polling
+/// bots get a callback update; webhooks get POSTed.
+pub async fn chat_callback(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(chat_id): Path<Uuid>,
+    Json(body): Json<CallbackBody>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2)",
+    )
+    .bind(chat_id)
+    .bind(auth.user_id)
+    .fetch_one(&state.db)
+    .await?;
+    if !member {
+        return Err(AppError::Forbidden);
+    }
+    dispatch_callback(&state, auth.user_id, chat_id, body.message_id, body.data.trim()).await?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 /// After a human messages a bot in a DM, reply from rules / webhook.
 pub fn maybe_dispatch(state: AppState, author_id: Uuid, chat_id: Uuid, text: String) {
     tokio::spawn(async move {
-        if let Err(e) = dispatch(&state, author_id, chat_id, &text).await {
+        if let Err(e) = dispatch(&state, author_id, chat_id, &text, None).await {
             tracing::warn!(error = %e, %chat_id, "bot dispatch failed");
         }
     });
 }
 
-async fn dispatch(state: &AppState, author_id: Uuid, chat_id: Uuid, text: &str) -> Result<(), AppError> {
+async fn enqueue_update(
+    state: &AppState,
+    bot_user: Uuid,
+    chat_id: Uuid,
+    from: Uuid,
+    kind: &str,
+    text: &str,
+    data: &str,
+    message_id: Option<Uuid>,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO bot_updates (bot_user_id, chat_id, from_user, kind, text, data, message_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)",
+    )
+    .bind(bot_user)
+    .bind(chat_id)
+    .bind(from)
+    .bind(kind)
+    .bind(text)
+    .bind(data)
+    .bind(message_id)
+    .execute(&state.db)
+    .await?;
+    Ok(())
+}
+
+async fn fetch_live(state: &AppState, url: &str) -> Option<String> {
+    let url = url.trim();
+    if !url.starts_with("https://") || url.len() > 2048 {
+        return None;
+    }
+    let lower = url.to_ascii_lowercase();
+    if lower.contains("localhost") || lower.contains("127.0.0.1") || lower.contains("0.0.0.0") {
+        return None;
+    }
+    let res = state.http.get(url).send().await.ok()?;
+    if !res.status().is_success() {
+        return None;
+    }
+    let t = res.text().await.ok()?;
+    let t = t.trim();
+    if t.is_empty() {
+        return None;
+    }
+    Some(t.chars().take(4000).collect())
+}
+
+async fn apply_rule(
+    state: &AppState,
+    bot_user: Uuid,
+    chat_id: Uuid,
+    text: &str,
+    rule: &ReplyRule,
+    edit_id: Option<Uuid>,
+) -> Result<(), AppError> {
+    let mut say = rule.say.replace("{{text}}", text.trim());
+    if !rule.fetch.is_empty() {
+        if let Some(live) = fetch_live(state, &rule.fetch).await {
+            say = live;
+        }
+    }
+    if !rule.icon.is_empty() && !say.starts_with(&rule.icon) {
+        say = format!("{}\n{}", rule.icon, say);
+    }
+    let buttons = flatten_keyboard(rule.buttons.clone());
+    if let Some(mid) = edit_id {
+        let b = if buttons.is_empty() {
+            None
+        } else {
+            Some(sanitize_buttons(buttons)?)
+        };
+        crate::routes::messages::update_plain_bot_message(state, bot_user, mid, &say, b).await?;
+        return Ok(());
+    }
+    post_bot_message(state, bot_user, chat_id, &say, buttons, &rule.image, None).await?;
+    Ok(())
+}
+
+async fn dispatch_callback(
+    state: &AppState,
+    author_id: Uuid,
+    chat_id: Uuid,
+    message_id: Uuid,
+    data: &str,
+) -> Result<(), AppError> {
+    dispatch(state, author_id, chat_id, data, Some(message_id)).await
+}
+
+async fn dispatch(
+    state: &AppState,
+    author_id: Uuid,
+    chat_id: Uuid,
+    text: &str,
+    callback_message: Option<Uuid>,
+) -> Result<(), AppError> {
     let kind: String = sqlx::query_scalar("SELECT kind FROM chats WHERE id = $1")
         .bind(chat_id)
         .fetch_one(&state.db)
@@ -664,27 +935,55 @@ async fn dispatch(state: &AppState, author_id: Uuid, chat_id: Uuid, text: &str) 
         return Ok(());
     }
 
-    let bot: Option<(String, String)> = sqlx::query_as(
-        "SELECT webhook_url, script FROM bots WHERE user_id = $1",
+    let bot: Option<(String, String, String)> = sqlx::query_as(
+        "SELECT webhook_url, script, COALESCE(delivery, 'script') FROM bots WHERE user_id = $1",
     )
     .bind(bot_user)
     .fetch_optional(&state.db)
     .await?;
-    let Some((webhook, script)) = bot else {
+    let Some((webhook, script, delivery)) = bot else {
         return Ok(());
     };
 
-    if !webhook.trim().is_empty() {
+    let kind = if callback_message.is_some() {
+        "callback"
+    } else {
+        "message"
+    };
+    if delivery == "polling" {
+        enqueue_update(
+            state,
+            bot_user,
+            chat_id,
+            author_id,
+            kind,
+            text,
+            if kind == "callback" { text } else { "" },
+            callback_message,
+        )
+        .await?;
+        return Ok(());
+    }
+
+    if !webhook.trim().is_empty() || delivery == "webhook" {
         let url = webhook.trim().to_string();
-        let payload = serde_json::json!({
-            "chatId": chat_id,
-            "from": author_id,
-            "text": text,
-        });
-        let http = state.http.clone();
-        tokio::spawn(async move {
-            let _ = http.post(url).json(&payload).send().await;
-        });
+        if !url.is_empty() {
+            let payload = serde_json::json!({
+                "type": kind,
+                "chatId": chat_id,
+                "from": author_id,
+                "text": text,
+                "data": if kind == "callback" { text } else { "" },
+                "messageId": callback_message,
+            });
+            let http = state.http.clone();
+            tokio::spawn(async move {
+                let _ = http.post(url).json(&payload).send().await;
+            });
+        }
+        if delivery == "webhook" {
+            return Ok(());
+        }
     }
 
     let parsed = parse_script(&script);
@@ -693,12 +992,20 @@ async fn dispatch(state: &AppState, author_id: Uuid, chat_id: Uuid, text: &str) 
         r.on == "*" || r.on.eq_ignore_ascii_case(lower) || lower.starts_with(&r.on)
     });
     if let Some(r) = reply {
-        let mut say = r.say.replace("{{text}}", text.trim());
-        if !r.icon.is_empty() && !say.starts_with(&r.icon) {
-            say = format!("{}\n{}", r.icon, say);
+        let mut edit_id = callback_message;
+        if let Some(mid) = callback_message {
+            if let Some(btn) = r.buttons.iter().flatten().find(|b| b.data == lower) {
+                if btn.edit || !btn.fetch.is_empty() {
+                    edit_id = Some(mid);
+                } else if !btn.edit && callback_message.is_some() {
+                    // default: callback with data edits so menus navigate in-place
+                    edit_id = Some(mid);
+                }
+            } else {
+                edit_id = Some(mid);
+            }
         }
-        let buttons = flatten_keyboard(r.buttons.clone());
-        post_bot_message(state, bot_user, chat_id, &say, buttons, &r.image, None).await?;
+        apply_rule(state, bot_user, chat_id, text, r, edit_id).await?;
     }
     Ok(())
 }
