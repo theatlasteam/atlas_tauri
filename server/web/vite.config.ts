@@ -102,6 +102,7 @@ export default defineConfig({
         ru: resolve(__dirname, "ru/index.html"),
         en: resolve(__dirname, "en/index.html"),
         privacy: resolve(__dirname, "privacy/index.html"),
+        terms: resolve(__dirname, "terms/index.html"),
         app: resolve(__dirname, "app/index.html"),
       },
     },
