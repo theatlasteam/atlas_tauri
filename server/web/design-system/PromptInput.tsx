@@ -7,16 +7,14 @@ export type PromptModel = { id: string; label: string; hint?: string; icon?: JSX
 
 function ChipButton(props: { ariaLabel: string; children: JSX.Element; class?: string }) {
   return (
-    <button
-      type="button"
+    <span
       class={cx(
-        "inline-flex h-8 items-center gap-1.5 rounded-full px-2 text-xs font-medium text-ink-muted transition hover:bg-bg hover:text-ink",
+        "inline-flex h-8 items-center gap-1.5 rounded-full px-2 text-[13px] font-medium text-ink-muted",
         props.class,
       )}
-      aria-label={props.ariaLabel}
     >
       {props.children}
-    </button>
+    </span>
   );
 }
 
@@ -103,10 +101,13 @@ export default function PromptInput(props: {
       );
     }
     return (
-      <button type="button" onClick={props.onAdd}>
-        <ChipButton ariaLabel={label} class="h-8 w-8 justify-center px-0">
-          {icon}
-        </ChipButton>
+      <button
+        type="button"
+        onClick={props.onAdd}
+        aria-label={label}
+        class="atlas-focus inline-flex h-11 w-11 items-center justify-center rounded-full text-ink-muted hover:bg-bg hover:text-ink"
+      >
+        {icon}
       </button>
     );
   };
@@ -117,10 +118,12 @@ export default function PromptInput(props: {
       <Menu
         align="left"
         trigger={
-          <ChipButton ariaLabel="Model">
-            {props.modelIcon ?? currentModel()?.icon ?? <SparkIcon />}
-            <span class="max-w-[9rem] truncate">{currentModel()?.label ?? "Model"}</span>
-          </ChipButton>
+          <button type="button" aria-label="Model" class="atlas-focus rounded-full">
+            <ChipButton ariaLabel="Model">
+              {props.modelIcon ?? currentModel()?.icon ?? <SparkIcon />}
+              <span class="max-w-[9rem] truncate">{currentModel()?.label ?? "Model"}</span>
+            </ChipButton>
+          </button>
         }
         items={props.models.map((m) => ({
           id: m.id,
@@ -146,7 +149,7 @@ export default function PromptInput(props: {
         value={props.value}
         disabled={props.disabled}
         placeholder={props.placeholder ?? "Ask anything…"}
-        class="block w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm text-ink outline-none placeholder:text-ink-subtle disabled:opacity-60"
+        class="block min-h-11 w-full resize-none bg-transparent px-4 pt-2.5 pb-0 text-[15px] text-ink outline-none placeholder:text-ink-subtle disabled:opacity-60"
         onInput={(e) => props.onChange(e.currentTarget.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {

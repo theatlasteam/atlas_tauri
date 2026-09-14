@@ -31,7 +31,7 @@ export function isMobilePlatform(): boolean {
  * window on a phone-detecting UA should still get the mobile layout, and a
  * narrow window on desktop should still get the single-pane layout).
  */
-export function useIsDesktopLayout(breakpoint = 900) {
+export function useIsDesktopLayout(breakpoint = 768) {
   const query = `(min-width: ${breakpoint}px)`;
   const mql = typeof window !== "undefined" ? window.matchMedia(query) : undefined;
   const [matches, setMatches] = createSignal(mql?.matches ?? false);

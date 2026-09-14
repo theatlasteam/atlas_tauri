@@ -21,7 +21,7 @@ export default function TextField(
       <input
         id={id()}
         class={cx(
-          "rounded-xl border bg-surface px-3 py-2 text-ink outline-none transition placeholder:text-ink-subtle focus:border-accent",
+          "atlas-focus min-h-11 rounded-xl border bg-surface px-3 py-2 text-[15px] text-ink outline-none placeholder:text-ink-subtle",
           local.error ? "border-danger" : "border-border",
         )}
         {...rest}

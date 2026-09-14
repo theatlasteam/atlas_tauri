@@ -9,7 +9,6 @@ import {
 } from "../lib/compassModels";
 import { A, useNavigate, useParams } from "@solidjs/router";
 import { compassChat } from "../store/compassChat";
-import EmptyState from "../components/EmptyState";
 import MarkdownContent from "../components/MarkdownContent";
 import { BackIcon, CompassIcon, CopyIcon, SpaceIcon } from "../icons";
 import { spaceShareUrl } from "../lib/spaceShare";
@@ -59,12 +58,17 @@ export default function CompassChat() {
 
   const submit = async () => {
     const text = draft().trim();
-    if (!text || sending() || !thread()) return;
+    if (!text || sending()) return;
+    let id = params.id;
+    if (!id || !thread()) {
+      id = compassChat.create();
+      navigate(`/compass/${id}`, { replace: true });
+    }
     setDraft("");
     setSending(true);
     queueMicrotask(() => scrollToBottom());
     try {
-      await compassChat.send(params.id, text, model());
+      await compassChat.send(id, text, model());
     } catch {
       /* the failed turn already shows its own retry-less error state */
     } finally {
@@ -95,7 +99,30 @@ export default function CompassChat() {
       <div ref={scrollRef} class="flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-2">
         <Show
           when={turns().length > 0}
-          fallback={<EmptyState icon={CompassIcon} title={t("compass.title")} subtitle={t("compass.empty")} />}
+          fallback={
+            <div class="mx-auto flex max-w-lg flex-col items-center px-4 py-10 text-center">
+              <span class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft text-accent">
+                <CompassIcon size={28} />
+              </span>
+              <h2 class="font-heading text-xl font-semibold">{t("compass.title")}</h2>
+              <p class="mt-2 text-[15px] text-ink-muted">{t("compass.empty")}</p>
+              <div class="mt-6 flex w-full flex-col gap-2">
+                <For each={[t("compass.suggest.sum"), t("compass.suggest.write"), t("compass.suggest.explain"), t("compass.suggest.idea")]}>
+                  {(s) => (
+                    <button
+                      type="button"
+                      class="atlas-focus min-h-11 rounded-2xl border border-border bg-surface px-4 py-2.5 text-left text-[15px] hover:bg-accent-soft"
+                      onClick={() => {
+                        setDraft(s);
+                      }}
+                    >
+                      {s}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
+          }
         >
           <div class="flex flex-col gap-2.5">
             <For each={turns()}>

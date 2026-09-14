@@ -36,7 +36,7 @@ export default function SettingsHome() {
   };
 
   return (
-    <div class="h-full overflow-y-auto pb-28">
+    <div class="h-full overflow-y-auto pb-28 md:pb-6">
       <Appbar sticky title={t("settings.title")} onTitleClick={onTitleTap} class="mb-4" />
 
       <SettingsSection title={t("settings.preferences")}>

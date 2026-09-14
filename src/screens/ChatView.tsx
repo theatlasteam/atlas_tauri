@@ -1,6 +1,6 @@
 import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
-import { chatsState, chatsStore, typingLabel } from "../store/chats";
+import { chatsState, chatsStore, lastOpenChatId, typingLabel } from "../store/chats";
 import { messagesStore } from "../store/messages";
 import { calls } from "../store/calls";
 import { session } from "../store/session";
@@ -76,9 +76,10 @@ export default function ChatView() {
   const params = useParams<{ id: string; postId?: string }>();
   const navigate = useNavigate();
   const isDesktop = useIsDesktopLayout();
+  const chatId = () => params.id || lastOpenChatId() || "";
 
-  const chat = () => chatsState.chats.find((c) => c.id === params.id);
-  const thread = () => messagesStore.state[params.id];
+  const chat = () => chatsState.chats.find((c) => c.id === chatId());
+  const thread = () => messagesStore.state[chatId()];
   const messages = () => thread()?.messages ?? [];
   const me = () => session.user()?.id ?? "";
   const isCommentThread = () => chat()?.kind === "broadcast" && !!params.postId;
@@ -124,7 +125,7 @@ export default function ChatView() {
       }
       const payload = d.atlasWebAppData ?? d.data;
       if (typeof payload === "string" && payload) {
-        void api.botCallback(params.id, app.messageId, payload);
+        void api.botCallback(chatId(), app.messageId, payload);
         setWebApp(null);
       }
     };
@@ -173,7 +174,7 @@ export default function ChatView() {
   // Open / switch chat: load history, register as active (live mark-read).
   createEffect(
     on(
-      () => params.id,
+      () => chatId(),
       (id) => {
         if (!id) return;
         chatsStore.setActiveChat(id);
@@ -236,7 +237,7 @@ export default function ChatView() {
       setLoadingOlder(true);
       const anchorHeight = scrollRef.scrollHeight;
       void messagesStore
-        .loadOlder(params.id, chat()?.peerUserId)
+        .loadOlder(chatId(), chat()?.peerUserId)
         .then((count) => {
           if (count > 0 && scrollRef) {
             scrollRef.scrollTop += scrollRef.scrollHeight - anchorHeight;
@@ -246,7 +247,7 @@ export default function ChatView() {
     }
   };
 
-  const typingSubtitle = () => typingLabel(params.id, (id) => authors()[id]?.name);
+  const typingSubtitle = () => typingLabel(chatId(), (id) => authors()[id]?.name);
 
   /**
    * Live typing: the drafts other people are writing in this chat, right now.
@@ -254,7 +255,7 @@ export default function ChatView() {
    * the reciprocity, this just reads the result.
    */
   const liveDrafts = () =>
-    Object.entries(chatsStore.typingPreview(params.id)).filter(([, text]) => text.trim().length > 0);
+    Object.entries(chatsStore.typingPreview(chatId())).filter(([, text]) => text.trim().length > 0);
 
   const onDraftInput = (value: string) => {
     setDraft(value);
@@ -265,10 +266,10 @@ export default function ChatView() {
     if (at - lastTypingSent <= interval) return;
     if (preferences.liveTyping) {
       lastTypingSent = at;
-      void chatsStore.sendTyping(params.id, value);
+      void chatsStore.sendTyping(chatId(), value);
     } else if (value.trim()) {
       lastTypingSent = at;
-      void chatsStore.sendTyping(params.id);
+      void chatsStore.sendTyping(chatId());
     }
   };
 
@@ -293,7 +294,7 @@ export default function ChatView() {
       if (!text || sending()) return;
       setSending(true);
       try {
-        await messagesStore.edit(params.id, target, text, chat()?.peerUserId);
+        await messagesStore.edit(chatId(), target, text, chat()?.peerUserId);
         setEditing(null);
         setDraft("");
       } catch {
@@ -330,7 +331,7 @@ export default function ChatView() {
         clearPendingAttachment();
       }
       const c = chat();
-      await messagesStore.send(params.id, text, {
+      await messagesStore.send(chatId(), text, {
         replyToId: reply?.id ?? (isCommentThread() ? params.postId : undefined),
         peerUserId: c?.peerUserId,
         attachmentId,
@@ -387,7 +388,7 @@ export default function ChatView() {
             filename: "voice-message",
             durationMs,
           });
-          await messagesStore.send(params.id, "", {
+          await messagesStore.send(chatId(), "", {
             attachmentId: attachment.id,
             peerUserId: chat()?.peerUserId,
             attachmentPreview: attachment,
@@ -425,7 +426,7 @@ export default function ChatView() {
 
   const bubbleRetry = (message: Message) => {
     if (message.failed)
-      void messagesStore.retryFailed(params.id, message, chat()?.peerUserId, chat()?.peerIsBot);
+      void messagesStore.retryFailed(chatId(), message, chat()?.peerUserId, chat()?.peerIsBot);
   };
 
   // What the actions sheet may offer for a given bubble. These live with the
@@ -451,7 +452,7 @@ export default function ChatView() {
     setDraft("");
   };
 
-  const unsend = (message: Message) => void messagesStore.unsend(params.id, message).catch(() => {});
+  const unsend = (message: Message) => void messagesStore.unsend(chatId(), message).catch(() => {});
 
   /**
    * Chat-header subtitle for a DM: typing beats co-presence beats online
@@ -461,7 +462,7 @@ export default function ChatView() {
   const peerSubtitle = () => {
     const c = chat();
     if (!c) return "";
-    const here = chatsStore.presentIn(params.id);
+    const here = chatsStore.presentIn(chatId());
     if (c.kind === "group") {
       return here.length > 0
         ? t("chatView.membersWithHere", { count: c.memberCount, here: here.length })
@@ -480,7 +481,7 @@ export default function ChatView() {
       <header class="flex shrink-0 items-center gap-3 border-b border-border bg-appbar px-3 pb-3 pt-[max(var(--safe-top),1.5rem)]">
         <Show when={!isDesktop() || isCommentThread()}>
           <A
-            href={isCommentThread() ? `/chat/${params.id}` : "/"}
+            href={isCommentThread() ? `/chat/${chatId()}` : "/"}
             class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
           >
             <BackIcon size={22} />
@@ -558,12 +559,13 @@ export default function ChatView() {
 
       <ConnectionBanner />
 
-      <div class="relative flex-1 overflow-hidden">
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div class="relative min-h-0 flex-1">
         <div
           ref={scrollRef}
           onScroll={handleScroll}
           data-wallpaper={preferences.wallpaper}
-          class="h-full overflow-y-auto overscroll-contain px-4 pb-28 pt-2"
+          class="h-full min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 pt-3 md:px-6"
         >
           <Show when={thread()?.loaded} fallback={<MessageListSkeleton />}>
             <Show
@@ -588,7 +590,7 @@ export default function ChatView() {
                       class="rounded-pill bg-accent px-6 py-2.5 text-sm font-semibold text-accent-ink"
                       onClick={() => {
                         const c = chat();
-                        void messagesStore.send(params.id, "/start", {
+                        void messagesStore.send(chatId(), "/start", {
                           peerUserId: c?.peerUserId,
                           peerIsBot: true,
                         });
@@ -605,7 +607,7 @@ export default function ChatView() {
                   <SpinnerIcon size={18} class="animate-spin text-ink-subtle" />
                 </div>
               </Show>
-              <div class="flex flex-col">
+              <div class="flex w-full max-w-[40rem] flex-col">
                 <For each={feedMessages()}>
                   {(message, i) => {
                     const list = () => feedMessages();
@@ -631,8 +633,9 @@ export default function ChatView() {
                       <div
                         onClick={() => bubbleRetry(message)}
                         classList={{
-                          "mt-2.5": isFirst() || !!message.callLog,
-                          "mt-0.5": !isFirst() && !message.callLog,
+                          "mt-3": (isFirst() || !!message.callLog) && preferences.bubbleStyle !== "compact",
+                          "mt-2": (isFirst() || !!message.callLog) && preferences.bubbleStyle === "compact",
+                          "mt-[2px]": !isFirst() && !message.callLog,
                         }}
                       >
                         <MessageBubble
@@ -643,7 +646,7 @@ export default function ChatView() {
                           isLastInGroup={isLast()}
                           onReply={(m) =>
                             chat()?.kind === "broadcast"
-                              ? navigate(`/chat/${params.id}/comments/${m.replyTo?.id ?? m.id}`)
+                              ? navigate(`/chat/${chatId()}/comments/${m.replyTo?.id ?? m.id}`)
                               : setReplyTo(m)
                           }
                           onActions={(m, anchor) => setActionsFor({ message: m, anchor })}
@@ -653,7 +656,7 @@ export default function ChatView() {
                               return;
                             }
                             if (btn.data || btn.fetch) {
-                              void api.botCallback(params.id, message.id, btn.data || btn.fetch || "");
+                              void api.botCallback(chatId(), message.id, btn.data || btn.fetch || "");
                               return;
                             }
                           }}
@@ -666,7 +669,7 @@ export default function ChatView() {
                                     commentCount() === 1
                                       ? t("chatView.commentCountOne")
                                       : t("chatView.commentsCount", { n: commentCount() }),
-                                  onClick: () => navigate(`/chat/${params.id}/comments/${message.id}`),
+                                  onClick: () => navigate(`/chat/${chatId()}/comments/${message.id}`),
                                   leading:
                                     commenters().length > 0 ? (
                                       <span class="flex shrink-0 -space-x-1.5">
@@ -702,8 +705,8 @@ export default function ChatView() {
               id, no timestamp, and it can vanish mid-word. */}
           <For each={liveDrafts()}>
             {([userId, text]) => (
-              <div class="mt-2.5 flex justify-start">
-                <div class="max-w-[75%] rounded-[1.1rem] rounded-bl-md border border-dashed border-accent/40 bg-bubble-received/60 px-3.5 py-2 text-bubble-received-ink sm:max-w-[65%]">
+              <div class="mt-2.5 flex w-full max-w-[40rem] justify-start">
+                <div class="max-w-[86%] rounded-[1.1rem] rounded-bl-md border border-dashed border-accent/40 bg-bubble-received/60 px-3 py-1.5 text-bubble-received-ink md:max-w-[28rem]">
                   <Show when={chat()?.kind === "group"}>
                     <p class="mb-0.5 truncate text-xs font-semibold text-accent">
                       {authors()[userId]?.name ?? t("chatView.someone")}
@@ -729,9 +732,9 @@ export default function ChatView() {
             <ArrowDownIcon size={18} />
           </button>
         </Show>
-      </div>
+        </div>
 
-      <div class="absolute inset-x-0 bottom-0 border-t border-border bg-surface/95 backdrop-blur">
+      <div class="shrink-0 border-t border-border bg-bg">
         <Show when={pendingAttachment()}>
           {(attachment) => (
             <div class="rise-in flex items-center gap-2.5 px-4 pt-2">
@@ -845,7 +848,7 @@ export default function ChatView() {
         <Show when={!blocked() && (chat()?.kind !== "broadcast" || isCommentThread())}>
         <form
           onSubmit={(e) => void submit(e)}
-          class="px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5"
+          class="w-full px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5"
         >
           <input
             ref={fileInput}
@@ -890,6 +893,7 @@ export default function ChatView() {
         </form>
         </Show>
       </div>
+      </div>
 
       {/* Chat menu: mute (encryption is always on for DMs — no toggle) */}
       <Menu open={menuOpen()} onOpenChange={setMenuOpen} anchorRef={() => menuBtn} placement="bottom-end">
@@ -898,7 +902,7 @@ export default function ChatView() {
             onSelect={() => {
               setMenuOpen(false);
               if (!window.confirm(t("chatView.clearHistoryConfirm"))) return;
-              void api.clearChatHistory(params.id).then(() => messagesStore.clearLocal(params.id));
+              void api.clearChatHistory(chatId()).then(() => messagesStore.clearLocal(chatId()));
             }}
           >
             <span>{t("chatView.clearHistory")}</span>
@@ -908,7 +912,7 @@ export default function ChatView() {
         <MenuItem
           onSelect={() => {
             setMenuOpen(false);
-            void chatsStore.setMuted(params.id, !chat()?.muted);
+            void chatsStore.setMuted(chatId(), !chat()?.muted);
           }}
         >
           <span>{chat()?.muted ? t("chatView.unmute") : t("chatView.mute")}</span>

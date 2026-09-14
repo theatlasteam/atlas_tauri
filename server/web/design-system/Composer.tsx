@@ -73,7 +73,7 @@ export default function Composer(props: {
   return (
     <div
       class={cx(
-        "flex flex-col overflow-hidden rounded-[22px] border border-border bg-surface",
+        "flex flex-col overflow-hidden rounded-full border border-border bg-surface",
         props.class,
       )}
     >

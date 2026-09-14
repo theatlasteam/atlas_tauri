@@ -71,7 +71,7 @@ function scheduleReconnect() {
   const base = Math.min(30_000, 1000 * 2 ** attempt);
   const delay = base * (0.75 + Math.random() * 0.5);
   attempt += 1;
-  setConnectionState(attempt > 1 ? "offline" : "connecting");
+  setConnectionState(attempt > 1 ? "reconnecting" : "connecting");
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     open();
@@ -114,7 +114,7 @@ function open() {
   socket.onclose = () => {
     if (ws === socket) {
       ws = null;
-      setConnectionState(shouldRun ? "connecting" : "offline");
+      setConnectionState(shouldRun ? (attempt > 0 ? "reconnecting" : "connecting") : "offline");
       scheduleReconnect();
     }
   };

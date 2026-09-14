@@ -102,7 +102,7 @@ export default function Profile() {
   };
 
   return (
-    <div class="h-full overflow-y-auto pb-28">
+    <div class="h-full overflow-y-auto pb-28 md:pb-6">
     <header class="flex items-center justify-between border-b border-border bg-appbar px-5 pb-3 pt-[max(var(--safe-top),1.5rem)]">
     <Show
     when={!editing()}
@@ -312,14 +312,23 @@ export default function Profile() {
       </div>
       <div class="border-t border-border p-4">
       <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">{t("profile.handle")}</h3>
-      <p class="text-sm text-ink">@{u().handle}</p>
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-sm text-ink">@{u().handle}</p>
+        <button
+          type="button"
+          class="atlas-focus min-h-11 rounded-pill px-3 text-sm text-accent"
+          onClick={() => void navigator.clipboard.writeText(`@${u().handle}`)}
+        >
+          {t("profile.copyHandle")}
+        </button>
+      </div>
       </div>
       </div>
 
       <button
       type="button"
       onClick={() => void session.logout()}
-      class="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface py-3 text-sm font-semibold text-danger active:scale-[0.98]"
+      class="mt-5 mx-5 mb-8 flex max-w-xs items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-danger"
       >
       <SignOutIcon size={17} />
       {t("profile.signOut")}

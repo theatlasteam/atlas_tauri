@@ -2,7 +2,7 @@
 // resynced from scratch on every socket (re)connect. Also owns typing state
 // and routes message/reaction events into the messages store.
 
-import { createEffect, createRoot } from "solid-js";
+import { createEffect, createRoot, createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { api } from "../data/api";
 import { previewText, toChat, toMessage } from "../data/mapping";
@@ -401,6 +401,10 @@ function createChatsStore() {
 }
 
 export const chatsStore = createRoot(createChatsStore);
+
+/** Last conversation shown in the desktop main pane. Survives opening Settings. */
+const [lastOpenChatId, setLastOpenChatId] = createSignal<string | null>(null);
+export { lastOpenChatId, setLastOpenChatId };
 
 /**
  * "typing…" / "Ana, Rue typing…" — one implementation for the chat list and

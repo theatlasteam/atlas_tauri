@@ -64,7 +64,7 @@ export default function ChatList() {
               <button
                 type="button"
                 onClick={() => setActiveFolder(folder.id)}
-                class="flex min-h-11 shrink-0 items-center rounded-pill border px-3.5 py-1.5 text-sm font-medium transition-[background-color,border-color,color,transform] duration-150 active:scale-95"
+                class="flex min-h-11 shrink-0 items-center rounded-pill border px-3.5 py-1.5 text-sm font-medium transition-[background-color,border-color,color] duration-150"
                 classList={{
                   "border-accent bg-accent text-accent-ink": active(),
                   "border-border bg-surface text-ink-muted hover:border-ink-subtle/50 hover:text-ink": !active(),
@@ -101,7 +101,7 @@ export default function ChatList() {
                   <li>
                     <A
                       href={`/chat/${chat.id}`}
-                      class="flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors duration-150 active:bg-surface"
+                      class="flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 transition-colors duration-150 active:bg-surface md:py-2"
                       classList={{
                         "bg-accent-soft/70": params.id === chat.id,
                         "hover:bg-surface": params.id !== chat.id,

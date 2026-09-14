@@ -3,11 +3,14 @@ import { useBeforeLeave, useLocation, useNavigate, type RouteSectionProps } from
 import BottomNav from "./BottomNav";
 import SideNav from "./SideNav";
 import CallOverlay from "./CallOverlay";
+import ChatView from "../screens/ChatView";
+import NoChatSelected from "./NoChatSelected";
 import { ToastHost } from "../plugins/toasts";
 import { bindNavigate } from "../plugins/nav";
 import { emitPluginEvent } from "../plugins/runtime";
 import { getNavDirection, withViewTransition } from "../lib/pageTransition";
 import { useIsDesktopLayout } from "../lib/platform";
+import { lastOpenChatId, setLastOpenChatId } from "../store/chats";
 
 export default function Shell(props: RouteSectionProps) {
   const isDesktop = useIsDesktopLayout();
@@ -35,16 +38,30 @@ export default function Shell(props: RouteSectionProps) {
   // from a plain object context), and surface chat opens/closes as events.
   bindNavigate((to) => navigate(to));
 
+  const showPinnedChat = () => {
+    if (!isDesktop()) return false;
+    const p = routePath();
+    return !(p.startsWith("/compass") || p.startsWith("/spaces") || p.startsWith("/user/"));
+  };
+
+  const pinnedChatId = () => {
+    const match = /^\/chat\/([^/]+)/.exec(routePath());
+    if (match) return decodeURIComponent(match[1]);
+    return lastOpenChatId();
+  };
+
   let lastChat: string | null = null;
   createEffect(() => {
-    const match = /^\/chat\/([^/]+)/.exec(location.pathname);
+    const match = /^\/chat\/([^/]+)/.exec(routePath());
     const chatId = match ? decodeURIComponent(match[1]) : null;
+    if (chatId) setLastOpenChatId(chatId);
     if (chatId && chatId !== lastChat) emitPluginEvent("chatOpened", { chatId });
-    else if (!chatId && lastChat) emitPluginEvent("chatClosed", { chatId: lastChat });
+    else if (!chatId && lastChat && !showPinnedChat()) emitPluginEvent("chatClosed", { chatId: lastChat });
     lastChat = chatId;
   });
 
   useBeforeLeave((e) => {
+    if (isDesktop()) return;
     if (typeof e.to !== "string" || typeof document.startViewTransition !== "function") return;
     // Tab-bar switches must stay live: View Transitions snapshot `.vt-nav` and
     // freeze it, which kills the icon animations.
@@ -67,7 +84,23 @@ export default function Shell(props: RouteSectionProps) {
       <Show when={isDesktop()}>
         <SideNav />
       </Show>
-      <div class="vt-page min-h-0 min-w-0 flex-1">{props.children}</div>
+      <div
+        class="min-h-0 min-w-0"
+        classList={{
+          "vt-page": !isDesktop(),
+          "flex-1": !showPinnedChat(),
+          "w-[min(360px,38vw)] min-w-[280px] shrink-0 border-r border-border": showPinnedChat(),
+        }}
+      >
+        {props.children}
+      </div>
+      <Show when={showPinnedChat()}>
+        <div class="min-h-0 min-w-0 flex-1">
+          <Show when={pinnedChatId()} fallback={<NoChatSelected />}>
+            <ChatView />
+          </Show>
+        </div>
+      </Show>
       <Show when={showBottomNav()}>
         <BottomNav />
       </Show>

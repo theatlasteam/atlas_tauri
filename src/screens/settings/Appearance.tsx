@@ -1,12 +1,13 @@
 import { createResource, For, Show } from "solid-js";
 import { repository } from "../../data/repository";
 import { preferences, setPreferences } from "../../store/preferences";
-import type { AccentId, FontId, FontSize, ThemeMode } from "../../data/types";
+import type { AccentId, BubbleStyle, FontId, FontSize, ThemeMode } from "../../data/types";
 import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
 import Appbar from "../../components/Appbar";
 import Picker from "../../ui/Picker";
 import Slider from "../../ui/Slider";
 import { CheckIcon } from "../../icons";
+import { Logo, MessageBubble } from "@atlas/ui";
 import { LOCALE_OPTIONS, setLocale, t, type TranslationKey } from "../../lib/i18n";
 
 const ACCENTS: { id: AccentId; labelKey: TranslationKey; swatch: string }[] = [
@@ -72,6 +73,11 @@ export default function Appearance() {
     { value: "mono" as FontId, label: "Mono" },
   ];
 
+  const bubbleOptions = () => [
+    { value: "comfortable" as BubbleStyle, label: t("appearance.bubbleComfortable") },
+    { value: "compact" as BubbleStyle, label: t("appearance.bubbleCompact") },
+  ];
+
   const fontSizeOptions = () => [
     { value: "sm" as FontSize, label: t("appearance.fontSizeSmall") },
     { value: "md" as FontSize, label: t("appearance.fontSizeMedium") },
@@ -80,8 +86,73 @@ export default function Appearance() {
   ];
 
   return (
-    <div class="h-full overflow-y-auto pb-28">
+    <div class="h-full overflow-y-auto pb-28 md:pb-6">
       <Appbar title={t("appearance.title")} back="/settings" sticky />
+
+      <div class="mx-5 mb-4 overflow-hidden rounded-2xl border border-border bg-surface">
+        <div class="flex items-center gap-3 border-b border-border px-4 py-3">
+          <Logo width={48} static />
+          <div class="min-w-0 flex-1">
+            <p class="font-heading text-sm font-semibold">Atlas</p>
+            <p class="text-[13px] text-ink-subtle">{t("appearance.preview")}</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-1 p-2">
+          <For each={bubbleOptions()}>
+            {(opt) => (
+              <button
+                type="button"
+                class="atlas-focus min-h-11 rounded-xl text-sm font-medium"
+                classList={{
+                  "bg-accent text-accent-ink": preferences.bubbleStyle === opt.value,
+                  "bg-bg text-ink-muted": preferences.bubbleStyle !== opt.value,
+                }}
+                onClick={() => setPreferences("bubbleStyle", opt.value)}
+              >
+                {opt.label}
+              </button>
+            )}
+          </For>
+        </div>
+        <Show
+          when={preferences.bubbleStyle === "compact"}
+          fallback={
+            <div class="flex flex-col items-start gap-0.5 px-4 py-3">
+              <MessageBubble side="received">Keys stay on this device.</MessageBubble>
+              <MessageBubble side="sent">Looks good.</MessageBubble>
+              <MessageBubble side="sent">And this one too.</MessageBubble>
+            </div>
+          }
+        >
+          <div class="space-y-3 px-4 py-3">
+            <div class="flex gap-2.5">
+              <span class="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent">
+                A
+              </span>
+              <div class="min-w-0">
+                <p class="text-[13px] font-semibold text-ink">Atlas</p>
+                <p class="text-[15px] leading-snug text-ink">Keys stay on this device.</p>
+              </div>
+            </div>
+            <div class="flex gap-2.5">
+              <span class="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-bubble-sent text-sm font-semibold text-accent-ink">
+                Y
+              </span>
+              <div class="min-w-0">
+                <p class="text-[13px] font-semibold text-ink">{t("appearance.previewYou")}</p>
+                <p class="text-[15px] leading-snug text-ink">Looks good.</p>
+                <p class="text-[15px] leading-snug text-ink">And this one too.</p>
+              </div>
+            </div>
+          </div>
+        </Show>
+        <div class="flex items-center gap-2 border-t border-border bg-bg px-3 py-2">
+          <span class="min-h-11 flex-1 rounded-full border border-border bg-surface px-3 text-[14px] leading-[44px] text-ink-subtle">
+            Message…
+          </span>
+          <span class="grid h-11 w-11 place-items-center rounded-full bg-accent text-accent-ink">↑</span>
+        </div>
+      </div>
 
       <SettingsSection title={t("appearance.theme")}>
         <SettingsRow label={t("appearance.theme")}>
@@ -165,6 +236,16 @@ export default function Appearance() {
             />
           </div>
         </div>
+      </SettingsSection>
+
+      <SettingsSection title={t("appearance.bubbles")}>
+        <SettingsRow label={t("appearance.bubbleStyle")} description={t("appearance.bubbleCompactDesc")}>
+          <Picker
+            value={preferences.bubbleStyle}
+            onChange={(v) => setPreferences("bubbleStyle", v as BubbleStyle)}
+            options={bubbleOptions()}
+          />
+        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection title={t("appearance.typography")}>

@@ -14,8 +14,7 @@ import Dev from "./screens/settings/Dev";
 import Verification from "./screens/settings/Verification";
 import NewChat from "./screens/NewChat";
 import Calls from "./screens/Calls";
-import CompassList from "./screens/CompassList";
-import CompassChat from "./screens/CompassChat";
+import CompassLayout from "./components/CompassLayout";
 import SpaceView from "./screens/SpaceView";
 import Shell from "./components/Shell";
 import TitleBar from "./components/TitleBar";
@@ -70,8 +69,8 @@ function App() {
               <Route path="/user/:id" component={UserProfile} />
               <Route path="/new-chat" component={NewChat} />
               <Route path="/calls" component={Calls} />
-              <Route path="/compass" component={CompassList} />
-              <Route path="/compass/:id" component={CompassChat} />
+              <Route path="/compass" component={CompassLayout} />
+              <Route path="/compass/:id" component={CompassLayout} />
               <Route path="/spaces/:id" component={SpaceView} />
               <Route path="*" component={ChatLayout} />
             </Router>

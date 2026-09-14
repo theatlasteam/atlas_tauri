@@ -1,16 +1,14 @@
-import { createMemo, createSignal, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, Show } from "solid-js";
 import { session } from "../store/session";
 import { api } from "../data/api";
 import { SpinnerIcon } from "../icons";
-import logo from "../assets/logo.svg";
 import ServerConfigDialog from "../components/ServerConfigDialog";
-import { Alert, Button, TextField } from "@atlas/ui";
+import { Alert, Button, Logo, TextField } from "@atlas/ui";
 import { t } from "../lib/i18n";
 
 const SECRET_TAP_COUNT = 7;
 const SECRET_TAP_WINDOW_MS = 2500;
 
-/** Combined sign-in / create-account screen. */
 export default function Login() {
   const [mode, setMode] = createSignal<"login" | "register">("login");
   const [handle, setHandle] = createSignal("");
@@ -19,8 +17,9 @@ export default function Login() {
   const [error, setError] = createSignal<string | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [serverConfigOpen, setServerConfigOpen] = createSignal(false);
-  const [handleChecked, setHandleChecked] = createSignal(false);
-  const [, setCheckingHandle] = createSignal(false);
+  const [handleStatus, setHandleStatus] = createSignal<"idle" | "checking" | "free" | "taken">("idle");
+  const [checkedHandle, setCheckedHandle] = createSignal("");
+
   const passwordRequirements = createMemo(() => {
     const value = password();
     return {
@@ -32,8 +31,12 @@ export default function Login() {
     };
   });
 
-  // Tap the logo 7 times to reveal the server URL override — an escape hatch
-  // for pointing at a dev/staging/self-hosted backend, not everyday UI.
+  const registerReady = () =>
+    handleStatus() === "free" &&
+    checkedHandle() === handle().trim() &&
+    name().trim().length > 0 &&
+    Object.values(passwordRequirements()).every(Boolean);
+
   let tapCount = 0;
   let tapTimer: ReturnType<typeof setTimeout> | undefined;
   const onLogoTap = () => {
@@ -49,43 +52,88 @@ export default function Login() {
     }, SECRET_TAP_WINDOW_MS);
   };
 
+  createEffect(() => {
+    const h = handle().trim();
+    if (mode() !== "register") return;
+    if (h !== checkedHandle()) setHandleStatus("idle");
+  });
+
+  const checkAvailability = async () => {
+    const h = handle().trim();
+    if (!h || busy()) return;
+    setError(null);
+    setHandleStatus("checking");
+    try {
+      const result = await api.checkHandle(h);
+      setCheckedHandle(h);
+      setHandleStatus(result.exists ? "taken" : "free");
+    } catch (err: unknown) {
+      setHandleStatus("idle");
+      setError(err instanceof Error ? err.message : t("login.genericError"));
+    }
+  };
+
   const submit = async (e: Event) => {
     e.preventDefault();
     if (busy()) return;
     setError(null);
     setBusy(true);
     try {
-      if (!handleChecked()) {
-        setCheckingHandle(true);
-        const result = await api.checkHandle(handle().trim());
-        setHandleChecked(true);
-        setMode(result.exists ? "login" : "register");
-        return;
-      }
       if (mode() === "login") {
         await session.login(handle().trim(), password());
       } else {
+        if (handleStatus() !== "free" || checkedHandle() !== handle().trim()) {
+          await checkAvailability();
+          return;
+        }
         await session.register(handle().trim(), name().trim(), password());
       }
-    } catch (err: any) {
-      setError(err?.message ?? t("login.genericError"));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t("login.genericError"));
     } finally {
-      setCheckingHandle(false);
       setBusy(false);
     }
+  };
+
+  const switchMode = (next: "login" | "register") => {
+    setMode(next);
+    setError(null);
+    setHandleStatus("idle");
+    setCheckedHandle("");
+    setPassword("");
+    setName("");
   };
 
   return (
     <div class="flex h-full flex-col items-center justify-center px-6 pb-[max(var(--safe-bottom),1.5rem)] pt-[max(var(--safe-top),1.5rem)]">
       <div class="w-full max-w-sm">
         <div class="mb-8 flex flex-col items-center gap-3">
-          <button type="button" onClick={onLogoTap} class="rounded-full active:scale-95" aria-label="Atlas">
-            <img src={logo} alt="" class="h-16 w-16" draggable={false} />
+          <button type="button" onClick={onLogoTap} class="atlas-focus rounded-full" aria-label="Atlas">
+            <Logo width={72} static />
           </button>
           <h1 class="font-heading text-3xl font-bold">Atlas</h1>
-          <p class="text-sm text-ink-muted">
+          <p class="text-[15px] text-ink-muted">
             {mode() === "login" ? t("login.welcomeBack") : t("login.createAccount")}
           </p>
+        </div>
+
+        <div class="mb-4 grid grid-cols-2 rounded-full border border-border bg-surface p-1">
+          <button
+            type="button"
+            class="atlas-focus min-h-11 rounded-full text-sm font-medium"
+            classList={{ "bg-accent text-accent-ink": mode() === "login", "text-ink-muted": mode() !== "login" }}
+            onClick={() => switchMode("login")}
+          >
+            {t("login.signIn")}
+          </button>
+          <button
+            type="button"
+            class="atlas-focus min-h-11 rounded-full text-sm font-medium"
+            classList={{ "bg-accent text-accent-ink": mode() === "register", "text-ink-muted": mode() !== "register" }}
+            onClick={() => switchMode("register")}
+          >
+            {t("login.createAccountBtn")}
+          </button>
         </div>
 
         <form onSubmit={submit} class="flex flex-col gap-3">
@@ -99,7 +147,24 @@ export default function Login() {
             spellcheck={false}
           />
 
-          <Show when={handleChecked() && mode() === "register"}>
+          <Show when={mode() === "register"}>
+            <Show when={handleStatus() === "checking"}>
+              <p class="text-sm text-ink-muted" aria-live="polite">{t("login.handleChecking")}</p>
+            </Show>
+            <Show when={handleStatus() === "free"}>
+              <p class="text-sm text-success" aria-live="polite">{t("login.handleFree", { handle: handle().trim() })}</p>
+            </Show>
+            <Show when={handleStatus() === "taken"}>
+              <p class="text-sm text-danger" aria-live="polite">{t("login.handleTaken")}</p>
+            </Show>
+            <Show when={handleStatus() === "free" && checkedHandle() === handle().trim()}>
+              <button type="button" class="text-left text-sm text-ink-muted underline" onClick={() => { setHandleStatus("idle"); setCheckedHandle(""); }}>
+                {t("login.changeHandle")}
+              </button>
+            </Show>
+          </Show>
+
+          <Show when={mode() === "register" && handleStatus() === "free" && checkedHandle() === handle().trim()}>
             <TextField
               label={t("login.displayName")}
               value={name()}
@@ -109,7 +174,7 @@ export default function Login() {
             />
           </Show>
 
-          <Show when={handleChecked()}>
+          <Show when={mode() === "login" || (mode() === "register" && handleStatus() === "free")}>
             <TextField
               label={t("login.password")}
               type="password"
@@ -119,7 +184,7 @@ export default function Login() {
               autocomplete={mode() === "login" ? "current-password" : "new-password"}
             />
             <Show when={mode() === "register"}>
-              <ul class="mt-1 flex flex-col gap-1 text-xs text-ink-subtle" aria-live="polite">
+              <ul class="flex flex-col gap-1 text-[13px] text-ink-subtle" aria-live="polite">
                 <li class={passwordRequirements().length ? "text-success" : ""}>{passwordRequirements().length ? "✓" : "○"} {t("login.passwordMinLength")}</li>
                 <li class={passwordRequirements().upper ? "text-success" : ""}>{passwordRequirements().upper ? "✓" : "○"} {t("login.passwordUpper")}</li>
                 <li class={passwordRequirements().lower ? "text-success" : ""}>{passwordRequirements().lower ? "✓" : "○"} {t("login.passwordLower")}</li>
@@ -133,30 +198,34 @@ export default function Login() {
             <Alert tone="danger">{error()}</Alert>
           </Show>
 
-          <Button
-            type="submit"
-            disabled={busy() || !handle().trim() || (handleChecked() && (!password() || (mode() === "register" && !name().trim())))}
-            class="mt-1 min-h-12 w-full"
+          <Show
+            when={mode() === "register" && handleStatus() !== "free"}
+            fallback={
+              <Button
+                type="submit"
+                disabled={busy() || !handle().trim() || (mode() === "login" && !password()) || (mode() === "register" && !registerReady())}
+                class="mt-1 min-h-12 w-full"
+              >
+                <Show when={busy()}>
+                  <SpinnerIcon size={18} class="animate-spin" />
+                </Show>
+                {mode() === "login" ? t("login.signIn") : t("login.createAccountBtn")}
+              </Button>
+            }
           >
-            <Show when={busy()}>
-              <SpinnerIcon size={18} class="animate-spin" />
-            </Show>
-            {!handleChecked() ? t("login.continue") : mode() === "login" ? t("login.signIn") : t("login.createAccountBtn")}
-          </Button>
+            <Button
+              type="button"
+              disabled={busy() || handleStatus() === "checking" || !handle().trim()}
+              class="mt-1 min-h-12 w-full"
+              onClick={() => void checkAvailability()}
+            >
+              <Show when={handleStatus() === "checking"}>
+                <SpinnerIcon size={18} class="animate-spin" />
+              </Show>
+              {handleStatus() === "checking" ? t("login.handleChecking") : t("login.checkHandle")}
+            </Button>
+          </Show>
         </form>
-
-        <button
-          type="button"
-          onClick={() => {
-            setHandleChecked(false);
-            setPassword("");
-            setName("");
-            setError(null);
-          }}
-          class="mt-5 w-full text-center text-sm text-ink-muted underline-offset-4 hover:underline"
-        >
-          {mode() === "login" ? t("login.switchToRegister") : t("login.switchToLogin")}
-        </button>
       </div>
 
       <ServerConfigDialog open={serverConfigOpen()} onOpenChange={setServerConfigOpen} />

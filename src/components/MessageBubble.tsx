@@ -13,6 +13,7 @@ import {
   now,
 } from "../lib/time";
 import { session } from "../store/session";
+import { preferences } from "../store/preferences";
 import { messagesStore } from "../store/messages";
 import {
   CheckIcon,
@@ -323,6 +324,7 @@ export default function MessageBubble(props: {
    * what it is allowed to show.
    */
   const sealed = () => !!m().sealed;
+  const compact = () => preferences.bubbleStyle === "compact";
   const keyboard = (): MessageButton[] | undefined => {
     const list = m().buttons;
     if (!list?.length) return undefined;
@@ -347,21 +349,22 @@ export default function MessageBubble(props: {
     }));
   };
 
+  const compactName = () =>
+    mine()
+      ? (session.user()?.name ?? t("appearance.previewYou"))
+      : (props.author?.name ?? props.chat?.name ?? "");
+
   return (
+    <Show
+      when={compact()}
+      fallback={
     <div
-      class="flex flex-col"
+      class="flex flex-col items-start"
       classList={{
-        "items-end": mine(),
-        "items-start": !mine(),
         "mb-2": hasReactions(),
       }}
     >
-      <div class="bubble-in group flex w-full items-end gap-1" classList={{ "justify-end": mine(), "justify-start": !mine() }}>
-        {/* Hover affordances (desktop) */}
-        <Show when={mine()}>
-          <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
-        </Show>
-
+      <div class="bubble-in group flex w-full items-end justify-start gap-1">
         {/* Avatar slot for received group messages — only drawn on the last
             bubble of a run, but reserved on every row so bubbles stay aligned. */}
         <Show when={!mine() && isGroupChat()}>
@@ -378,7 +381,7 @@ export default function MessageBubble(props: {
           </div>
         </Show>
 
-        <div class="relative w-fit max-w-[75%] sm:max-w-[65%]">
+        <div class="relative w-fit max-w-[86%] md:max-w-[28rem]">
           <MessageSurface
             side={mine() ? "sent" : "received"}
             comments={props.comments}
@@ -397,10 +400,9 @@ export default function MessageBubble(props: {
             classList={{
               "bg-bubble-sent text-bubble-sent-ink": mine(),
               "bg-bubble-received text-bubble-received-ink": !mine(),
-              "rounded-tr-md": mine() && !isFirst(),
-              "rounded-br-md": mine() && !isLast(),
-              "rounded-tl-md": !mine() && !isFirst(),
-              "rounded-bl-md": !mine() && !isLast(),
+              "rounded-tl-[6px]": !isFirst(),
+              "rounded-bl-[6px]": !isLast(),
+              "rounded-bl-[5px]": isLast(),
               "opacity-60": !!m().pending,
               "outline outline-1 outline-danger/50": !!m().failed,
               // A sealed capsule reads as a different kind of object: dashed
@@ -443,10 +445,7 @@ export default function MessageBubble(props: {
               messenger worth its salt — kept outside the bubble so they don't
               distort its shape or padding. */}
           <Show when={hasReactions()}>
-            <div
-              class="absolute -bottom-2.5 flex max-w-full flex-wrap gap-1"
-              classList={{ "right-2 justify-end": mine(), "left-2": !mine() }}
-            >
+            <div class="absolute -bottom-2.5 left-2 flex max-w-full flex-wrap gap-1">
               <For each={m().reactions}>
                 {(reaction) => (
                   <button
@@ -464,9 +463,7 @@ export default function MessageBubble(props: {
           </Show>
         </div>
 
-        <Show when={!mine()}>
-          <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
-        </Show>
+        <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
       </div>
 
       {/* Timestamp + delivery status: only on the last bubble of a group,
@@ -503,6 +500,87 @@ export default function MessageBubble(props: {
         </p>
       </Show>
     </div>
+      }
+    >
+      <div class="group flex w-full gap-2.5">
+        <div class="w-9 shrink-0 pt-0.5">
+          <Show when={isFirst()}>
+            <Avatar
+              size={36}
+              color={mine() ? (session.user()?.avatarColor ?? "#94a3b8") : (props.author?.avatarColor ?? props.chat?.avatarColor ?? "#94a3b8")}
+              initial={
+                mine()
+                  ? (session.user()?.avatarInitial ?? "Y")
+                  : (props.author?.name?.[0] ?? props.chat?.avatarInitial ?? "?").toUpperCase()
+              }
+              userId={mine() ? session.user()?.id : (props.author?.id ?? props.chat?.peerUserId)}
+              hasPhoto={mine() ? session.user()?.hasAvatar : (props.author?.hasAvatar ?? props.chat?.peerHasAvatar)}
+            />
+          </Show>
+        </div>
+        <div class="min-w-0 flex-1">
+          <Show when={isFirst()}>
+            <p class="mb-0.5 flex items-baseline gap-2">
+              <span class="truncate text-[13px] font-semibold text-ink">{compactName()}</span>
+              <span class="shrink-0 text-[11px] text-ink-subtle">{formatClockTime(m().sentAt)}</span>
+              <Show when={isE2ee()}>
+                <LockIcon size={11} class="text-ink-subtle" />
+              </Show>
+              <Show when={receipt() === "read"}>
+                <ChecksIcon size={13} class="text-accent" />
+              </Show>
+            </p>
+          </Show>
+          <div
+            ref={bubbleRef}
+            class="text-[15px] leading-snug text-ink"
+            classList={{ "opacity-60": !!m().pending, "text-danger": !!m().failed }}
+            onDblClick={() => props.onReply(m())}
+            onTouchStart={startPress}
+            onTouchEnd={cancelPress}
+            onTouchMove={cancelPress}
+            onTouchCancel={cancelPress}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <Show when={m().replyTo}>
+              {(reply) => (
+                <div class="mb-1 rounded-md border-l-2 border-accent/50 bg-surface px-2 py-1">
+                  <p class="line-clamp-2 text-xs text-ink-muted">{reply().text}</p>
+                </div>
+              )}
+            </Show>
+            <Show when={!m().deleted} fallback={<DeletedBubble mine={mine()} />}>
+              <Show
+                when={!sealed()}
+                fallback={<SealedCapsule message={m()} peerUserId={props.chat?.peerUserId} />}
+              >
+                <Show when={m().callLog} fallback={<MessageBody message={m()} />}>
+                  <CallLogBubble message={m()} />
+                </Show>
+              </Show>
+            </Show>
+          </div>
+          <Show when={hasReactions()}>
+            <div class="mt-1 flex flex-wrap gap-1">
+              <For each={m().reactions}>
+                {(reaction) => (
+                  <button
+                    type="button"
+                    onClick={() => void messagesStore.toggleReaction(m(), reaction.emoji)}
+                    class="flex items-center gap-1 rounded-pill border border-black/5 bg-surface px-1.5 py-0.5 text-xs shadow-sm"
+                    classList={{ "ring-1 ring-accent/60 font-semibold": reaction.userIds.includes(myId()) }}
+                  >
+                    <span>{reaction.emoji}</span>
+                    <span class="text-[0.7rem] opacity-70">{reaction.userIds.length}</span>
+                  </button>
+                )}
+              </For>
+            </div>
+          </Show>
+        </div>
+        <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
+      </div>
+    </Show>
   );
 }
 

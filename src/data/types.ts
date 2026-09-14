@@ -150,6 +150,7 @@ export type AccentId =
   | "custom";
 export type FontId = "inter" | "system" | "serif" | "mono";
 export type FontSize = "sm" | "md" | "lg" | "xl";
+export type BubbleStyle = "comfortable" | "compact";
 
-export type ConnectionState = "connecting" | "online" | "offline";
+export type ConnectionState = "connecting" | "online" | "offline" | "reconnecting";
 export type Locale = "en" | "ru";

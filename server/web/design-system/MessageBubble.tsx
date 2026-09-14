@@ -79,14 +79,13 @@ export function MessageSurface(
     <div
       {...rest}
       class={cx(
-        "inline-block max-w-[86%] overflow-hidden text-left text-[15px] leading-snug sm:max-w-[560px]",
-        sent()
-          ? "rounded-[16px] rounded-br-[5px] bg-bubble-sent text-bubble-sent-ink"
-          : "rounded-[16px] rounded-bl-[5px] bg-bubble-received text-bubble-received-ink",
+        "inline-block max-w-[86%] overflow-hidden text-left text-[15px] leading-snug md:max-w-[28rem]",
+        sent() ? "bg-bubble-sent text-bubble-sent-ink" : "bg-bubble-received text-bubble-received-ink",
+        "rounded-[16px]",
         local.class,
       )}
     >
-      <div class="whitespace-pre-wrap break-words px-3 py-1.5">{local.children}</div>
+      <div class="msg-surface-pad whitespace-pre-wrap break-words px-3 py-1.5">{local.children}</div>
       <Show when={rows().length > 0}>
         <div class="flex flex-col gap-1 border-t border-current/10 p-1.5">
           <For each={rows()}>

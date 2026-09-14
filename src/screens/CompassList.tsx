@@ -55,9 +55,10 @@ export default function CompassList() {
               <For each={compassChat.threads}>
                 {(thread) => (
                   <li>
+                    <div class="group flex items-center gap-1 rounded-2xl hover:bg-surface">
                     <A
                       href={`/compass/${thread.id}`}
-                      class="group flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors duration-150 hover:bg-surface active:bg-surface"
+                      class="flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-3"
                     >
                       <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
                         <CompassIcon size={20} />
@@ -75,15 +76,16 @@ export default function CompassList() {
                           {thread.turns[thread.turns.length - 1]?.content || ""}
                         </p>
                       </div>
+                    </A>
                       <button
                         type="button"
                         onClick={(e) => remove(e, thread.id)}
-                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-subtle opacity-0 transition-[background-color,color,opacity] duration-150 hover:bg-surface hover:text-danger group-hover:opacity-100 focus-visible:opacity-100"
+                        class="mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-subtle hover:bg-surface hover:text-danger"
                         aria-label={t("compass.deleteAria")}
                       >
                         <TrashIcon size={16} />
                       </button>
-                    </A>
+                    </div>
                   </li>
                 )}
               </For>

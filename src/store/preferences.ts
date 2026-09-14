@@ -1,6 +1,6 @@
 import { createEffect, createRoot } from "solid-js";
 import { createStore } from "solid-js/store";
-import type { AccentId, FontId, FontSize, Locale, ThemeMode } from "../data/types";
+import type { AccentId, BubbleStyle, FontId, FontSize, Locale, ThemeMode } from "../data/types";
 
 function detectLocale(): Locale {
   return typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
@@ -19,6 +19,7 @@ export interface Preferences {
   font: FontId;
   fontSize: FontSize;
   wallpaper: string;
+  bubbleStyle: BubbleStyle;
   compactNavbar: boolean;
   notificationSound: string;
   notificationsEnabled: boolean;
@@ -43,6 +44,7 @@ const defaults: Preferences = {
   font: "inter",
   fontSize: "md",
   wallpaper: "none",
+  bubbleStyle: "comfortable",
   compactNavbar: false,
   notificationSound: "chime",
   notificationsEnabled: true,
@@ -90,6 +92,7 @@ function createPreferencesStore() {
     root.dataset.theme = resolvedTheme;
     root.dataset.accent = preferences.accent;
     root.dataset.font = preferences.font;
+    root.dataset.bubbles = preferences.bubbleStyle;
     // For the custom accent, feed the raw hex to CSS ([data-accent=custom]).
     root.style.setProperty("--custom-accent", preferences.customAccent);
     root.style.setProperty("--font-size-base", FONT_SIZE_PX[preferences.fontSize]);

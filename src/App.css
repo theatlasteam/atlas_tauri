@@ -36,6 +36,10 @@ html {
   text-size-adjust: 100%;
 }
 
+html[data-bubbles="compact"] .msg-surface-pad {
+  padding: 0.25rem 0.625rem;
+}
+
 body {
   background-color: var(--color-bg);
   color: var(--color-ink);
