@@ -3,8 +3,9 @@ import { session } from "../store/session";
 import { api } from "../data/api";
 import { SpinnerIcon } from "../icons";
 import ServerConfigDialog from "../components/ServerConfigDialog";
-import { Alert, Button, Logo, TextField } from "@atlas/ui";
+import { Alert, Button, Checkbox, Logo, TextField } from "@atlas/ui";
 import { t } from "../lib/i18n";
+import { isTauri } from "../lib/tauri";
 
 const SECRET_TAP_COUNT = 7;
 const SECRET_TAP_WINDOW_MS = 2500;
@@ -17,6 +18,7 @@ export default function Login() {
   const [error, setError] = createSignal<string | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [serverConfigOpen, setServerConfigOpen] = createSignal(false);
+  const [legalAccepted, setLegalAccepted] = createSignal(false);
   const [handleStatus, setHandleStatus] = createSignal<"idle" | "checking" | "free" | "taken">("idle");
   const [checkedHandle, setCheckedHandle] = createSignal("");
 
@@ -31,10 +33,13 @@ export default function Login() {
     };
   });
 
+  const legalHref = (path: string) => (isTauri ? `https://atlasmsg.app${path}` : path);
+
   const registerReady = () =>
     handleStatus() === "free" &&
     checkedHandle() === handle().trim() &&
     name().trim().length > 0 &&
+    legalAccepted() &&
     Object.values(passwordRequirements()).every(Boolean);
 
   let tapCount = 0;
@@ -82,6 +87,7 @@ export default function Login() {
       if (mode() === "login") {
         await session.login(handle().trim(), password());
       } else {
+        if (!legalAccepted()) return;
         if (handleStatus() !== "free" || checkedHandle() !== handle().trim()) {
           await checkAvailability();
           return;
@@ -102,6 +108,7 @@ export default function Login() {
     setCheckedHandle("");
     setPassword("");
     setName("");
+    setLegalAccepted(false);
   };
 
   return (
@@ -192,6 +199,26 @@ export default function Login() {
                 <li class={passwordRequirements().symbol ? "text-success" : ""}>{passwordRequirements().symbol ? "✓" : "○"} {t("login.passwordSymbol")}</li>
               </ul>
             </Show>
+          </Show>
+
+          <Show when={mode() === "register"}>
+            <Checkbox
+              checked={legalAccepted()}
+              onChange={setLegalAccepted}
+              required
+              label={
+                <span class="text-[13px] leading-snug text-ink-muted">
+                  {t("login.legalPrefix")}{" "}
+                  <a href={legalHref("/privacy")} target="_blank" rel="noopener noreferrer" class="text-accent underline">
+                    {t("login.privacy")}
+                  </a>{" "}
+                  {t("login.legalAnd")}{" "}
+                  <a href={legalHref("/terms")} target="_blank" rel="noopener noreferrer" class="text-accent underline">
+                    {t("login.terms")}
+                  </a>
+                </span>
+              }
+            />
           </Show>
 
           <Show when={error()}>

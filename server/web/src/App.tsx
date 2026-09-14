@@ -457,6 +457,7 @@ export default function App() {
             <p class="mb-3 font-heading text-sm font-semibold">{t("footer.legal")}</p>
             <ul class="space-y-2 text-sm text-ink-muted">
               <li><a href="/privacy" class="transition hover:text-ink">{t("footer.privacy")}</a></li>
+              <li><a href="/terms" class="transition hover:text-ink">{t("footer.terms")}</a></li>
             </ul>
           </div>
         </div>

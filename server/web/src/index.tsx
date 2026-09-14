@@ -26,8 +26,8 @@ if ("serviceWorker" in navigator) {
 // unmatched paths to this same index.html (see server/src/main.rs), so a
 // plain pathname check is enough to pick which page renders.
 function Root() {
-  const path = window.location.pathname;
-  if (path === "/app" || path === "/app/") {
+  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  if (path === "/app") {
     window.location.replace("/app/index.html");
     return null;
   }
