@@ -158,7 +158,7 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
-    if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+    if (!current && (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr))) {
       canvas.width = Math.floor(w * dpr);
       canvas.height = Math.floor(h * dpr);
     }
@@ -281,6 +281,8 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
   };
 
   const down = (e: PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     const p = pos(e);
     if (!p) return;
     if (tool() === "text") {
@@ -299,6 +301,7 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
     };
   };
   const move = (e: PointerEvent) => {
+    if (current) e.preventDefault();
     const p0 = pos(e);
     if (!p0) return;
     send({ type: "cursor", x: p0.x, y: p0.y });
@@ -380,15 +383,25 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
           <SettingsIcon size={18} />
         </button>
       </header>
-      <div ref={wrap} class="relative min-h-0 flex-1 overflow-hidden" classList={{ "atlas-canvas-host": desktop }}>
+      <div
+        ref={wrap}
+        class="relative min-h-0 flex-1 touch-none select-none overflow-hidden overscroll-none"
+        classList={{ "atlas-canvas-host": desktop }}
+        style={{ "-webkit-app-region": "no-drag" }}
+      >
         <canvas
           ref={canvas}
-          class="h-full w-full touch-none"
+          draggable={false}
+          class="h-full w-full touch-none select-none"
           classList={{ "cursor-none": desktop && tool() !== "text" }}
+          style={{ "-webkit-user-drag": "none", "-webkit-app-region": "no-drag" }}
           onPointerDown={down}
           onPointerMove={move}
           onPointerUp={up}
           onPointerCancel={up}
+          onLostPointerCapture={up}
+          onDragStart={(e) => e.preventDefault()}
+          onContextMenu={(e) => e.preventDefault()}
         />
         <For each={Object.values(cursors())}>
           {(c) => (
