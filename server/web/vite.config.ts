@@ -74,6 +74,7 @@ export default defineConfig({
     alias: {
       assert: fileURLToPath(new URL("../../src/lib/assert-polyfill.cjs", import.meta.url)),
       "node:assert": fileURLToPath(new URL("../../src/lib/assert-polyfill.cjs", import.meta.url)),
+      "@messenger": fileURLToPath(new URL("../../src", import.meta.url)),
       "@atlas/ui": fileURLToPath(new URL("./design-system/index.ts", import.meta.url)),
       "@tauri-apps/api/core": fileURLToPath(new URL("./tauri-stub.ts", import.meta.url)),
     },
@@ -87,6 +88,7 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     allowedHosts: true,
+    fs: { allow: [resolve(__dirname, "../..")] },
   },
   build: {
     target: "ESNext",

@@ -4,7 +4,7 @@ import App from "./App";
 import PrivacyPolicy from "./components/PrivacyPolicy";
 import TermsOfService from "./components/TermsOfService";
 import PublicOffer from "./components/PublicOffer";
-import CanvasBoard from "../../src/components/CanvasBoard";
+import CanvasBoard from "@messenger/components/CanvasBoard";
 import PluginEditor from "./screens/PluginEditor";
 import BotEditor from "./screens/BotEditor";
 import DesignSystem from "./screens/DesignSystem";
