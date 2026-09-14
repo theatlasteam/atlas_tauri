@@ -40,9 +40,13 @@ function TermsRu() {
 
       <h2>1. Принятие условий</h2>
       <p>
-        Регистрируясь или пользуясь Atlas, вы принимаете эти Условия и{" "}
+        Регистрируясь или пользуясь Atlas, вы принимаете эти Условия,{" "}
         <a href="/privacy" class="text-accent underline">
           Политику конфиденциальности
+        </a>{" "}
+        и{" "}
+        <a href="/oferta" class="text-accent underline">
+          Публичную оферту
         </a>
         . Если вы не согласны, не используйте Сервис. Atlas находится в публичной бете: функции могут меняться, ломаться или исчезать.
       </p>
@@ -123,9 +127,13 @@ function TermsEn() {
 
       <h2>1. Acceptance</h2>
       <p>
-        By creating an account or using Atlas you agree to these Terms and the{" "}
+        By creating an account or using Atlas you agree to these Terms, the{" "}
         <a href="/privacy" class="text-accent underline">
           Privacy Policy
+        </a>
+        , and the{" "}
+        <a href="/oferta" class="text-accent underline">
+          Public offer
         </a>
         . If you do not agree, do not use the Service. Atlas is in public beta. Features can change, break, or go away.
       </p>

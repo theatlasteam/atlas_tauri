@@ -91,6 +91,10 @@ export default function WaitlistModal(props: WaitlistModalProps) {
                       {t("waitlist.consentAnd")}{" "}
                       <a href="/terms" target="_blank" class="text-accent underline" onClick={(e) => e.stopPropagation()}>
                         {t("waitlist.consentTerms")}
+                      </a>{" "}
+                      {t("waitlist.consentAnd")}{" "}
+                      <a href="/oferta" target="_blank" class="text-accent underline" onClick={(e) => e.stopPropagation()}>
+                        {t("waitlist.consentOferta")}
                       </a>
                     </span>
                   }

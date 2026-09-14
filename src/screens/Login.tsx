@@ -215,6 +215,10 @@ export default function Login() {
                   {t("login.legalAnd")}{" "}
                   <a href={legalHref("/terms")} target="_blank" rel="noopener noreferrer" class="text-accent underline">
                     {t("login.terms")}
+                  </a>{" "}
+                  {t("login.legalAnd")}{" "}
+                  <a href={legalHref("/oferta")} target="_blank" rel="noopener noreferrer" class="text-accent underline">
+                    {t("login.oferta")}
                   </a>
                 </span>
               }

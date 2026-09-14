@@ -26,6 +26,10 @@ atlasmsg.app {
 		rewrite * /terms/index.html
 		file_server
 	}
+	handle /oferta* {
+		rewrite * /oferta/index.html
+		file_server
+	}
 	handle {
 		try_files {path} {path}/ /index.html
 		file_server

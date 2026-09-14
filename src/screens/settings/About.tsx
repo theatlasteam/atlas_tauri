@@ -44,6 +44,7 @@ export default function About() {
       <SettingsSection title={t("about.legal")}>
         <SettingsLinkRow href="/privacy" label={t("about.privacyPolicy")} description={t("about.privacyPolicyDesc")} icon={InfoIcon} external />
         <SettingsLinkRow href="/terms" label={t("about.terms")} description={t("about.termsDesc")} icon={InfoIcon} external />
+        <SettingsLinkRow href="/oferta" label={t("about.oferta")} description={t("about.ofertaDesc")} icon={InfoIcon} external />
         <SettingsLinkRow href="/settings/about/licenses" label={t("licenses.title")} description={t("licenses.introShort")} icon={InfoIcon} />
       </SettingsSection>
     </div>

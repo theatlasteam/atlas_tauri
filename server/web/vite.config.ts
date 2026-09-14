@@ -103,6 +103,7 @@ export default defineConfig({
         en: resolve(__dirname, "en/index.html"),
         privacy: resolve(__dirname, "privacy/index.html"),
         terms: resolve(__dirname, "terms/index.html"),
+        oferta: resolve(__dirname, "oferta/index.html"),
         app: resolve(__dirname, "app/index.html"),
       },
     },

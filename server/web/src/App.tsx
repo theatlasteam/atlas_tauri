@@ -458,6 +458,7 @@ export default function App() {
             <ul class="space-y-2 text-sm text-ink-muted">
               <li><a href="/privacy" class="transition hover:text-ink">{t("footer.privacy")}</a></li>
               <li><a href="/terms" class="transition hover:text-ink">{t("footer.terms")}</a></li>
+              <li><a href="/oferta" class="transition hover:text-ink">{t("footer.oferta")}</a></li>
             </ul>
           </div>
         </div>

@@ -145,6 +145,7 @@ const dict = {
     "waitlist.consentLink": "Privacy Policy",
     "waitlist.consentAnd": "and the",
     "waitlist.consentTerms": "Terms of Service",
+    "waitlist.consentOferta": "Public offer",
     "source.title": "Build it yourself",
     "source.needBun": "You need",
     "source.and": "and",
@@ -154,6 +155,7 @@ const dict = {
     "footer.built": "Built with Tauri, Solid.js and Rust.",
     "footer.privacy": "Privacy Policy",
     "footer.terms": "Terms of Service",
+    "footer.oferta": "Public offer",
 
     "pluginsEditor.title": "Developer panel",
     "pluginsEditor.newTitle": "New plugin",
@@ -427,6 +429,7 @@ const dict = {
     "waitlist.consentLink": "Политикой конфиденциальности",
     "waitlist.consentAnd": "и",
     "waitlist.consentTerms": "Условиями использования",
+    "waitlist.consentOferta": "Публичной офертой",
     "source.title": "Собрать самостоятельно",
     "source.needBun": "Понадобятся",
     "source.and": "и",
@@ -436,6 +439,7 @@ const dict = {
     "footer.built": "Сделано на Tauri, Solid.js и Rust.",
     "footer.privacy": "Политика конфиденциальности",
     "footer.terms": "Условия использования",
+    "footer.oferta": "Публичная оферта",
 
     "pluginsEditor.title": "Панель разработчика",
     "pluginsEditor.newTitle": "Новый плагин",
