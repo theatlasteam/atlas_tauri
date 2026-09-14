@@ -155,21 +155,20 @@ async fn session(mut socket: WebSocket, canvas_id: Uuid, state: AppState) {
     }
     let mut rx = room.tx.subscribe();
 
-    let strokes: serde_json::Value = sqlx::query_as::<_, (serde_json::Value,)>(
-        "SELECT strokes FROM canvases WHERE id = $1",
+    let row: Option<(serde_json::Value, serde_json::Value)> = sqlx::query_as(
+        "SELECT strokes, meta FROM canvases WHERE id = $1",
     )
     .bind(canvas_id)
     .fetch_optional(&state.db)
     .await
     .ok()
-    .flatten()
-    .map(|r| r.0)
-    .unwrap_or_else(|| json!([]));
+    .flatten();
+    let (strokes, settings) = row.unwrap_or((json!([]), json!({})));
 
     let peers_now: Vec<Peer> = room.peers.lock().await.values().cloned().collect();
     let _ = socket
         .send(Message::Text(
-            json!({"type":"ready","self": peer, "peers": peers_now, "strokes": strokes}).to_string().into(),
+            json!({"type":"ready","self": peer, "peers": peers_now, "strokes": strokes, "settings": settings}).to_string().into(),
         ))
         .await;
     let _ = room.tx.send(json!({"type":"presence","peers": peers_now}).to_string());
@@ -226,6 +225,15 @@ async fn session(mut socket: WebSocket, canvas_id: Uuid, state: AppState) {
                     .execute(&state.db)
                     .await;
                 let _ = room.tx.send(json!({"type":"clear"}).to_string());
+            }
+            "settings" => {
+                let settings = msg.rest.get("settings").cloned().unwrap_or(msg.rest.clone());
+                let _ = sqlx::query("UPDATE canvases SET meta = $2 WHERE id = $1")
+                    .bind(canvas_id)
+                    .bind(&settings)
+                    .execute(&state.db)
+                    .await;
+                let _ = room.tx.send(json!({"type":"settings","settings": settings, "from": peer.id}).to_string());
             }
             _ => {}
         }

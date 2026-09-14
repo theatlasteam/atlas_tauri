@@ -54,6 +54,10 @@ import {
   DotsThree,
   Minus,
   Square,
+  Circle,
+  LineSegment,
+  ArrowUpRight,
+  TextT,
   CornersIn,
   Compass,
   PuzzlePiece,
@@ -95,6 +99,11 @@ export const FontIcon = wrap(TextAa);
 export const FolderIcon = wrap(Folder);
 export const EditIcon = wrap(PencilSimple);
 export const EraserIcon = wrap(Eraser);
+export const CircleIcon = wrap(Circle);
+export const LineIcon = wrap(LineSegment);
+export const ArrowIcon = wrap(ArrowUpRight);
+export const TextIcon = wrap(TextT);
+export const SquareIcon = wrap(Square);
 export const PaletteIcon = wrap(Palette);
 export const InfoIcon = wrap(Info);
 export const ShieldIcon = wrap(ShieldCheck);

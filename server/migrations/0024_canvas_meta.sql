@@ -1,0 +1,2 @@
+ALTER TABLE canvases
+    ADD COLUMN IF NOT EXISTS meta JSONB NOT NULL DEFAULT '{}'::jsonb;
