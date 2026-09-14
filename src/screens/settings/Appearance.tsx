@@ -7,7 +7,7 @@ import Appbar from "../../components/Appbar";
 import Picker from "../../ui/Picker";
 import Slider from "../../ui/Slider";
 import { CheckIcon } from "../../icons";
-import { Logo, MessageBubble } from "@atlas/ui";
+import { AppIcon, MessageBubble } from "@atlas/ui";
 import { LOCALE_OPTIONS, setLocale, t, type TranslationKey } from "../../lib/i18n";
 
 const ACCENTS: { id: AccentId; labelKey: TranslationKey; swatch: string }[] = [
@@ -91,7 +91,7 @@ export default function Appearance() {
 
       <div class="mx-5 mb-4 overflow-hidden rounded-2xl border border-border bg-surface">
         <div class="flex items-center gap-3 border-b border-border px-4 py-3">
-          <Logo width={48} static />
+          <AppIcon size={56} static />
           <div class="min-w-0 flex-1">
             <p class="font-heading text-sm font-semibold">Atlas</p>
             <p class="text-[13px] text-ink-subtle">{t("appearance.preview")}</p>

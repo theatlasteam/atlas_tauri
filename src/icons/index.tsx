@@ -58,6 +58,7 @@ import {
   PuzzlePiece,
   Planet,
   Copy,
+  Info,
 } from "phosphor-solid-js";
 import type { JSX } from "solid-js";
 
@@ -93,6 +94,7 @@ export const FontIcon = wrap(TextAa);
 export const FolderIcon = wrap(Folder);
 export const EditIcon = wrap(PencilSimple);
 export const PaletteIcon = wrap(Palette);
+export const InfoIcon = wrap(Info);
 export const ShieldIcon = wrap(ShieldCheck);
 export const PhoneIcon = wrap(Phone);
 export const PhoneSlashIcon = wrap(PhoneSlash);

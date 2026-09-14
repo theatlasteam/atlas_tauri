@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Atlas
+Comment=Atlas Messenger
+Exec={{exec}}
+Icon=get.ahmed.atlas
+Terminal=false
+Categories=Network;InstantMessaging;Chat;
+StartupNotify=true
+StartupWMClass=get.ahmed.atlas
+X-GNOME-UsesNotifications=true

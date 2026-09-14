@@ -8,23 +8,29 @@ export default function Logo(props: {
   class?: string;
   /** Skip the feather reveal (nav, favicon-scale). */
   static?: boolean;
+  noReveal?: boolean;
   width?: number;
   label?: string;
+  decorative?: boolean;
 }) {
   let host: HTMLDivElement | undefined;
   const [tick, setTick] = createSignal(0);
 
+  const frozen = () => props.noReveal || props.static;
+
   const play = () => {
-    if (props.static || !host) return;
+    if (frozen() || !host) return;
     const layer = document.createElement("div");
     layer.className = "atlas-logo-fill-enter";
     layer.style.cssText = `position:absolute;inset:-1px;background:linear-gradient(180deg,var(--color-logo-top),var(--color-logo-bottom))`;
     host.appendChild(layer);
-    const done = () => {
-      [...host!.children].filter((n) => n !== layer).forEach((n) => n.remove());
-      layer.classList.remove("atlas-logo-fill-enter");
-    };
-    layer.addEventListener("animationend", done, { once: true });
+    layer.addEventListener(
+      "animationend",
+      () => {
+        layer.remove();
+      },
+      { once: true },
+    );
   };
 
   createEffect(
@@ -44,8 +50,9 @@ export default function Logo(props: {
   return (
     <div
       ref={host}
-      role="img"
-      aria-label={props.label ?? "Atlas"}
+      role={props.decorative ? undefined : "img"}
+      aria-hidden={props.decorative ? true : undefined}
+      aria-label={props.decorative ? undefined : (props.label ?? "Atlas")}
       class={cx("relative overflow-hidden", props.class)}
       style={{
         width: `${props.width ?? 120}px`,

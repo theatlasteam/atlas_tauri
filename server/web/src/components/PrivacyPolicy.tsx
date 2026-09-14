@@ -35,7 +35,7 @@ function PrivacyPolicyRu() {
     <article class="prose-policy">
       <h1 class="font-heading text-3xl font-bold">Политика обработки персональных данных</h1>
       <p class="mt-1 text-sm text-ink-subtle">
-        Последнее обновление: 27 июля 2026 г. Действует в отношении сайта atlasmsg.app и приложения
+        Последнее обновление: 14 сентября 2026 г. Действует в отношении сайта atlasmsg.app и приложения
         Atlas.
       </p>
 
@@ -73,12 +73,12 @@ function PrivacyPolicyRu() {
           также необязательные поля профиля: статус, описание («о себе»), цвет и фотография аватара.
         </li>
         <li>
-          <strong>Сообщения.</strong> Личные сообщения (DM) шифруются end-to-end (X25519 +
-          HKDF-SHA256) прямо на вашем устройстве — сервер получает и хранит только шифротекст и не
-          может прочитать содержимое переписки. Сообщения в группах в текущей версии{" "}
-          <strong>не</strong> шифруются end-to-end и хранятся на сервере в виде текста, необходимого
-          для доставки и поиска. Вложения (изображения, голосовые сообщения, файлы) хранятся на
-          сервере в виде, аналогичном шифрованию соответствующего сообщения.
+          <strong>Сообщения.</strong> Личные переписки между людьми шифруются на устройстве по
+          протоколу Olm (vodozemac). Групповые чаты используют Megolm, когда шифрование доступно.
+          В этих случаях сервер получает и хранит только шифротекст и не может прочитать содержимое.
+          Сообщения ботам, часть постов каналов и служебные рассылки могут храниться открытым текстом,
+          чтобы бот или канал мог их обработать. Вложения хранятся с тем же режимом, что и сообщение,
+          к которому они относятся.
         </li>
         <li>
           <strong>Технические и служебные данные</strong> — токен push-уведомлений устройства (для
@@ -108,9 +108,10 @@ function PrivacyPolicyRu() {
           копию, ни журнал, ни какую-либо запись о том, что вы спросили и что ответил Compass.
         </li>
         <li>
-          <strong>@compass в групповом чате</strong> — сообщения групп и так хранятся на нашем
-          сервере в виде текста (см. выше), поэтому ответы Compass там хранятся так же — как обычное
-          сообщение от аккаунта Compass.
+          <strong>@compass в групповом чате</strong> — если группа на Megolm, сервер по-прежнему не
+          читает переписку. Чтобы Compass ответил, устройство должно расшифровать контекст локально
+          и отправить провайдеру ИИ уже открытый запрос. Ответ публикуется как сообщение от
+          аккаунта Compass.
         </li>
         <li>
           <strong>@compass в личной переписке (DM) со сквозным шифрованием</strong> — ваше
@@ -148,11 +149,12 @@ function PrivacyPolicyRu() {
 
       <h2>6. Хранение и передача данных</h2>
       <p>
-        Персональные данные обрабатываются и хранятся на серверах, размещённых у хостинг-провайдера
-        Amvera (Российская Федерация). Мы не передаём ваши персональные данные третьим лицам, за
-        исключением случаев, предусмотренных законодательством РФ, либо технических субподрядчиков,
-        необходимых для работы Сервиса (например, сервис push-уведомлений Firebase Cloud Messaging —
-        только регистрационный токен устройства, без содержимого сообщений).
+        Персональные данные обрабатываются и хранятся на серверах в Российской Федерации. Мы не
+        передаём ваши персональные данные третьим лицам, за исключением случаев, предусмотренных
+        законодательством РФ, либо технических субподрядчиков, необходимых для работы Сервиса
+        (например, Firebase Cloud Messaging: регистрационный токен устройства и служебные данные
+        push. Содержимое личных сообщений сервер не читает; превью в уведомлении появляется только
+        после расшифровки на устройстве).
       </p>
       <p>
         Данные хранятся до тех пор, пока учётная запись активна, либо до вашего запроса на удаление.
@@ -179,7 +181,7 @@ function PrivacyPolicyRu() {
       <h2>8. Меры защиты данных</h2>
       <ul>
         <li>Пароли хранятся в виде хешей Argon2, а не в открытом виде;</li>
-        <li>личные сообщения шифруются end-to-end и недоступны серверу в открытом виде;</li>
+        <li>личные и групповые чаты с Olm/Megolm недоступны серверу в открытом виде;</li>
         <li>соединение с сервером осуществляется по защищённому протоколу (TLS);</li>
         <li>доступ к административным функциям (например, снятие/выдача верификации) ограничен отдельной учётной записью.</li>
       </ul>
@@ -208,7 +210,7 @@ function PrivacyPolicyEn() {
     <article class="prose-policy">
       <h1 class="font-heading text-3xl font-bold">Privacy Policy</h1>
       <p class="mt-1 text-sm text-ink-subtle">
-        Last updated: July 27, 2026. Applies to atlasmsg.app and the Atlas app.
+        Last updated: 14 September 2026. Applies to atlasmsg.app and the Atlas app.
       </p>
 
       <div class="my-6 rounded-2xl border border-border bg-surface p-4 text-sm">
@@ -240,11 +242,11 @@ function PrivacyPolicyEn() {
           avatar color/photo.
         </li>
         <li>
-          <strong>Messages.</strong> Direct messages are end-to-end encrypted (X25519 + HKDF-SHA256)
-          on your device — the server only ever holds ciphertext it can't read. Group messages are{" "}
-          <strong>not</strong> end-to-end encrypted in the current version; they're stored server-side
-          as plain text so they can be delivered and searched. Attachments (images, voice notes,
-          files) are stored with the same encryption treatment as the message they belong to.
+          <strong>Messages.</strong> Direct chats between people are encrypted on-device with Olm
+          (vodozemac). Group chats use Megolm when encryption is available. In those cases the server
+          only holds ciphertext it cannot read. Messages to bots, some channel posts, and service
+          broadcasts may be stored as plain text so the bot or channel can operate. Attachments follow
+          the same encryption mode as the message they belong to.
         </li>
         <li>
           <strong>Technical data</strong> — push notification device tokens (Android), active session
@@ -273,9 +275,9 @@ function PrivacyPolicyEn() {
           a log, or any record of what you asked or what Compass answered.
         </li>
         <li>
-          <strong>@compass in a group chat</strong> — group messages are already stored on our server
-          as plain text (see above), so Compass's replies there are stored the same way, as an
-          ordinary message from Compass's own account.
+          <strong>@compass in a group chat</strong> — if the group uses Megolm, the server still
+          cannot read the thread. Your device decrypts context locally and sends the AI provider a
+          plaintext prompt. The reply is posted as a message from Compass's account.
         </li>
         <li>
           <strong>@compass in an end-to-end encrypted direct message</strong> — your own message stays
@@ -304,10 +306,11 @@ function PrivacyPolicyEn() {
 
       <h2>5. Storage and transfer</h2>
       <p>
-        Data is processed and stored on servers hosted by Amvera (Russian Federation). We don't share
-        your personal data with third parties except where required by Russian law, or with technical
-        subprocessors necessary to run the Service (e.g. Firebase Cloud Messaging for push delivery —
-        only the device's registration token, never message content).
+        Data is processed and stored on servers in the Russian Federation. We don't share your
+        personal data with third parties except where required by Russian law, or with technical
+        subprocessors necessary to run the Service (for example Firebase Cloud Messaging: the device
+        registration token and push metadata. The server does not read direct-message contents;
+        notification previews appear only after the device decrypts them).
       </p>
       <p>
         Data is retained while your account is active, or until you request deletion. A waitlist
@@ -332,7 +335,7 @@ function PrivacyPolicyEn() {
       <h2>7. Security measures</h2>
       <ul>
         <li>Passwords are stored as Argon2 hashes, never in plain text;</li>
-        <li>direct messages are end-to-end encrypted and unreadable by the server;</li>
+        <li>Olm and Megolm chats are unreadable by the server;</li>
         <li>connections to the server use TLS;</li>
         <li>administrative actions (e.g. granting/removing verification) are restricted to a separate account.</li>
       </ul>

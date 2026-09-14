@@ -24,9 +24,17 @@ export function SettingsRow(props: { label: string; description?: string; childr
   );
 }
 
-export function SettingsLinkRow(props: { href: string; label: string; description?: string; icon: (p: { size?: number; class?: string }) => JSX.Element }) {
-  return (
-    <A href={props.href} class="group flex items-center gap-3 px-4 py-3 transition-colors duration-150 first:rounded-t-2xl last:rounded-b-2xl hover:bg-bg active:bg-bg">
+export function SettingsLinkRow(props: {
+  href: string;
+  label: string;
+  description?: string;
+  icon: (p: { size?: number; class?: string }) => JSX.Element;
+  external?: boolean;
+}) {
+  const className =
+    "group flex items-center gap-3 px-4 py-3 transition-colors duration-150 first:rounded-t-2xl last:rounded-b-2xl hover:bg-bg active:bg-bg";
+  const body = (
+    <>
       <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
         <props.icon size={18} />
       </span>
@@ -35,6 +43,18 @@ export function SettingsLinkRow(props: { href: string; label: string; descriptio
         {props.description && <p class="truncate text-xs text-ink-subtle">{props.description}</p>}
       </div>
       <ChevronRightIcon size={18} class="shrink-0 text-ink-subtle transition-transform duration-150 group-hover:translate-x-0.5" />
+    </>
+  );
+  if (props.external) {
+    return (
+      <a href={props.href} target="_blank" rel="noopener noreferrer" class={className}>
+        {body}
+      </a>
+    );
+  }
+  return (
+    <A href={props.href} class={className}>
+      {body}
     </A>
   );
 }

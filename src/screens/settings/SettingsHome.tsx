@@ -5,7 +5,7 @@ import Appbar from "../../components/Appbar";
 import { session } from "../../store/session";
 import { t } from "../../lib/i18n";
 import { applyAppUpdate, isWebApp } from "../../lib/app-update";
-import { BellIcon, FolderIcon, PaletteIcon, PluginsIcon, ProfileIcon, ShieldIcon, VerifiedIcon } from "../../icons";
+import { BellIcon, FolderIcon, InfoIcon, PaletteIcon, PluginsIcon, ProfileIcon, ShieldIcon, VerifiedIcon } from "../../icons";
 
 const SECRET_TAP_COUNT = 7;
 const SECRET_TAP_WINDOW_MS = 2500;
@@ -78,6 +78,15 @@ export default function SettingsHome() {
 
       {/* Only the "atlas" account can grant checkmarks, so the entry point is
           hidden for everyone else — the server enforces it either way. */}
+      <SettingsSection title={t("settings.aboutSection")}>
+        <SettingsLinkRow
+          href="/settings/about"
+          label={t("settings.about")}
+          description={t("settings.aboutDesc")}
+          icon={InfoIcon}
+        />
+      </SettingsSection>
+
       <Show when={isWebApp()}>
         <SettingsSection title={t("settings.reload")}>
           <SettingsRow label={t("settings.reload")} description={t("settings.reloadDesc")}>

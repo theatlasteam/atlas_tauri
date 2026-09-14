@@ -12,6 +12,8 @@ import BlockedUsers from "./screens/settings/BlockedUsers";
 import Plugins from "./screens/settings/Plugins";
 import Dev from "./screens/settings/Dev";
 import Verification from "./screens/settings/Verification";
+import About from "./screens/settings/About";
+import Licenses from "./screens/settings/Licenses";
 import NewChat from "./screens/NewChat";
 import Calls from "./screens/Calls";
 import CompassLayout from "./components/CompassLayout";
@@ -65,6 +67,8 @@ function App() {
               <Route path="/settings/dev" component={Dev} />
               <Route path="/settings/design-system" component={DesignSystem} />
               <Route path="/settings/verification" component={Verification} />
+              <Route path="/settings/about" component={About} />
+              <Route path="/settings/about/licenses" component={Licenses} />
               <Route path="/profile" component={Profile} />
               <Route path="/user/:id" component={UserProfile} />
               <Route path="/new-chat" component={NewChat} />
