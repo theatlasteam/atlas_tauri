@@ -170,6 +170,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )),
         )
         .route("/api/attachments/{id}", get(routes::attachments::download))
+        .route(
+            "/api/emoji",
+            get(routes::emoji::list).post(routes::emoji::upload).layer(DefaultBodyLimit::max(
+                routes::emoji::MAX_EMOJI_BYTES + 1024,
+            )),
+        )
+        .route("/api/emoji/packs/{owner_id}", post(routes::emoji::save_pack))
+        .route("/api/emoji/{id}/meta", get(routes::emoji::meta))
+        .route("/api/emoji/{id}", get(routes::emoji::download).delete(routes::emoji::delete))
         // folders
         .route(
             "/api/folders",

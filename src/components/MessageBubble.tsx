@@ -34,8 +34,10 @@ import {
 import { t } from "../lib/i18n";
 import EffectText from "./EffectText";
 import LinkEmbeds from "./LinkEmbeds";
+import CustomEmoji from "./CustomEmoji";
 import { captionForEmbeds } from "../lib/linkEmbeds";
 import { unwrapFx } from "../lib/textEffects";
+import { splitCustomEmoji } from "../lib/customEmoji";
 
 /**
  * How long a press has to be held to count as "hold for more".
@@ -628,9 +630,17 @@ function MessageBody(props: { message: Message }) {
             </p>
           }
         >
-          <Show when={captionForEmbeds(m().text)}>
-            <EffectText text={captionForEmbeds(m().text)} class="text-[0.95em] leading-snug" />
-          </Show>
+          <For each={splitCustomEmoji(captionForEmbeds(m().text))}>
+            {(part) => (
+              <Show when={part.type === "ce" ? part.id : false} fallback={
+                <Show when={part.type === "text" && part.text}>
+                  <EffectText text={part.type === "text" ? part.text : ""} class="text-[0.95em] leading-snug" />
+                </Show>
+              }>
+                {(id) => <CustomEmoji id={id()} size={32} />}
+              </Show>
+            )}
+          </For>
           <LinkEmbeds text={unwrapFx(m().text)} />
         </Show>
       </Show>

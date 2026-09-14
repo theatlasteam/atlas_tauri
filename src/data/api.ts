@@ -354,4 +354,39 @@ export const api = {
 
   // calls
   iceServers: () => request<{ iceServers: IceServer[]; ttl: number }>("GET", "/api/calls/ice-servers"),
+
+  listEmoji: () => request<EmojiLibraryDto>("GET", "/api/emoji"),
+  uploadEmoji: (data: Blob, meta: { name?: string; mime?: string; width?: number; height?: number }) => {
+    const params = new URLSearchParams();
+    if (meta.name) params.set("name", meta.name);
+    if (meta.mime) params.set("mime", meta.mime);
+    if (meta.width != null) params.set("width", String(meta.width));
+    if (meta.height != null) params.set("height", String(meta.height));
+    const q = params.toString();
+    return request<CustomEmojiDto>("POST", `/api/emoji${q ? `?${q}` : ""}`, undefined, { raw: data });
+  },
+  deleteEmoji: (id: string) => request<{ ok: boolean }>("DELETE", `/api/emoji/${id}`),
+  emojiMeta: (id: string) => request<CustomEmojiMetaDto>("GET", `/api/emoji/${id}/meta`),
+  fetchEmojiUrl: (id: string): Promise<string> => fetchBlobUrl(`/api/emoji/${id}`),
+  saveEmojiPack: (ownerId: string) => request<EmojiLibraryDto>("POST", `/api/emoji/packs/${ownerId}`),
+};
+
+export type CustomEmojiDto = {
+  id: string;
+  ownerId: string;
+  name: string;
+  mime: string;
+  width?: number | null;
+  height?: number | null;
+};
+
+export type CustomEmojiMetaDto = CustomEmojiDto & {
+  ownerName: string;
+  ownerHandle: string;
+  inMyPack: boolean;
+};
+
+export type EmojiLibraryDto = {
+  mine: CustomEmojiDto[];
+  packs: { ownerId: string; ownerName: string; ownerHandle: string; emojis: CustomEmojiDto[] }[];
 };

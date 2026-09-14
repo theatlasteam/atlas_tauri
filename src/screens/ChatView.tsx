@@ -16,8 +16,9 @@ import VerifiedBadge from "../components/VerifiedBadge";
 import Popover from "../ui/Popover";
 import { Menu, MenuItem } from "../ui/Menu";
 import { Composer } from "@atlas/ui";
-import GifPicker from "../components/GifPicker";
-import { FX_KINDS, wrapFx, type FxKind } from "../lib/textEffects";
+import ExpressionTray, { type ExpressionTab } from "../components/ExpressionTray";
+import { emojiToken } from "../lib/customEmoji";
+import { unwrapFx, wrapFx } from "../lib/textEffects";
 import { useIsDesktopLayout } from "../lib/platform";
 import {
   ArrowDownIcon,
@@ -38,6 +39,7 @@ import {
   ProhibitIcon,
   ReplyIcon,
   SendIcon,
+  SmileyIcon,
   SpinnerIcon,
   TrashIcon,
   VideoIcon,
@@ -110,7 +112,7 @@ export default function ChatView() {
   );
   const [uploading, setUploading] = createSignal(false);
   const [pendingAttachment, setPendingAttachment] = createSignal<PendingAttachment | null>(null);
-  const [composerPanel, setComposerPanel] = createSignal<"gif" | "fx" | null>(null);
+  const [composerPanel, setComposerPanel] = createSignal<ExpressionTab | null>(null);
   const [recording, setRecording] = createSignal(false);
   const [loadingOlder, setLoadingOlder] = createSignal(false);
   /** Time capsule armed for the next send (ISO), or null for "send now". */
@@ -865,36 +867,6 @@ export default function ChatView() {
               e.currentTarget.value = "";
             }}
           />
-          <Show when={composerPanel() === "gif"}>
-            <div class="mb-2 rounded-2xl border border-border bg-surface p-2">
-              <GifPicker
-                onPick={(url) => {
-                  setComposerPanel(null);
-                  const next = draft().trim() ? `${draft().trim()} ${url}` : url;
-                  void submit(undefined, next);
-                }}
-              />
-            </div>
-          </Show>
-          <Show when={composerPanel() === "fx"}>
-            <div class="mb-2 flex flex-wrap gap-1.5">
-              <For each={FX_KINDS}>
-                {(kind) => (
-                  <button
-                    type="button"
-                    class="atlas-focus min-h-11 rounded-pill border border-border bg-surface px-3 text-sm font-medium text-ink"
-                    onClick={() => {
-                      if (!draft().trim()) return;
-                      onDraftInput(wrapFx(draft(), kind as FxKind));
-                      setComposerPanel(null);
-                    }}
-                  >
-                    {t(`fx.${kind}`)}
-                  </button>
-                )}
-              </For>
-            </div>
-          </Show>
           <Composer
             value={draft()}
             onChange={onDraftInput}
@@ -921,9 +893,32 @@ export default function ChatView() {
                 ? undefined
                 : [
                     { id: "file", label: t("chatView.attachFileAria"), icon: <AttachIcon size={16} />, onSelect: pickFile },
+                    { id: "emoji", label: t("emoji.custom.title"), icon: <SmileyIcon size={16} />, onSelect: () => setComposerPanel((p) => (p === "emoji" ? null : "emoji")) },
                     { id: "gif", label: t("gif.title"), icon: <ImageIcon size={16} />, onSelect: () => setComposerPanel((p) => (p === "gif" ? null : "gif")) },
                     { id: "fx", label: t("fx.title"), icon: <PaletteIcon size={16} />, onSelect: () => setComposerPanel((p) => (p === "fx" ? null : "fx")) },
                   ]
+            }
+            tray={
+              composerPanel() ? (
+                <ExpressionTray
+                  tab={composerPanel()!}
+                  onTab={setComposerPanel}
+                  onClose={() => setComposerPanel(null)}
+                  onGif={(url) => {
+                    setComposerPanel(null);
+                    const next = draft().trim() ? `${draft().trim()} ${url}` : url;
+                    void submit(undefined, next);
+                  }}
+                  onEmoji={(id) => {
+                    onDraftInput((draft() ? `${draft()} ` : "") + emojiToken(id));
+                  }}
+                  onFx={(kind) => {
+                    const base = unwrapFx(draft()).trim() || "Hey";
+                    onDraftInput(wrapFx(base, kind));
+                  }}
+                  sample={unwrapFx(draft())}
+                />
+              ) : undefined
             }
             addIcon={uploading() ? <SpinnerIcon size={19} class="animate-spin" /> : undefined}
             addLabel={t("chatView.attachFileAria")}

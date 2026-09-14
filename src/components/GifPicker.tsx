@@ -34,29 +34,29 @@ export default function GifPicker(props: { onPick: (url: string) => void }) {
 
   return (
     <div class="flex min-h-0 flex-col gap-2">
-      <input
-        type="search"
-        value={query()}
-        placeholder={t("gif.search")}
-        class="atlas-focus min-h-11 w-full rounded-xl border border-border bg-bg px-3 text-sm text-ink outline-none placeholder:text-ink-subtle"
-        onInput={(e) => setQuery(e.currentTarget.value)}
-      />
-      <Show when={error()}>
-        <p class="text-sm text-danger">{error()}</p>
-      </Show>
-      <div class="relative max-h-56 overflow-y-auto">
+      <div class="relative">
+        <input
+          type="search"
+          value={query()}
+          placeholder={t("gif.search")}
+          class="atlas-focus h-9 w-full rounded-full bg-bg px-3.5 text-[13px] text-ink outline-none placeholder:text-ink-subtle"
+          onInput={(e) => setQuery(e.currentTarget.value)}
+        />
         <Show when={busy()}>
-          <div class="absolute inset-0 z-10 grid place-items-center bg-surface/60">
-            <SpinnerIcon size={22} class="animate-spin text-ink-muted" />
-          </div>
+          <SpinnerIcon size={14} class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-ink-subtle" />
         </Show>
-        <div class="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
-          <For each={items()} fallback={<p class="col-span-full py-6 text-center text-sm text-ink-subtle">{t("gif.empty")}</p>}>
+      </div>
+      <Show when={error()}>
+        <p class="text-[13px] text-danger">{error()}</p>
+      </Show>
+      <div class="max-h-[13.5rem] overflow-y-auto overscroll-contain">
+        <div class="grid grid-cols-3 gap-1 sm:grid-cols-4">
+          <For each={items()} fallback={<p class="col-span-full py-8 text-center text-[13px] text-ink-subtle">{t("gif.empty")}</p>}>
             {(g) => (
               <button
                 type="button"
-                class="atlas-focus overflow-hidden rounded-xl bg-bg"
-                style={{ "aspect-ratio": `${Math.max(g.width, 1)} / ${Math.max(g.height, 1)}` }}
+                class="atlas-focus overflow-hidden rounded-lg bg-bg transition-transform duration-150 active:scale-[0.97]"
+                style={{ "aspect-ratio": "1" }}
                 onClick={() => pick(g)}
                 title={g.title}
               >
@@ -66,7 +66,6 @@ export default function GifPicker(props: { onPick: (url: string) => void }) {
           </For>
         </div>
       </div>
-      <p class="text-[10px] text-ink-subtle">{t("gif.credit")}</p>
     </div>
   );
 }

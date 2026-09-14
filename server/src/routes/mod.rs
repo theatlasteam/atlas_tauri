@@ -3,6 +3,7 @@ pub mod bots;
 pub mod calls;
 pub mod chats;
 pub mod devices;
+pub mod emoji;
 pub mod folders;
 pub mod keys;
 pub mod messages;

@@ -47,6 +47,7 @@ export default function Composer(props: {
   onActionPointerDown?: (e: PointerEvent) => void;
   onActionPointerUp?: (e: PointerEvent) => void;
   banner?: JSX.Element;
+  tray?: JSX.Element;
 }) {
   const canSend = () => props.value.trim().length > 0 || !!props.forceSend;
 
@@ -73,10 +74,14 @@ export default function Composer(props: {
   return (
     <div
       class={cx(
-        "flex flex-col overflow-hidden rounded-full border border-border bg-surface",
+        "flex flex-col overflow-hidden border border-border bg-surface",
+        props.tray ? "rounded-[28px]" : "rounded-full",
         props.class,
       )}
     >
+      <Show when={props.tray}>
+        <div class="min-h-0 border-b border-border/70 px-2.5 pt-2 pb-2">{props.tray}</div>
+      </Show>
       <Show when={props.banner}>
         <div class="border-b border-border px-3 py-2">{props.banner}</div>
       </Show>
