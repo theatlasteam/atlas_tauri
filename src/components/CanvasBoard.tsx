@@ -13,15 +13,18 @@ import {
   EraserIcon,
   LineIcon,
   SettingsIcon,
+  FillIcon,
+  HighlightIcon,
   SquareIcon,
   TextIcon,
   TrashIcon,
+  TriangleIcon,
 } from "../icons";
 
 type Peer = { id: string; name: string; color: string; handle?: string | null; guest?: boolean };
 type Pt = { x: number; y: number };
-type Kind = "pen" | "eraser" | "line" | "rect" | "ellipse" | "arrow" | "text";
-type Stroke = { points: Pt[]; color: string; width: number; kind?: Kind; tool?: string; text?: string; from?: string };
+type Kind = "pen" | "eraser" | "highlight" | "line" | "rect" | "ellipse" | "arrow" | "triangle" | "text";
+type Stroke = { points: Pt[]; color: string; width: number; kind?: Kind; tool?: string; text?: string; filled?: boolean; from?: string };
 type Settings = { bg: string; grid: boolean };
 
 const DEFAULTS: Settings = { bg: "#131110", grid: true };
@@ -33,6 +36,7 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
   const [tool, setTool] = createSignal<Kind>("pen");
   const [ink, setInk] = createSignal("#f4f0ea");
   const [width, setWidth] = createSignal(4);
+  const [filled, setFilled] = createSignal(false);
   const [settings, setSettings] = createSignal<Settings>(DEFAULTS);
   const [panel, setPanel] = createSignal(false);
   const [textDraft, setTextDraft] = createSignal<{ x: number; y: number } | null>(null);
@@ -86,13 +90,40 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
       ctx.fillText(s.text, x(a), y(a));
       return;
     }
+    if (kind === "highlight") {
+      ctx.globalAlpha = 0.35;
+      if (pts.length < 2) {
+        ctx.globalAlpha = 1;
+        return;
+      }
+      ctx.beginPath();
+      ctx.moveTo(x(a), y(a));
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(x(pts[i]!), y(pts[i]!));
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      return;
+    }
     if (kind === "rect") {
-      ctx.strokeRect(x(a), y(a), x(b) - x(a), y(b) - y(a));
+      const rw = x(b) - x(a);
+      const rh = y(b) - y(a);
+      if (s.filled) ctx.fillRect(x(a), y(a), rw, rh);
+      ctx.strokeRect(x(a), y(a), rw, rh);
       return;
     }
     if (kind === "ellipse") {
       ctx.beginPath();
       ctx.ellipse((x(a) + x(b)) / 2, (y(a) + y(b)) / 2, Math.abs(x(b) - x(a)) / 2, Math.abs(y(b) - y(a)) / 2, 0, 0, Math.PI * 2);
+      if (s.filled) ctx.fill();
+      ctx.stroke();
+      return;
+    }
+    if (kind === "triangle") {
+      ctx.beginPath();
+      ctx.moveTo((x(a) + x(b)) / 2, y(a));
+      ctx.lineTo(x(a), y(b));
+      ctx.lineTo(x(b), y(b));
+      ctx.closePath();
+      if (s.filled) ctx.fill();
       ctx.stroke();
       return;
     }
@@ -161,6 +192,25 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
     if (!canvas) return null;
     const r = canvas.getBoundingClientRect();
     return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  };
+
+  const constrain = (a: Pt, b: Pt, kind: Kind, shift: boolean): Pt => {
+    if (!shift || !canvas) return b;
+    const cw = canvas.clientWidth;
+    const ch = canvas.clientHeight;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    if (kind === "rect" || kind === "ellipse" || kind === "triangle") {
+      const side = Math.max(Math.abs(dx) * cw, Math.abs(dy) * ch);
+      return { x: a.x + Math.sign(dx || 1) * (side / cw), y: a.y + Math.sign(dy || 1) * (side / ch) };
+    }
+    if (kind === "line" || kind === "arrow") {
+      const ang = Math.atan2(dy * ch, dx * cw);
+      const snap = Math.round(ang / (Math.PI / 4)) * (Math.PI / 4);
+      const len = Math.hypot(dx * cw, dy * ch);
+      return { x: a.x + (Math.cos(snap) * len) / cw, y: a.y + (Math.sin(snap) * len) / ch };
+    }
+    return b;
   };
 
   const send = (obj: unknown) => {
@@ -242,18 +292,20 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
     current = {
       points: [p],
       color: ink(),
-      width: tool() === "eraser" ? Math.max(width() * 6, 18) : width(),
+      width: tool() === "eraser" ? Math.max(width() * 4, 18) : tool() === "highlight" ? Math.max(width() * 3, 12) : width(),
       kind: tool(),
       tool: tool(),
+      filled: filled() && (tool() === "rect" || tool() === "ellipse" || tool() === "triangle"),
     };
   };
   const move = (e: PointerEvent) => {
-    const p = pos(e);
-    if (!p) return;
-    send({ type: "cursor", x: p.x, y: p.y });
+    const p0 = pos(e);
+    if (!p0) return;
+    send({ type: "cursor", x: p0.x, y: p0.y });
     if (!current) return;
     const kind = kindOf(current);
-    if (kind === "pen" || kind === "eraser") current.points.push(p);
+    const p = constrain(current.points[0]!, p0, kind, e.shiftKey);
+    if (kind === "pen" || kind === "eraser" || kind === "highlight") current.points.push(p0);
     else current.points = [current.points[0]!, p];
     const live = current;
     strokes = strokes.filter((s) => s !== live);
@@ -289,11 +341,13 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
   const bgs = ["#131110", "#1c1917", "#f4f0ea", "#ffffff", "#0b1220"];
   const tools: { id: Kind; icon: typeof EditIcon; label: string }[] = [
     { id: "pen", icon: EditIcon, label: t("canvas.pen") },
+    { id: "highlight", icon: HighlightIcon, label: t("canvas.highlight") },
     { id: "eraser", icon: EraserIcon, label: t("canvas.eraser") },
     { id: "line", icon: LineIcon, label: t("canvas.line") },
     { id: "arrow", icon: ArrowIcon, label: t("canvas.arrow") },
     { id: "rect", icon: SquareIcon, label: t("canvas.rect") },
     { id: "ellipse", icon: CircleIcon, label: t("canvas.ellipse") },
+    { id: "triangle", icon: TriangleIcon, label: t("canvas.triangle") },
     { id: "text", icon: TextIcon, label: t("canvas.text") },
   ];
 
@@ -412,7 +466,16 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
             )}
           </For>
           <span class="mx-1 h-6 w-px shrink-0 bg-border" />
-          <input type="range" min="2" max="16" value={width()} onInput={(e) => setWidth(Number(e.currentTarget.value))} class="w-16 shrink-0 accent-[var(--color-accent)]" />
+          <button
+            type="button"
+            class="atlas-focus grid h-11 w-11 shrink-0 place-items-center rounded-full"
+            classList={{ "bg-accent text-accent-ink": filled(), "text-ink-muted hover:bg-bg": !filled() }}
+            onClick={() => setFilled((v) => !v)}
+            title={t("canvas.fill")}
+          >
+            <FillIcon size={18} />
+          </button>
+          <input type="range" min="1" max="64" value={width()} onInput={(e) => setWidth(Number(e.currentTarget.value))} class="w-24 shrink-0 accent-[var(--color-accent)]" title={String(width())} />
           <button type="button" class="atlas-focus grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-bg hover:text-danger" onClick={() => send({ type: "clear" })} title={t("canvas.clear")}>
             <TrashIcon size={18} />
           </button>

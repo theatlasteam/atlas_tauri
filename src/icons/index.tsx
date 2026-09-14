@@ -58,6 +58,9 @@ import {
   LineSegment,
   ArrowUpRight,
   TextT,
+  Drop,
+  Triangle,
+  HighlighterCircle,
   CornersIn,
   Compass,
   PuzzlePiece,
@@ -104,6 +107,9 @@ export const LineIcon = wrap(LineSegment);
 export const ArrowIcon = wrap(ArrowUpRight);
 export const TextIcon = wrap(TextT);
 export const SquareIcon = wrap(Square);
+export const FillIcon = wrap(Drop);
+export const TriangleIcon = wrap(Triangle);
+export const HighlightIcon = wrap(HighlighterCircle);
 export const PaletteIcon = wrap(Palette);
 export const InfoIcon = wrap(Info);
 export const ShieldIcon = wrap(ShieldCheck);
