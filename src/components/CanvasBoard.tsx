@@ -5,7 +5,7 @@ import { serverConfig } from "../store/serverConfig";
 import { isMobilePlatform } from "../lib/platform";
 import { canvasShareUrl } from "../lib/canvasShare";
 import { t } from "../lib/i18n";
-import { CloseIcon, TrashIcon } from "../icons";
+import { CloseIcon, EditIcon, EraserIcon, TrashIcon } from "../icons";
 
 type Peer = { id: string; name: string; color: string; handle?: string | null; guest?: boolean };
 type Pt = { x: number; y: number };
@@ -37,8 +37,24 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
       canvas.height = Math.floor(h * dpr);
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#f7f4ef";
+    const theme = getComputedStyle(document.documentElement);
+    ctx.fillStyle = theme.getPropertyValue("--color-bg").trim() || "#131110";
     ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = theme.getPropertyValue("--color-border").trim() || "rgba(255,255,255,.08)";
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = 1;
+    const step = 32;
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += step) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+    }
+    for (let y = 0; y <= h; y += step) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
     for (const s of strokes) {
       if (s.points.length < 2) continue;
       ctx.beginPath();
@@ -140,23 +156,26 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
     current = null;
   };
 
+  const swatches = ["#f4f0ea", "#111111", "#e24b4a", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7"];
+
   return (
-    <div class="flex h-full min-h-0 flex-col bg-[#efeae2] text-ink">
-      <header class="flex shrink-0 items-center gap-2 border-b border-black/10 px-3 py-2">
+    <div class="flex h-full min-h-0 flex-col bg-bg text-ink">
+      <header class="flex shrink-0 items-center gap-2 border-b border-border bg-appbar px-3 py-2">
         <Show when={props.onClose}>
-          <button type="button" class="atlas-focus grid h-11 w-11 place-items-center rounded-full hover:bg-black/5" onClick={props.onClose}>
+          <button type="button" class="atlas-focus grid h-11 w-11 place-items-center rounded-full text-ink-muted hover:bg-surface hover:text-ink" onClick={props.onClose}>
             <CloseIcon size={20} />
           </button>
         </Show>
         <p class="font-heading text-sm font-semibold">{t("canvas.title")}</p>
-        <div class="ml-2 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        <div class="ml-3 flex min-w-0 flex-1 items-center pl-1">
           <For each={peers()}>
-            {(p) => (
-              <span class="flex shrink-0 items-center gap-1 rounded-full bg-white/70 py-0.5 pl-0.5 pr-2 text-[11px] font-medium">
-                <span class="grid h-6 w-6 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: p.color }}>
-                  {(p.name[0] ?? "?").toUpperCase()}
-                </span>
-                <span class="max-w-[7rem] truncate">{p.guest ? p.name : p.name}</span>
+            {(p, i) => (
+              <span
+                class="relative grid h-8 w-8 place-items-center rounded-full border-2 border-bg text-[11px] font-bold text-white"
+                style={{ background: p.color, "margin-left": i() === 0 ? "0" : "-8px", "z-index": String(20 - i()) }}
+                title={p.name}
+              >
+                {(p.name[0] ?? "?").toUpperCase()}
               </span>
             )}
           </For>
@@ -165,39 +184,11 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
           href={canvasShareUrl(props.id)}
           target="_blank"
           rel="noreferrer"
-          class="hidden h-11 items-center rounded-full px-3 text-sm font-medium text-ink-muted hover:bg-black/5 sm:flex"
+          class="hidden h-11 items-center rounded-full px-3 text-sm font-medium text-ink-muted hover:bg-surface hover:text-ink sm:flex"
         >
           {t("canvas.browser")}
         </a>
-        <button
-          type="button"
-          class="atlas-focus grid h-11 w-11 place-items-center rounded-full hover:bg-black/5"
-          onClick={() => send({ type: "clear" })}
-          title={t("canvas.clear")}
-        >
-          <TrashIcon size={18} />
-        </button>
       </header>
-      <div class="flex shrink-0 items-center gap-2 px-3 py-2">
-        <button
-          type="button"
-          class="atlas-focus min-h-9 rounded-full px-3 text-[13px] font-medium"
-          classList={{ "bg-ink text-white": tool() === "pen", "bg-white/70": tool() !== "pen" }}
-          onClick={() => setTool("pen")}
-        >
-          {t("canvas.pen")}
-        </button>
-        <button
-          type="button"
-          class="atlas-focus min-h-9 rounded-full px-3 text-[13px] font-medium"
-          classList={{ "bg-ink text-white": tool() === "eraser", "bg-white/70": tool() !== "eraser" }}
-          onClick={() => setTool("eraser")}
-        >
-          {t("canvas.eraser")}
-        </button>
-        <input type="color" value={ink()} onInput={(e) => setInk(e.currentTarget.value)} class="h-9 w-9 cursor-pointer rounded-full border-0 bg-transparent" />
-        <input type="range" min="2" max="16" value={width()} onInput={(e) => setWidth(Number(e.currentTarget.value))} class="w-24" />
-      </div>
       <div
         ref={wrap}
         class="relative min-h-0 flex-1 overflow-hidden"
@@ -227,6 +218,55 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
             <LocalCursor color={me().color} name={me().name} host={() => wrap} />
           )}
         </Show>
+        <div class="pointer-events-auto absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-surface/95 p-1 shadow-floating backdrop-blur">
+          <button
+            type="button"
+            class="atlas-focus grid h-11 w-11 place-items-center rounded-full"
+            classList={{ "bg-accent text-accent-ink": tool() === "pen", "text-ink-muted hover:bg-bg": tool() !== "pen" }}
+            onClick={() => setTool("pen")}
+            title={t("canvas.pen")}
+          >
+            <EditIcon size={18} />
+          </button>
+          <button
+            type="button"
+            class="atlas-focus grid h-11 w-11 place-items-center rounded-full"
+            classList={{ "bg-accent text-accent-ink": tool() === "eraser", "text-ink-muted hover:bg-bg": tool() !== "eraser" }}
+            onClick={() => setTool("eraser")}
+            title={t("canvas.eraser")}
+          >
+            <EraserIcon size={18} />
+          </button>
+          <span class="mx-1 h-6 w-px bg-border" />
+          <For each={swatches}>
+            {(c) => (
+              <button
+                type="button"
+                class="atlas-focus h-7 w-7 rounded-full border border-black/20"
+                classList={{ "ring-2 ring-accent ring-offset-2 ring-offset-surface": ink() === c }}
+                style={{ background: c }}
+                onClick={() => { setInk(c); setTool("pen"); }}
+              />
+            )}
+          </For>
+          <span class="mx-1 h-6 w-px bg-border" />
+          <input
+            type="range"
+            min="2"
+            max="16"
+            value={width()}
+            onInput={(e) => setWidth(Number(e.currentTarget.value))}
+            class="w-20 accent-[var(--color-accent)]"
+          />
+          <button
+            type="button"
+            class="atlas-focus grid h-11 w-11 place-items-center rounded-full text-ink-muted hover:bg-bg hover:text-danger"
+            onClick={() => send({ type: "clear" })}
+            title={t("canvas.clear")}
+          >
+            <TrashIcon size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -234,11 +274,20 @@ export default function CanvasBoard(props: { id: string; onClose?: () => void })
 
 function CursorMark(props: { color: string; name: string }) {
   return (
-    <div class="flex items-start">
-      <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden>
-        <path d="M1 1 L1 18 L6 13 L11 21 L14 19 L9 12 L16 12 Z" fill={props.color} stroke="#fff" stroke-width="1.2" />
+    <div class="flex items-start drop-shadow-[0_2px_8px_rgba(0,0,0,.28)]">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden>
+        <path
+          d="M4 2.8 L4 18.2 L8.2 14.4 L11.4 20.6 L14.4 19.2 L11.1 12.8 L18.2 12.8 Z"
+          fill={props.color}
+          stroke="#fff"
+          stroke-width="1.4"
+          stroke-linejoin="round"
+        />
       </svg>
-      <span class="mt-3 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm" style={{ background: props.color }}>
+      <span
+        class="mt-[14px] ml-0.5 rounded-md px-1.5 py-[2px] text-[11px] font-medium leading-none text-white"
+        style={{ background: props.color }}
+      >
         {props.name}
       </span>
     </div>

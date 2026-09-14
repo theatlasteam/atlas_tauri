@@ -17,6 +17,7 @@ import {
   TextAa,
   Folder,
   PencilSimple,
+  Eraser,
   Palette,
   ShieldCheck,
   Phone,
@@ -93,6 +94,7 @@ export const ImageIcon = wrap(Image);
 export const FontIcon = wrap(TextAa);
 export const FolderIcon = wrap(Folder);
 export const EditIcon = wrap(PencilSimple);
+export const EraserIcon = wrap(Eraser);
 export const PaletteIcon = wrap(Palette);
 export const InfoIcon = wrap(Info);
 export const ShieldIcon = wrap(ShieldCheck);

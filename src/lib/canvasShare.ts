@@ -1,10 +1,5 @@
 export function canvasShareUrl(id: string): string {
-  if (typeof window === "undefined") return `https://atlasmsg.app/canvas/${id}`;
-  const host = window.location.hostname;
-  if (host === "atlasmsg.app" || host === "www.atlasmsg.app" || host.endsWith(".atlasmsg.app")) {
-    return `https://atlasmsg.app/canvas/${id}`;
-  }
-  return `${window.location.origin}/canvas/${id}`;
+  return `https://atlasmsg.app/canvas/${id}`;
 }
 
 export function canvasIdFromUrl(url: string): string | null {
