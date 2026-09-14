@@ -104,6 +104,7 @@ export default defineConfig({
         privacy: resolve(__dirname, "privacy/index.html"),
         terms: resolve(__dirname, "terms/index.html"),
         oferta: resolve(__dirname, "oferta/index.html"),
+        canvas: resolve(__dirname, "canvas/index.html"),
         app: resolve(__dirname, "app/index.html"),
       },
     },

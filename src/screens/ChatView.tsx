@@ -17,8 +17,10 @@ import Popover from "../ui/Popover";
 import { Menu, MenuItem } from "../ui/Menu";
 import { Composer } from "@atlas/ui";
 import ExpressionTray, { type ExpressionTab } from "../components/ExpressionTray";
+import RichComposerField from "../components/RichComposerField";
 import { emojiToken } from "../lib/customEmoji";
 import { unwrapFx, wrapFx } from "../lib/textEffects";
+import { canvasShareUrl } from "../lib/canvasShare";
 import { useIsDesktopLayout } from "../lib/platform";
 import {
   ArrowDownIcon,
@@ -358,6 +360,18 @@ export default function ChatView() {
   };
 
   const pickFile = () => fileInput?.click();
+
+  const openCanvas = async () => {
+    if (sending() || blocked()) return;
+    try {
+      const board = await api.createCanvas();
+      const url = canvasShareUrl(board.id);
+      await submit(undefined, url);
+      navigate(`/canvas/${board.id}`);
+    } catch {
+      /* create failed */
+    }
+  };
 
   /** Queue a picked file for preview; nothing is uploaded until send. */
   const queueAttachment = async (file: File) => {
@@ -896,7 +910,37 @@ export default function ChatView() {
                     { id: "emoji", label: t("emoji.custom.title"), icon: <SmileyIcon size={16} />, onSelect: () => setComposerPanel((p) => (p === "emoji" ? null : "emoji")) },
                     { id: "gif", label: t("gif.title"), icon: <ImageIcon size={16} />, onSelect: () => setComposerPanel((p) => (p === "gif" ? null : "gif")) },
                     { id: "fx", label: t("fx.title"), icon: <PaletteIcon size={16} />, onSelect: () => setComposerPanel((p) => (p === "fx" ? null : "fx")) },
+                    {
+                      id: "canvas",
+                      section: t("canvas.integrations"),
+                      label: t("canvas.title"),
+                      icon: <EditIcon size={16} />,
+                      onSelect: () => void openCanvas(),
+                    },
                   ]
+            }
+            field={
+              <RichComposerField
+                value={draft()}
+                onChange={onDraftInput}
+                disabled={sending() || uploading() || recording()}
+                placeholder={
+                  editing()
+                    ? t("chatView.editPlaceholder")
+                    : recording()
+                      ? t("chatView.recordingPlaceholder")
+                      : pendingAttachment()
+                        ? t("chatView.captionPlaceholder")
+                        : capsuleAt()
+                          ? t("chatView.capsulePlaceholder")
+                          : chat()?.kind === "broadcast"
+                            ? t("chatView.commentPlaceholder")
+                            : encrypted()
+                              ? t("chatView.encryptedPlaceholder")
+                              : t("chatView.messagePlaceholder")
+                }
+                onSubmit={() => void submit()}
+              />
             }
             tray={
               composerPanel() ? (

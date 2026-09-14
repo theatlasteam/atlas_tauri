@@ -18,6 +18,7 @@ import NewChat from "./screens/NewChat";
 import Calls from "./screens/Calls";
 import CompassLayout from "./components/CompassLayout";
 import SpaceView from "./screens/SpaceView";
+import CanvasView from "./screens/CanvasView";
 import Shell from "./components/Shell";
 import TitleBar from "./components/TitleBar";
 import SecurityGate from "./components/SecurityGate";
@@ -76,6 +77,7 @@ function App() {
               <Route path="/compass" component={CompassLayout} />
               <Route path="/compass/:id" component={CompassLayout} />
               <Route path="/spaces/:id" component={SpaceView} />
+              <Route path="/canvas/:id" component={CanvasView} />
               <Route path="*" component={ChatLayout} />
             </Router>
           </Match>

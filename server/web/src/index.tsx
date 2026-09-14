@@ -4,6 +4,7 @@ import App from "./App";
 import PrivacyPolicy from "./components/PrivacyPolicy";
 import TermsOfService from "./components/TermsOfService";
 import PublicOffer from "./components/PublicOffer";
+import CanvasBoard from "../../src/components/CanvasBoard";
 import PluginEditor from "./screens/PluginEditor";
 import BotEditor from "./screens/BotEditor";
 import DesignSystem from "./screens/DesignSystem";
@@ -35,6 +36,14 @@ function Root() {
   if (path === "/privacy") return <PrivacyPolicy />;
   if (path === "/terms") return <TermsOfService />;
   if (path === "/oferta") return <PublicOffer />;
+  if (path.startsWith("/canvas/")) {
+    const id = path.slice("/canvas/".length).split("/")[0] ?? "";
+    return (
+      <div class="h-screen">
+        <CanvasBoard id={id} />
+      </div>
+    );
+  }
   if (path === "/plugins" || path.startsWith("/plugins/")) return <PluginEditor />;
   if (path === "/bots" || path.startsWith("/bots/")) return <BotEditor />;
   if (path === "/docs" || path.startsWith("/docs/")) return <Docs />;

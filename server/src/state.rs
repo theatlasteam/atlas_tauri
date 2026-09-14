@@ -8,6 +8,7 @@ use crate::config::Config;
 use crate::push::Push;
 use crate::routes::metrics::Tracker;
 use crate::routes::waitlist::WaitlistEntry;
+use crate::ws::canvas::CanvasHub;
 use crate::ws::hub::Hub;
 
 #[derive(Clone)]
@@ -31,6 +32,7 @@ pub struct AppState {
     pub compass_user_id: Uuid,
     pub official_user_id: Uuid,
     pub broadcast_chat_id: Uuid,
+    pub canvas: Arc<CanvasHub>,
 }
 
 impl AppState {
@@ -59,6 +61,7 @@ impl AppState {
             compass_user_id,
             official_user_id,
             broadcast_chat_id,
+            canvas: Arc::new(CanvasHub::default()),
         }
     }
 }

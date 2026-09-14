@@ -8,8 +8,12 @@ atlasmsg.app {
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8080
 	}
-	handle /ws {
+	handle /ws* {
 		reverse_proxy 127.0.0.1:8080
+	}
+	handle /canvas* {
+		rewrite * /canvas/index.html
+		file_server
 	}
 	handle /mcp* {
 		reverse_proxy 127.0.0.1:8080

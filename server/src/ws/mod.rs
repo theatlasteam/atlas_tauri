@@ -1,4 +1,5 @@
 pub mod calls;
+pub mod canvas;
 pub mod hub;
 pub mod protocol;
 

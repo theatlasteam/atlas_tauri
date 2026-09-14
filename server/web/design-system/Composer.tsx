@@ -48,6 +48,7 @@ export default function Composer(props: {
   onActionPointerUp?: (e: PointerEvent) => void;
   banner?: JSX.Element;
   tray?: JSX.Element;
+  field?: JSX.Element;
 }) {
   const canSend = () => props.value.trim().length > 0 || !!props.forceSend;
 
@@ -89,25 +90,32 @@ export default function Composer(props: {
         <Show when={props.addItems?.length} fallback={addBtn}>
           <Menu align="left" trigger={addBtn} items={props.addItems!} />
         </Show>
-        <textarea
-          rows={1}
-          value={props.value}
-          disabled={props.disabled || props.recording}
-          placeholder={props.placeholder ?? "Message"}
-          class="atlas-focus max-h-40 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-subtle"
-          onInput={(e) => {
-            const el = e.currentTarget;
-            props.onChange(el.value);
-            el.style.height = "auto";
-            el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-        />
+        <Show
+          when={props.field}
+          fallback={
+            <textarea
+              rows={1}
+              value={props.value}
+              disabled={props.disabled || props.recording}
+              placeholder={props.placeholder ?? "Message"}
+              class="atlas-focus max-h-40 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-subtle"
+              onInput={(e) => {
+                const el = e.currentTarget;
+                props.onChange(el.value);
+                el.style.height = "auto";
+                el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+            />
+          }
+        >
+          {props.field}
+        </Show>
         <button
           type="button"
           ref={(el) => props.actionRef?.(el)}

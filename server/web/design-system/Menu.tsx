@@ -10,6 +10,7 @@ export type MenuItemDef = {
   icon?: JSX.Element;
   danger?: boolean;
   disabled?: boolean;
+  section?: string;
   onSelect?: () => void;
 };
 
@@ -115,27 +116,34 @@ export default function Menu(props: {
               }}
             >
               <For each={props.items}>
-                {(item) => (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={item.disabled}
-                    class={cx(
-                      "flex w-full rounded-lg px-3 py-2 text-left text-sm transition hover:bg-accent-soft disabled:opacity-40",
-                      item.danger ? "text-red-600" : "text-ink",
-                    )}
-                    onClick={() => {
-                      item.onSelect?.();
-                      setOpen(false);
-                    }}
-                  >
-                    <span class="flex min-w-0 items-center gap-2.5">
-                      <Show when={item.icon}>
-                        <span class="grid h-5 w-5 shrink-0 place-items-center text-current opacity-80">{item.icon}</span>
-                      </Show>
-                      <span class="min-w-0 truncate">{item.label}</span>
-                    </span>
-                  </button>
+                {(item, i) => (
+                  <>
+                    <Show when={item.section && item.section !== props.items[i() - 1]?.section}>
+                      <p class="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">
+                        {item.section}
+                      </p>
+                    </Show>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={item.disabled}
+                      class={cx(
+                        "flex min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm transition hover:bg-accent-soft disabled:opacity-40",
+                        item.danger ? "text-red-600" : "text-ink",
+                      )}
+                      onClick={() => {
+                        item.onSelect?.();
+                        setOpen(false);
+                      }}
+                    >
+                      <span class="flex min-w-0 items-center gap-2.5">
+                        <Show when={item.icon}>
+                          <span class="grid h-5 w-5 shrink-0 place-items-center text-current opacity-80">{item.icon}</span>
+                        </Show>
+                        <span class="min-w-0 truncate">{item.label}</span>
+                      </span>
+                    </button>
+                  </>
                 )}
               </For>
             </div>

@@ -1,6 +1,7 @@
 pub mod attachments;
 pub mod bots;
 pub mod calls;
+pub mod canvas;
 pub mod chats;
 pub mod devices;
 pub mod emoji;

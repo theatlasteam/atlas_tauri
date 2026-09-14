@@ -369,6 +369,9 @@ export const api = {
   emojiMeta: (id: string) => request<CustomEmojiMetaDto>("GET", `/api/emoji/${id}/meta`),
   fetchEmojiUrl: (id: string): Promise<string> => fetchBlobUrl(`/api/emoji/${id}`),
   saveEmojiPack: (ownerId: string) => request<EmojiLibraryDto>("POST", `/api/emoji/packs/${ownerId}`),
+
+  createCanvas: () => request<{ id: string; creatorId: string | null }>("POST", "/api/canvas"),
+  getCanvas: (id: string) => request<{ id: string; creatorId: string | null }>("GET", `/api/canvas/${id}`),
 };
 
 export type CustomEmojiDto = {

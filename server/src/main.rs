@@ -228,6 +228,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/plugins/assets/{id}", get(routes::plugins::get_icon))
         // realtime
         .route("/ws", get(ws::ws_handler))
+        .route("/ws/canvas/{id}", get(ws::canvas::ws_handler))
+        .route("/api/canvas", post(routes::canvas::create))
+        .route("/api/canvas/{id}", get(routes::canvas::get))
         // Everything the routes above didn't match. `/api/*` and `/ws` are
         // unaffected by this — they're matched before the fallback ever
         // runs — so this only decides what a browser sees when it visits
