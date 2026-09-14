@@ -3,7 +3,7 @@ import Appbar from "../../components/Appbar";
 import { SettingsSection, SettingsLinkRow, SettingsRow } from "../../components/SettingsSection";
 import { AppIcon } from "@atlas/ui";
 import { t } from "../../lib/i18n";
-import { APP_BUILD, isWebApp } from "../../lib/app-update";
+import { APP_BUILD } from "../../lib/app-update";
 import { isTauri } from "../../lib/tauri";
 import { isAndroid } from "../../lib/platform";
 import { InfoIcon } from "../../icons";

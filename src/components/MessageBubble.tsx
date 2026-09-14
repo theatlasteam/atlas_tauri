@@ -32,7 +32,10 @@ import {
   VideoIcon,
 } from "../icons";
 import { t } from "../lib/i18n";
-import MarkdownContent from "./MarkdownContent";
+import EffectText from "./EffectText";
+import LinkEmbeds from "./LinkEmbeds";
+import { captionForEmbeds } from "../lib/linkEmbeds";
+import { unwrapFx } from "../lib/textEffects";
 
 /**
  * How long a press has to be held to count as "hold for more".
@@ -625,7 +628,10 @@ function MessageBody(props: { message: Message }) {
             </p>
           }
         >
-          <MarkdownContent text={m().text} class="text-[0.95em] leading-snug" />
+          <Show when={captionForEmbeds(m().text)}>
+            <EffectText text={captionForEmbeds(m().text)} class="text-[0.95em] leading-snug" />
+          </Show>
+          <LinkEmbeds text={unwrapFx(m().text)} />
         </Show>
       </Show>
 

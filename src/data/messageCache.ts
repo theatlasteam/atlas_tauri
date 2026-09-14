@@ -85,35 +85,57 @@ export async function cacheGet(id: string): Promise<Message | undefined> {
   }
 }
 
-export function loadPlaintextsSync(): Record<string, string> {
+type PtBag = Record<string, string | { t: string; v?: string }>;
+
+export type PlaintextBag = { texts: Record<string, string>; versions: Record<string, string> };
+
+function readPtBag(): PtBag {
   try {
     const raw = localStorage.getItem(PT_LS);
     if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, string>;
+    const parsed = JSON.parse(raw) as PtBag;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
   }
 }
 
-export function savePlaintextSync(id: string, text: string) {
+export function loadPlaintextBag(): PlaintextBag {
+  const texts: Record<string, string> = {};
+  const versions: Record<string, string> = {};
+  for (const [id, val] of Object.entries(readPtBag())) {
+    if (typeof val === "string") {
+      if (val && !val.startsWith("🔒 ")) texts[id] = val;
+    } else if (val && typeof val.t === "string" && val.t && !val.t.startsWith("🔒 ")) {
+      texts[id] = val.t;
+      if (val.v) versions[id] = val.v;
+    }
+  }
+  return { texts, versions };
+}
+
+export function loadPlaintextsSync(): Record<string, string> {
+  return loadPlaintextBag().texts;
+}
+
+export function savePlaintextSync(id: string, text: string, contentVersion?: string) {
   if (!id || !text || text.startsWith("🔒 ")) return;
   try {
-    const o = loadPlaintextsSync();
-    o[id] = text;
+    const o = readPtBag();
+    o[id] = contentVersion ? { t: text, v: contentVersion } : { t: text };
     localStorage.setItem(PT_LS, JSON.stringify(o));
   } catch {
     /* quota */
   }
 }
 
-export async function putPlaintext(id: string, chatId: string, text: string): Promise<void> {
-  savePlaintextSync(id, text);
+export async function putPlaintext(id: string, chatId: string, text: string, contentVersion?: string): Promise<void> {
+  savePlaintextSync(id, text, contentVersion);
   try {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(PT, "readwrite");
-      tx.objectStore(PT).put({ id, chatId, text });
+      tx.objectStore(PT).put({ id, chatId, text, contentVersion });
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
@@ -122,25 +144,32 @@ export async function putPlaintext(id: string, chatId: string, text: string): Pr
   }
 }
 
-export async function allPlaintexts(): Promise<Record<string, string>> {
-  const out = loadPlaintextsSync();
+export async function allPlaintexts(): Promise<PlaintextBag> {
+  const bag = loadPlaintextBag();
   try {
     const db = await openDb();
-    const fromIdb: Record<string, string> = await new Promise((resolve, reject) => {
+    const fromIdb: { texts: Record<string, string>; versions: Record<string, string> } = await new Promise((resolve, reject) => {
       const tx = db.transaction(PT, "readonly");
       const req = tx.objectStore(PT).getAll();
       req.onsuccess = () => {
-        const bag: Record<string, string> = {};
-        for (const row of (req.result as { id: string; text: string }[]) ?? []) {
-          if (row?.id && row.text) bag[row.id] = row.text;
+        const texts: Record<string, string> = {};
+        const versions: Record<string, string> = {};
+        for (const row of (req.result as { id: string; text: string; contentVersion?: string }[]) ?? []) {
+          if (row?.id && row.text && !row.text.startsWith("🔒 ")) {
+            texts[row.id] = row.text;
+            if (row.contentVersion) versions[row.id] = row.contentVersion;
+          }
         }
-        resolve(bag);
+        resolve({ texts, versions });
       };
       req.onerror = () => reject(req.error);
     });
-    return { ...out, ...fromIdb };
+    return {
+      texts: { ...bag.texts, ...fromIdb.texts },
+      versions: { ...bag.versions, ...fromIdb.versions },
+    };
   } catch {
-    return out;
+    return bag;
   }
 }
 
@@ -166,7 +195,7 @@ export async function cacheForChat(chatId: string): Promise<Message[]> {
 /** Remove a plaintext revision from both persistence layers. */
 export async function forgetPlaintext(id: string): Promise<void> {
   try {
-    const records = loadPlaintextsSync();
+    const records = readPtBag();
     delete records[id];
     localStorage.setItem(PT_LS, JSON.stringify(records));
   } catch { /* storage unavailable */ }

@@ -29,7 +29,9 @@ function setup(options = {}) {
   const store = load("src/store/messages.ts", {
     "../data/api": { api },
     "../data/messageCache": {
-      loadPlaintextsSync: () => Object.fromEntries(plaintexts), allPlaintexts: async () => Object.fromEntries(plaintexts),
+      loadPlaintextsSync: () => Object.fromEntries(plaintexts),
+      loadPlaintextBag: () => ({ texts: Object.fromEntries(plaintexts), versions: {} }),
+      allPlaintexts: async () => ({ texts: Object.fromEntries(plaintexts), versions: {} }),
       cacheForChat: async () => [...disk.values()], cachePut: async (m) => { disk.set(m.id, { ...m }); },
       putPlaintext: async (id, _chat, text) => { plaintexts.set(id, text); }, forgetPlaintext: async (id) => { plaintexts.delete(id); },
     },

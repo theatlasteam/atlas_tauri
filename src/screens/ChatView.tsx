@@ -16,6 +16,8 @@ import VerifiedBadge from "../components/VerifiedBadge";
 import Popover from "../ui/Popover";
 import { Menu, MenuItem } from "../ui/Menu";
 import { Composer } from "@atlas/ui";
+import GifPicker from "../components/GifPicker";
+import { FX_KINDS, wrapFx, type FxKind } from "../lib/textEffects";
 import { useIsDesktopLayout } from "../lib/platform";
 import {
   ArrowDownIcon,
@@ -29,7 +31,9 @@ import {
   EditIcon,
   EyeIcon,
   HourglassIcon,
+  ImageIcon,
   LockIcon,
+  PaletteIcon,
   PhoneIcon,
   ProhibitIcon,
   ReplyIcon,
@@ -106,6 +110,7 @@ export default function ChatView() {
   );
   const [uploading, setUploading] = createSignal(false);
   const [pendingAttachment, setPendingAttachment] = createSignal<PendingAttachment | null>(null);
+  const [composerPanel, setComposerPanel] = createSignal<"gif" | "fx" | null>(null);
   const [recording, setRecording] = createSignal(false);
   const [loadingOlder, setLoadingOlder] = createSignal(false);
   /** Time capsule armed for the next send (ISO), or null for "send now". */
@@ -276,7 +281,7 @@ export default function ChatView() {
   const encrypted = () => e2eeAvailable && !!chat()?.peerUserId && !chat()?.peerIsBot;
   const blocked = () => !!chat()?.blockedByMe || !!chat()?.blockedMe;
 
-  const submit = async (e?: Event) => {
+  const submit = async (e?: Event, overrideText?: string) => {
     e?.preventDefault();
     // The press that opened the capsule picker still ends in a click on a
     // submit button. Swallow exactly that one.
@@ -284,7 +289,7 @@ export default function ChatView() {
       holdOpenedPicker = false;
       return;
     }
-    const text = draft().trim();
+    const text = (overrideText ?? draft()).trim();
     const attachment = pendingAttachment();
 
     // Saving an edit reuses the composer but is a different operation: no
@@ -860,6 +865,36 @@ export default function ChatView() {
               e.currentTarget.value = "";
             }}
           />
+          <Show when={composerPanel() === "gif"}>
+            <div class="mb-2 rounded-2xl border border-border bg-surface p-2">
+              <GifPicker
+                onPick={(url) => {
+                  setComposerPanel(null);
+                  const next = draft().trim() ? `${draft().trim()} ${url}` : url;
+                  void submit(undefined, next);
+                }}
+              />
+            </div>
+          </Show>
+          <Show when={composerPanel() === "fx"}>
+            <div class="mb-2 flex flex-wrap gap-1.5">
+              <For each={FX_KINDS}>
+                {(kind) => (
+                  <button
+                    type="button"
+                    class="atlas-focus min-h-11 rounded-pill border border-border bg-surface px-3 text-sm font-medium text-ink"
+                    onClick={() => {
+                      if (!draft().trim()) return;
+                      onDraftInput(wrapFx(draft(), kind as FxKind));
+                      setComposerPanel(null);
+                    }}
+                  >
+                    {t(`fx.${kind}`)}
+                  </button>
+                )}
+              </For>
+            </div>
+          </Show>
           <Composer
             value={draft()}
             onChange={onDraftInput}
@@ -881,7 +916,15 @@ export default function ChatView() {
                           ? t("chatView.encryptedPlaceholder")
                           : t("chatView.messagePlaceholder")
             }
-            onAdd={editing() ? undefined : pickFile}
+            addItems={
+              editing()
+                ? undefined
+                : [
+                    { id: "file", label: t("chatView.attachFileAria"), icon: <AttachIcon size={16} />, onSelect: pickFile },
+                    { id: "gif", label: t("gif.title"), icon: <ImageIcon size={16} />, onSelect: () => setComposerPanel((p) => (p === "gif" ? null : "gif")) },
+                    { id: "fx", label: t("fx.title"), icon: <PaletteIcon size={16} />, onSelect: () => setComposerPanel((p) => (p === "fx" ? null : "fx")) },
+                  ]
+            }
             addIcon={uploading() ? <SpinnerIcon size={19} class="animate-spin" /> : undefined}
             addLabel={t("chatView.attachFileAria")}
             onVoice={() => (recording() ? stopRecording() : void startRecording())}
@@ -905,8 +948,8 @@ export default function ChatView() {
               void api.clearChatHistory(chatId()).then(() => messagesStore.clearLocal(chatId()));
             }}
           >
-            <span>{t("chatView.clearHistory")}</span>
             <TrashIcon size={16} />
+            <span>{t("chatView.clearHistory")}</span>
           </MenuItem>
         </Show>
         <MenuItem
@@ -915,10 +958,10 @@ export default function ChatView() {
             void chatsStore.setMuted(chatId(), !chat()?.muted);
           }}
         >
-          <span>{chat()?.muted ? t("chatView.unmute") : t("chatView.mute")}</span>
           <Show when={chat()?.muted} fallback={<BellSlashIcon size={16} />}>
             <BellIcon size={16} />
           </Show>
+          <span>{chat()?.muted ? t("chatView.unmute") : t("chatView.mute")}</span>
         </MenuItem>
       </Menu>
 
@@ -944,13 +987,13 @@ export default function ChatView() {
                 setCapsuleAt(new Date(Date.now() + preset.offsetMs).toISOString());
               }}
             >
+              <HourglassIcon size={16} />
               <span class="flex flex-col items-start">
                 <span>{preset.label}</span>
                 <Show when={preset.hint}>
                   <span class="text-xs text-ink-subtle">{preset.hint}</span>
                 </Show>
               </span>
-              <HourglassIcon size={16} />
             </MenuItem>
           )}
         </For>
@@ -961,8 +1004,8 @@ export default function ChatView() {
               setCapsuleAt(null);
             }}
           >
-            <span>{t("chatView.sendNowInsteadMenu")}</span>
             <SendIcon size={16} />
+            <span>{t("chatView.sendNowInsteadMenu")}</span>
           </MenuItem>
         </Show>
       </Menu>
@@ -1009,20 +1052,20 @@ export default function ChatView() {
                 <div class="p-1.5">
                   <Show when={!message().deleted}>
                     <MenuItem onSelect={() => run(setReplyTo)}>
-                      <span>{t("chatView.reply")}</span>
                       <ReplyIcon size={16} />
+                      <span>{t("chatView.reply")}</span>
                     </MenuItem>
                   </Show>
                   <Show when={canEdit(message())}>
                     <MenuItem onSelect={() => run(startEdit)}>
-                      <span>{t("chatView.edit")}</span>
                       <EditIcon size={16} />
+                      <span>{t("chatView.edit")}</span>
                     </MenuItem>
                   </Show>
                   <Show when={canUnsend(message())}>
                     <MenuItem onSelect={() => run(unsend)}>
-                      <span class="text-danger">{t("chatView.unsend")}</span>
                       <TrashIcon size={16} class="text-danger" />
+                      <span class="text-danger">{t("chatView.unsend")}</span>
                     </MenuItem>
                   </Show>
                   <Show when={message().deleted}>

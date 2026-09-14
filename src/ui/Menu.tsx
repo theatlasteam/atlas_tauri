@@ -53,7 +53,7 @@ export function MenuItem(props: {
       tabIndex={-1}
       disabled={props.disabled}
       onClick={props.onSelect}
-      class={`flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm text-ink transition-colors duration-100 hover:bg-accent-soft focus:bg-accent-soft focus:outline-none disabled:opacity-40 ${props.class ?? ""}`}
+      class={`flex min-h-11 w-full items-center justify-start gap-3 rounded-lg px-3 py-2 text-left text-sm text-ink transition-colors duration-100 hover:bg-accent-soft focus:bg-accent-soft focus:outline-none disabled:opacity-40 ${props.class ?? ""}`}
     >
       {props.children}
     </button>

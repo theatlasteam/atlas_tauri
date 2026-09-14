@@ -10,7 +10,7 @@
 import { createRoot } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { api } from "../data/api";
-import { allPlaintexts, cacheForChat, cachePut, forgetPlaintext, loadPlaintextsSync, putPlaintext } from "../data/messageCache";
+import { allPlaintexts, cacheForChat, cachePut, forgetPlaintext, loadPlaintextBag, putPlaintext } from "../data/messageCache";
 import type { MessageDto } from "../data/generated";
 import { toMessage } from "../data/mapping";
 import type { Message } from "../data/types";
@@ -35,9 +35,8 @@ function createMessagesStore() {
   /** Survives loadInitial wiping the in-memory list: a ciphertext must only
    *  be opened once (the ratchet advances). Live events decrypt in the
    *  background; opening the chat later must reuse this, not decrypt again. */
-  const openedPlaintext = new Map<string, string>(Object.entries(loadPlaintextsSync()));
-
-  const plaintextVersions = new Map<string, string>();
+  const openedPlaintext = new Map<string, string>(Object.entries(loadPlaintextBag().texts));
+  const plaintextVersions = new Map<string, string>(Object.entries(loadPlaintextBag().versions));
   const syncs = new Map<string, Promise<void>>();
   const decryptingVersions = new Set<string>();
   const myId = () => session.user()?.id ?? "";
@@ -68,7 +67,7 @@ function createMessagesStore() {
     if (text && text !== "🔒 Encrypted message" && !text.startsWith("🔒 ")) {
       openedPlaintext.set(messageId, text);
       if (seed?.contentVersion) plaintextVersions.set(messageId, seed.contentVersion);
-      void putPlaintext(messageId, seed?.chatId ?? "", text);
+      void putPlaintext(messageId, seed?.chatId ?? "", text, seed?.contentVersion);
       if (seed) void cachePut({ ...seed, text, decrypting: false, decryptFailed: false, sourceText: text });
       if (seed?.chatId) emitPlaintext(seed.chatId, messageId, text, seed.sentAt);
     }
@@ -320,20 +319,19 @@ function createMessagesStore() {
       return message;
     }
     const knownVersion = plaintextVersions.get(dto.id) ?? previous?.contentVersion;
-    const versionMatches = !!knownVersion && knownVersion === message.contentVersion;
-    if (!versionMatches) {
-      const cachedForNew =
-        !!openedPlaintext.get(dto.id) &&
-        !openedPlaintext.get(dto.id)!.startsWith("🔒 ") &&
-        plaintextVersions.get(dto.id) === message.contentVersion;
-      if (!cachedForNew) forget(dto.id);
+    // Drop stored plaintext only when this row's ciphertext actually changed
+    // (edit). A missing version after reload used to wipe received messages,
+    // then Olm could not open the same body a second time.
+    if (knownVersion && message.contentVersion && knownVersion !== message.contentVersion) {
+      forget(dto.id);
     }
     const cached = openedPlaintext.get(dto.id);
     if (cached && message.decrypting) {
-      if (message.contentVersion) plaintextVersions.set(dto.id, message.contentVersion);
+      rememberPlaintext(dto.id, cached, { ...message, text: cached, decrypting: false });
       message.text = cached;
       message.decrypting = false;
       message.decryptFailed = false;
+      message.sourceText = cached;
       upsert(dto.chatId, message);
       emitPlaintext(dto.chatId, dto.id, cached, dto.sentAt);
       return message;
@@ -383,8 +381,12 @@ function createMessagesStore() {
       const { loadE2eeWasm } = await import("../lib/e2ee-wasm");
       await loadE2eeWasm();
     }
-    for (const [id, text] of Object.entries(await allPlaintexts())) {
+    const persisted = await allPlaintexts();
+    for (const [id, text] of Object.entries(persisted.texts)) {
       openedPlaintext.set(id, text);
+    }
+    for (const [id, version] of Object.entries(persisted.versions)) {
+      plaintextVersions.set(id, version);
     }
     const local = await cacheForChat(chatId);
     for (const row of local) {
