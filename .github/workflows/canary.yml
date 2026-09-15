@@ -29,6 +29,9 @@ jobs:
   build-linux:
     if: ${{ inputs.linux }}
     runs-on: ubuntu-22.04
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+      NO_STRIP: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +47,8 @@ jobs:
             build-essential \
             curl \
             wget \
-            file
+            file \
+            libfuse2
 
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
@@ -125,6 +129,8 @@ jobs:
           java-version: "17"
 
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install Android NDK
         run: sdkmanager --install "ndk;27.0.12077973" "platforms;android-34" "build-tools;34.0.0"
