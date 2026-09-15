@@ -194,9 +194,11 @@ pub struct NewMind {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NewRoom {
     #[serde(default)]
     pub title: String,
+    #[serde(alias = "mind_ids")]
     pub mind_ids: Vec<Uuid>,
 }
 
@@ -601,9 +603,10 @@ pub async fn room_turn(
 // ---------- Schedules ----------
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NewSchedule {
     pub label: String,
-    #[serde(default)]
+    #[serde(default, alias = "cron_expr")]
     pub cron_expr: String,
     #[serde(default)]
     pub tz: String,

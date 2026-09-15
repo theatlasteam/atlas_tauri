@@ -575,7 +575,7 @@ pub async fn run_autonomous_agent(
                 }
                 "shell" => {
                     let cmd = args_parsed.get("command").and_then(|v| v.as_str()).unwrap_or_default();
-                    crate::minds_sandbox::exec_shell(state, mind_id, cmd).await
+                    crate::minds_sandbox::exec_shell(state, owner_id, cmd).await
                 }
                 "message_owner" => {
                     let text = args_parsed.get("text").and_then(|v| v.as_str()).unwrap_or_default();

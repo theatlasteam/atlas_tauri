@@ -44,20 +44,24 @@ pub const SHELL_TIMEOUT: Duration = Duration::from_secs(30);
 const FETCH_TIMEOUT: Duration = Duration::from_secs(20);
 const FETCH_BODY_LIMIT: usize = 512 * 1024;
 
-/// The Mind's private directory, created on first use. Files written here
-/// persist between runs — this is the Mind's memory for things like "the last
-/// price I saw was X".
-pub async fn workdir(state: &AppState, mind_id: Uuid) -> Result<PathBuf, AppError> {
-    let dir = PathBuf::from(&state.cfg.minds_workdir).join(mind_id.to_string());
+/// The Mind's private directory on the **host** side (mapped into the Docker
+/// sandbox at `/sandbox/{owner_id}/`). Created on first use. Files here persist
+/// between runs — the Mind's memory for "last price I saw", etc.
+pub async fn workdir(state: &AppState, owner_id: Uuid) -> Result<PathBuf, AppError> {
+    let dir = PathBuf::from(&state.cfg.minds_workdir).join(owner_id.to_string());
     tokio::fs::create_dir_all(&dir)
         .await
         .map_err(|e| AppError::Internal(format!("mind workdir unavailable: {e}")))?;
     Ok(dir)
 }
 
-/// Run `command` via `sh -c` in the Mind's directory with a scrubbed
-/// environment. Returns stdout + stderr, truncated to OUTPUT_LIMIT.
-pub async fn exec_shell(state: &AppState, mind_id: Uuid, command: &str) -> String {
+/// The Docker container name shared by all Minds for sandboxed execution.
+const SANDBOX_CONTAINER: &str = "atlas-minds-sandbox";
+
+/// Run `command` inside the shared Docker Alpine container, scoped to
+/// `/sandbox/{owner_id}/`. Each user gets their own directory inside the
+/// container; all Minds belonging to that user share it.
+pub async fn exec_shell(state: &AppState, owner_id: Uuid, command: &str) -> String {
     let command = command.trim();
     if command.is_empty() {
         return "error: empty command".to_string();
@@ -65,27 +69,22 @@ pub async fn exec_shell(state: &AppState, mind_id: Uuid, command: &str) -> Strin
     if command.len() > 4000 {
         return "error: command too long (4000 chars max)".to_string();
     }
-    let dir = match workdir(state, mind_id).await {
-        Ok(d) => d,
-        Err(e) => return format!("error: {e}"),
-    };
-    let mut cmd = tokio::process::Command::new("sh");
-    cmd.arg("-c")
-        .arg(command)
-        .current_dir(&dir)
-        // Scrubbed env, built up from nothing: the child must never inherit
-        // DATABASE_URL, COMPASS_API_KEY, or any other server secret, because
-        // anything in the env is one `env` invocation away from the transcript.
+    // Ensure the host-side directory exists (Docker bind-mount maps it in).
+    if let Err(e) = workdir(state, owner_id).await {
+        return format!("error: {e}");
+    }
+    let sandbox_dir = format!("/sandbox/{owner_id}");
+    // Build: docker exec -w /sandbox/{owner_id} atlas-minds-sandbox sh -c '...'
+    let mut cmd = tokio::process::Command::new("docker");
+    cmd.args(["exec", "-w", &sandbox_dir, SANDBOX_CONTAINER, "sh", "-c", command])
         .env_clear()
         .env("PATH", "/usr/bin:/bin:/usr/local/bin")
-        .env("ATLAS_MIND", "1")
-        .env("HOME", &dir)
         .kill_on_drop(true);
 
     let out = tokio::time::timeout(SHELL_TIMEOUT, cmd.output()).await;
     match out {
         Err(_) => format!("error: timed out after {}s", SHELL_TIMEOUT.as_secs()),
-        Ok(Err(e)) => format!("error: failed to spawn shell: {e}"),
+        Ok(Err(e)) => format!("error: failed to run in sandbox: {e}"),
         Ok(Ok(o)) => {
             let mut text = String::new();
             if !o.stdout.is_empty() {
