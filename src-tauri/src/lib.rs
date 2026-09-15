@@ -74,12 +74,16 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
-            use tauri::Manager;
-            if let Some(win) = app.get_webview_window("main") {
-                if let Ok(icon) = tauri::image::Image::from_bytes(include_bytes!("../icons/logo-fg.png")) {
-                    let _ = win.set_icon(icon);
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            {
+                use tauri::Manager;
+                if let Some(win) = app.get_webview_window("main") {
+                    if let Ok(icon) = tauri::image::Image::from_bytes(include_bytes!("../icons/logo-fg.png")) {
+                        let _ = win.set_icon(icon);
+                    }
                 }
             }
+            let _ = app;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

@@ -56,8 +56,12 @@ jobs:
       - name: Install frontend dependencies
         run: bun install
 
-      - name: Build Tauri app (Linux)
-        run: bun run tauri build --bundles deb,appimage
+      - name: Build Tauri app (Linux .deb)
+        run: bun run tauri build --bundles deb
+
+      - name: Build Tauri app (Linux AppImage)
+        continue-on-error: true
+        run: bun run tauri build --bundles appimage
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4

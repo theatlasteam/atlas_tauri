@@ -37,6 +37,9 @@
     "linux": {
       "deb": {
         "desktopTemplate": "linux/get.ahmed.atlas.desktop"
+      },
+      "appimage": {
+        "bundleMediaFramework": false
       }
     }
   }
