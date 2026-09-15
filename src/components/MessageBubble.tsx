@@ -1,4 +1,4 @@
-import { MessageSurface, type MessageButton, type MessageComments } from "@atlas/ui";
+import { MessageSurface, Twemoji, type MessageButton, type MessageComments } from "@atlas/ui";
 import { createEffect, createResource, createSignal, For, on, onCleanup, Show } from "solid-js";
 import { api } from "../data/api";
 import Avatar from "./Avatar";
@@ -14,6 +14,7 @@ import {
 } from "../lib/time";
 import { session } from "../store/session";
 import { preferences } from "../store/preferences";
+import { useIsDesktopLayout } from "../lib/platform";
 import { messagesStore } from "../store/messages";
 import {
   CheckIcon,
@@ -329,7 +330,8 @@ export default function MessageBubble(props: {
    * what it is allowed to show.
    */
   const sealed = () => !!m().sealed;
-  const compact = () => preferences.bubbleStyle === "compact";
+  const isDesktop = useIsDesktopLayout();
+  const compact = () => preferences.bubbleStyle === "compact" && isDesktop();
   const keyboard = (): MessageButton[] | undefined => {
     const list = m().buttons;
     if (!list?.length) return undefined;
@@ -564,6 +566,11 @@ export default function MessageBubble(props: {
                 </Show>
               </Show>
             </Show>
+            <Show when={keyboard()?.length}>
+              <div class="mt-1.5 w-full max-w-[28rem]">
+                <InlineKeyboard buttons={keyboard()!} />
+              </div>
+            </Show>
           </div>
           <Show when={hasReactions()}>
             <div class="mt-1 flex flex-wrap gap-1">
@@ -586,6 +593,64 @@ export default function MessageBubble(props: {
         <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
       </div>
     </Show>
+  );
+}
+
+function InlineKeyboard(props: { buttons: MessageButton[] }) {
+  const rows = () => {
+    const buttons = props.buttons;
+    if (!buttons.length) return [] as MessageButton[][];
+    const hasRow = buttons.some((b) => b.row != null && b.row > 0);
+    if (!hasRow) {
+      const cols = buttons.length <= 3 ? buttons.length : 2;
+      const out: MessageButton[][] = [];
+      for (let i = 0; i < buttons.length; i += cols) out.push(buttons.slice(i, i + cols));
+      return out;
+    }
+    const map = new Map<number, MessageButton[]>();
+    for (const b of buttons) {
+      const r = b.row ?? 0;
+      const list = map.get(r) ?? [];
+      list.push(b);
+      map.set(r, list);
+    }
+    return [...map.entries()].sort((a, b) => a[0] - b[0]).map(([, row]) => row);
+  };
+  return (
+    <div class="flex flex-col gap-1">
+      <For each={rows()}>
+        {(row) => (
+          <div class="grid gap-1" style={{ "grid-template-columns": `repeat(${row.length}, minmax(0, 1fr))` }}>
+            <For each={row}>
+              {(b) => {
+                const inner = (
+                  <span class="flex min-h-11 items-center justify-center gap-1 px-2 py-1.5 text-[13px] font-medium leading-none">
+                    <Show when={b.icon}>
+                      <Twemoji emoji={b.icon!} size={16} />
+                    </Show>
+                    <span class="truncate">{b.label}</span>
+                  </span>
+                );
+                const cls =
+                  "atlas-focus block rounded-xl bg-surface text-center text-ink no-underline ring-1 ring-border transition hover:bg-accent-soft";
+                if (b.url) {
+                  return (
+                    <a href={b.url} target={b.url.startsWith("/") ? undefined : "_blank"} rel="noopener noreferrer" class={cls} onClick={(e) => e.stopPropagation()}>
+                      {inner}
+                    </a>
+                  );
+                }
+                return (
+                  <button type="button" class={cls} onClick={(e) => { e.stopPropagation(); b.onClick?.(e); }}>
+                    {inner}
+                  </button>
+                );
+              }}
+            </For>
+          </div>
+        )}
+      </For>
+    </div>
   );
 }
 

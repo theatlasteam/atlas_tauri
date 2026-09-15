@@ -8,6 +8,7 @@ pub mod emoji;
 pub mod folders;
 pub mod keys;
 pub mod messages;
+pub mod minds;
 pub mod metrics;
 pub mod plugins;
 pub mod spaces;

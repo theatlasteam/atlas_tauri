@@ -80,10 +80,22 @@ fn system_prompt() -> String {
     .to_string()
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct GatewayMessage {
     role: &'static str,
     content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_calls: Option<Vec<GatewayToolCall>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_call_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+}
+
+impl GatewayMessage {
+    fn plain(role: &'static str, content: String) -> Self {
+        Self { role, content, tool_calls: None, tool_call_id: None, name: None }
+    }
 }
 
 #[derive(Serialize)]
@@ -109,7 +121,48 @@ struct Choice {
 
 #[derive(Deserialize)]
 struct ChoiceMessage {
-    content: String,
+    #[serde(default)]
+    content: Option<String>,
+    #[serde(default)]
+    tool_calls: Option<Vec<GatewayToolCall>>,
+}
+
+/// One function call the model wants executed. Mirrors the OpenAI
+/// `tool_calls` shape so any OpenAI-compatible gateway works.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct GatewayToolCall {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub function: GatewayFunctionCall,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct GatewayFunctionCall {
+    pub name: String,
+    pub arguments: String,
+}
+
+#[derive(Serialize, Clone)]
+struct GatewayToolDef {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    function: GatewayFunctionDef,
+}
+
+#[derive(Serialize, Clone)]
+struct GatewayFunctionDef {
+    name: &'static str,
+    description: &'static str,
+    parameters: serde_json::Value,
+}
+
+/// The model's turn in a tool loop: either plain text, or text plus a list of
+/// calls it wants the sandbox to execute before it continues.
+#[derive(Debug)]
+pub struct AgentTurn {
+    pub content: String,
+    pub tool_calls: Vec<GatewayToolCall>,
 }
 
 /// Ensure the Compass account exists; returns its user id either way.
@@ -221,31 +274,379 @@ async fn complete(
         .json()
         .await
         .map_err(|e| AppError::Internal(format!("compass gateway response unparseable: {e}")))?;
-    parsed
+    let msg = parsed
         .choices
         .into_iter()
         .next()
-        .map(|c| c.message.content)
-        .ok_or_else(|| AppError::Internal("compass gateway returned no choices".into()))
+        .map(|c| c.message)
+        .ok_or_else(|| AppError::Internal("compass gateway returned no choices".into()))?;
+    Ok(msg.content.unwrap_or_default())
 }
 
-/// Public entry point for the stateless `/api/compass/complete` proxy — the
-/// client supplies the full conversation (its own history, decrypted
-/// client-side for a DM, or the local-only Compass chat's own log), the
-/// server only adds the system prompt and forwards it. Nothing here is
-/// persisted; the request/response exist only for the duration of the call.
-async fn complete_for_client_with_model(
+/// Tool-free completion for shared Mind-room turns: Minds talk to each other
+/// there as personas, without touching tools — tool use happens in agent jobs
+/// (manual runs and schedule ticks), which go through `complete_agent_turn`.
+/// Also used for nothing else; Compass chat and group replies have their own
+/// paths with the full Compass system prompt.
+pub(crate) async fn complete_sandboxed(
     state: &AppState,
+    system: String,
     turns: Vec<(String, String)>,
-    model: Option<&str>,
 ) -> Result<String, AppError> {
-    let mut messages = vec![GatewayMessage { role: "system", content: system_prompt() }];
+    let mut messages = vec![GatewayMessage::plain(
+        "system",
+        format!(
+            "{system}\n\nThis is a conversation turn, not a job: reply in plain text only, \
+             no tool calls, no markdown fences named space. Keep replies under 800 words."
+        ),
+    )];
     for (role, content) in turns {
         let role = match role.as_str() {
             "assistant" => "assistant",
             _ => "user",
         };
-        messages.push(GatewayMessage { role, content });
+        messages.push(GatewayMessage::plain(role, content));
+    }
+    let mut reply = complete(state, messages, None).await?;
+    if let Some(i) = reply.find("```space") {
+        reply.truncate(i);
+    }
+    if reply.chars().count() > 4000 {
+        reply = reply.chars().take(4000).collect();
+    }
+    Ok(reply.trim().to_string())
+}
+
+/// The three tools a Mind may call. The descriptions are written for the
+/// model, not for docs: each one states when to reach for it and what comes
+/// back, because a tool the model doesn't understand is a tool it won't use.
+fn mind_tool_defs() -> Vec<GatewayToolDef> {
+    vec![
+        GatewayToolDef {
+            kind: "function",
+            function: GatewayFunctionDef {
+                name: "web_fetch",
+                description: "Read a web page. Use for anything that changes: prices, listings, docs, news. Returns the page text, truncated.",
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": { "url": { "type": "string", "description": "https URL to read" } },
+                    "required": ["url"],
+                }),
+            },
+        },
+        GatewayToolDef {
+            kind: "function",
+            function: GatewayFunctionDef {
+                name: "shell",
+                description: "Run a shell command in your private sandbox directory. Files persist between runs — use them for state like the last price seen. Returns stdout plus stderr.",
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": { "command": { "type": "string", "description": "shell command, e.g. \"cat last_price.txt\"" } },
+                    "required": ["command"],
+                }),
+            },
+        },
+        GatewayToolDef {
+            kind: "function",
+            function: GatewayFunctionDef {
+                name: "browser",
+                description: "Open and browse a webpage using a custom human-mimicking browser engine. Bypasses bot protections, executes realistic navigation headers, and extracts clear text and listing data.",
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "url": { "type": "string", "description": "The URL to visit" },
+                        "wait_seconds": { "type": "integer", "description": "Optional seconds to wait/delay (1 to 10) to mimic reading" }
+                    },
+                    "required": ["url"],
+                }),
+            },
+        },
+        GatewayToolDef {
+            kind: "function",
+            function: GatewayFunctionDef {
+                name: "set_schedule",
+                description: "Create or update a recurring schedule for yourself (e.g. check a website every morning). You will automatically wake up and run when this schedule fires.",
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "label": { "type": "string", "description": "Human label, e.g. 'Daily price check'" },
+                        "cron_expr": { "type": "string", "description": "Standard 5-field cron expression, e.g. '0 9 * * *' (every day at 9am UTC) or '0 */6 * * *' (every 6 hours)" },
+                        "task": { "type": "string", "description": "The specific task instructions you will execute when the schedule triggers" }
+                    },
+                    "required": ["label", "cron_expr", "task"],
+                }),
+            },
+        },
+        GatewayToolDef {
+            kind: "function",
+            function: GatewayFunctionDef {
+                name: "message_owner",
+                description: "Send your owner a message. This is how findings reach them — end runs that found something worth knowing with one call.",
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": { "text": { "type": "string", "description": "message to your owner, short: finding first, evidence after" } },
+                    "required": ["text"],
+                }),
+            },
+        },
+    ]
+}
+
+/// One model turn inside an agent job, with the Mind's tool allowlist applied:
+/// tools the owner disabled are not offered at all, so the model plans around
+/// what it actually has instead of calling something that will be refused.
+pub(crate) async fn complete_agent_turn(
+    state: &AppState,
+    messages: Vec<AgentMessage>,
+    allowed_tools: &[&str],
+) -> Result<AgentTurn, AppError> {
+    let Some(api_key) = &state.cfg.compass_api_key else {
+        return Err(AppError::BadRequest(
+            "Compass isn't configured on this server (no API key set)".into(),
+        ));
+    };
+
+    let tools: Vec<GatewayToolDef> = mind_tool_defs()
+        .into_iter()
+        .filter(|t| allowed_tools.contains(&t.function.name))
+        .collect();
+
+    #[derive(Serialize)]
+    struct AgentRequest {
+        model: String,
+        messages: Vec<GatewayMessage>,
+        temperature: f32,
+        stream: bool,
+        max_tokens: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        tools: Option<Vec<GatewayToolDef>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        tool_choice: Option<&'static str>,
+    }
+
+    let body = AgentRequest {
+        model: state.cfg.compass_model.clone(),
+        messages: messages.into_iter().map(GatewayMessage::from).collect(),
+        temperature: 0.7,
+        stream: false,
+        max_tokens: 65_536,
+        tool_choice: if tools.is_empty() { None } else { Some("auto") },
+        tools: if tools.is_empty() { None } else { Some(tools) },
+    };
+
+    let res = state
+        .http
+        .post(format!("{}/v1/chat/completions", state.cfg.compass_api_base))
+        .timeout(std::time::Duration::from_secs(600))
+        .bearer_auth(api_key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("compass gateway request failed: {e}")))?;
+
+    if !res.status().is_success() {
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+        tracing::warn!(%status, body = %text, "compass gateway returned an error");
+        return Err(AppError::Internal("Compass couldn't come up with a reply just now.".into()));
+    }
+
+    let parsed: ChatCompletionResponse = res
+        .json()
+        .await
+        .map_err(|e| AppError::Internal(format!("compass gateway response unparseable: {e}")))?;
+    let msg = parsed
+        .choices
+        .into_iter()
+        .next()
+        .map(|c| c.message)
+        .ok_or_else(|| AppError::Internal("compass gateway returned no choices".into()))?;
+    Ok(AgentTurn {
+        content: msg.content.unwrap_or_default(),
+        tool_calls: msg.tool_calls.unwrap_or_default(),
+    })
+}
+
+/// A message in the agent loop. Tool results come back as `tool` role messages
+/// pointing at the call id they answer, which is what lets the model match
+/// results to calls when it made several at once.
+#[derive(Clone)]
+pub enum AgentMessage {
+    System(String),
+    User(String),
+    Assistant { content: String, tool_calls: Vec<GatewayToolCall> },
+    Tool { call_id: String, name: String, output: String },
+}
+
+impl From<AgentMessage> for GatewayMessage {
+    fn from(m: AgentMessage) -> Self {
+        match m {
+            AgentMessage::System(content) => GatewayMessage::plain("system", content),
+            AgentMessage::User(content) => GatewayMessage::plain("user", content),
+            AgentMessage::Assistant { content, tool_calls } => GatewayMessage {
+                role: "assistant",
+                content,
+                tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
+                tool_call_id: None,
+                name: None,
+            },
+            AgentMessage::Tool { call_id, name, output } => GatewayMessage {
+                role: "tool",
+                content: output,
+                tool_calls: None,
+                tool_call_id: Some(call_id),
+                name: Some(name),
+            },
+        }
+    }
+}
+
+/// Result of an autonomous multi-turn agent run
+pub struct AutonomousAgentResult {
+    pub output: String,
+    pub tool_calls_log: Vec<serde_json::Value>,
+    pub status: String,
+    pub error: String,
+}
+
+/// Executes an autonomous multi-turn agent loop for a Mind.
+/// Keeps running tool turns until the model outputs a final answer or reaches max turns limit.
+pub async fn run_autonomous_agent(
+    state: &AppState,
+    mind_id: Uuid,
+    owner_id: Uuid,
+    mind_name: &str,
+    system_prompt: String,
+    task_input: String,
+    allowed_tools: &[&str],
+) -> AutonomousAgentResult {
+    let mut messages = vec![
+        AgentMessage::System(system_prompt),
+        AgentMessage::User(task_input),
+    ];
+    let mut tool_calls_log: Vec<serde_json::Value> = Vec::new();
+    let max_turns = 10;
+    let mut final_content = String::new();
+
+    for _turn_idx in 0..max_turns {
+        let turn = match complete_agent_turn(state, messages.clone(), allowed_tools).await {
+            Ok(t) => t,
+            Err(e) => {
+                return AutonomousAgentResult {
+                    output: final_content,
+                    tool_calls_log,
+                    status: "error".into(),
+                    error: e.to_string(),
+                };
+            }
+        };
+
+        let has_tools = !turn.tool_calls.is_empty();
+        let content = turn.content.clone();
+        if !content.trim().is_empty() {
+            final_content = content.clone();
+        }
+
+        messages.push(AgentMessage::Assistant {
+            content: turn.content.clone(),
+            tool_calls: turn.tool_calls.clone(),
+        });
+
+        if !has_tools {
+            // Model finished turn without any further tool calls
+            break;
+        }
+
+        // Execute tool calls requested by the model
+        for tool_call in turn.tool_calls {
+            let fn_name = &tool_call.function.name;
+            let args_raw = &tool_call.function.arguments;
+            let args_parsed: serde_json::Value = serde_json::from_str(args_raw).unwrap_or_default();
+
+            let tool_output = match fn_name.as_str() {
+                "browser" => {
+                    let url = args_parsed.get("url").and_then(|v| v.as_str()).unwrap_or_default();
+                    let wait = args_parsed.get("wait_seconds").and_then(|v| v.as_u64());
+                    crate::minds_sandbox::browser_fetch(state, url, wait).await
+                }
+                "web_fetch" => {
+                    let url = args_parsed.get("url").and_then(|v| v.as_str()).unwrap_or_default();
+                    crate::minds_sandbox::fetch_url(state, url).await
+                }
+                "shell" => {
+                    let cmd = args_parsed.get("command").and_then(|v| v.as_str()).unwrap_or_default();
+                    crate::minds_sandbox::exec_shell(state, mind_id, cmd).await
+                }
+                "message_owner" => {
+                    let text = args_parsed.get("text").and_then(|v| v.as_str()).unwrap_or_default();
+                    match crate::minds_sandbox::send_owner_message(state, mind_id, owner_id, mind_name, text).await {
+                        Ok(_) => "Message delivered to your owner via Atlas.".to_string(),
+                        Err(e) => format!("Failed to deliver message: {e}"),
+                    }
+                }
+                "set_schedule" => {
+                    let label = args_parsed.get("label").and_then(|v| v.as_str()).unwrap_or("Scheduled Task");
+                    let cron = args_parsed.get("cron_expr").and_then(|v| v.as_str()).unwrap_or("");
+                    let task = args_parsed.get("task").and_then(|v| v.as_str()).unwrap_or("");
+
+                    if cron.split_whitespace().count() == 5 {
+                        let sched_id = Uuid::new_v4();
+                        let res = sqlx::query(
+                            "INSERT INTO mind_schedules (id, mind_id, label, cron_expr, tz, task) VALUES ($1,$2,$3,$4,'UTC',$5)",
+                        )
+                        .bind(sched_id)
+                        .bind(mind_id)
+                        .bind(label)
+                        .bind(cron)
+                        .bind(task)
+                        .execute(&state.db)
+                        .await;
+
+                        match res {
+                            Ok(_) => format!("Schedule '{label}' created successfully with cron '{cron}'."),
+                            Err(e) => format!("Database error saving schedule: {e}"),
+                        }
+                    } else {
+                        "error: cron expression must have exactly 5 fields, e.g. '0 9 * * *'".to_string()
+                    }
+                }
+                unknown => format!("error: unknown tool '{unknown}'"),
+            };
+
+            tool_calls_log.push(serde_json::json!({
+                "name": fn_name,
+                "arguments": args_parsed,
+                "output": tool_output
+            }));
+
+            messages.push(AgentMessage::Tool {
+                call_id: tool_call.id,
+                name: tool_call.function.name,
+                output: tool_output,
+            });
+        }
+    }
+
+    AutonomousAgentResult {
+        output: final_content,
+        tool_calls_log,
+        status: "ok".into(),
+        error: String::new(),
+    }
+}
+
+async fn complete_for_client_with_model(
+    state: &AppState,
+    turns: Vec<(String, String)>,
+    model: Option<&str>,
+) -> Result<String, AppError> {
+    let mut messages = vec![GatewayMessage::plain("system", system_prompt())];
+    for (role, content) in turns {
+        let role = match role.as_str() {
+            "assistant" => "assistant",
+            _ => "user",
+        };
+        messages.push(GatewayMessage::plain(role, content));
     }
     complete(state, messages, model).await
 }
@@ -389,13 +790,13 @@ pub async fn complete_stream_route(
         ));
     };
 
-    let mut messages = vec![GatewayMessage { role: "system", content: system_prompt() }];
+    let mut messages = vec![GatewayMessage::plain("system", system_prompt())];
     for turn in payload.messages {
         let role = match turn.role.as_str() {
             "assistant" => "assistant",
             _ => "user",
         };
-        messages.push(GatewayMessage { role, content: turn.content });
+        messages.push(GatewayMessage::plain(role, turn.content));
     }
 
     let body = ChatCompletionRequest {
@@ -469,13 +870,13 @@ async fn try_respond_in_group(
     .fetch_all(&state.db)
     .await?;
 
-    let mut messages = vec![GatewayMessage { role: "system", content: system_prompt() }];
+    let mut messages = vec![GatewayMessage::plain("system", system_prompt())];
     for (author_id, body, name) in rows.into_iter().rev() {
         let text = String::from_utf8_lossy(&body).into_owned();
         if author_id == compass_user_id {
-            messages.push(GatewayMessage { role: "assistant", content: text });
+            messages.push(GatewayMessage::plain("assistant", text));
         } else {
-            messages.push(GatewayMessage { role: "user", content: format!("{name}: {text}") });
+            messages.push(GatewayMessage::plain("user", format!("{name}: {text}")));
         }
     }
 

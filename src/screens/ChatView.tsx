@@ -654,8 +654,8 @@ export default function ChatView() {
                       <div
                         onClick={() => bubbleRetry(message)}
                         classList={{
-                          "mt-3": (isFirst() || !!message.callLog) && preferences.bubbleStyle !== "compact",
-                          "mt-2": (isFirst() || !!message.callLog) && preferences.bubbleStyle === "compact",
+                          "mt-3": (isFirst() || !!message.callLog) && !(preferences.bubbleStyle === "compact" && isDesktop()),
+                          "mt-2": (isFirst() || !!message.callLog) && preferences.bubbleStyle === "compact" && isDesktop(),
                           "mt-[2px]": !isFirst() && !message.callLog,
                         }}
                       >
@@ -1130,7 +1130,7 @@ export default function ChatView() {
               class="min-h-0 flex-1 border-0 bg-white"
               src={app().url}
               title={t("chatView.miniApp")}
-              sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+              sandbox="allow-scripts allow-forms"
             />
           </div>
         )}

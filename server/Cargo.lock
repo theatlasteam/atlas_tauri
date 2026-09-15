@@ -80,6 +80,7 @@ dependencies = [
  "tracing-subscriber",
  "ts-rs",
  "unicode-segmentation",
+ "url",
  "uuid",
 ]
 

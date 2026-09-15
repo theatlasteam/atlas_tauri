@@ -67,6 +67,7 @@ import {
   Planet,
   Copy,
   Info,
+  Brain,
 } from "phosphor-solid-js";
 import type { JSX } from "solid-js";
 
@@ -158,3 +159,5 @@ export const CompassIcon = wrap(Compass);
 export const PluginsIcon = wrap(PuzzlePiece);
 export const SpaceIcon = wrap(Planet);
 export const CopyIcon = wrap(Copy);
+/** Compass Minds (Atlas X) — a brain, for a persona that persists. */
+export const MindsIcon = wrap(Brain);

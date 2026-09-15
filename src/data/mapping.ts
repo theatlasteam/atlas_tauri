@@ -27,6 +27,7 @@ export function toUser(dto: UserDto): User {
     readReceipts: dto.readReceipts,
     lastSeenVisible: dto.lastSeenVisible,
     isBot: dto.isBot,
+    atlasX: dto.atlasX ?? dto.verified,
   };
 }
 

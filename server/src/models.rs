@@ -22,6 +22,8 @@ pub struct UserRow {
     pub read_receipts: bool,
     pub last_seen_visible: bool,
     pub is_bot: bool,
+    #[sqlx(default)]
+    pub atlas_x: bool,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -88,10 +90,15 @@ pub struct UserDto {
     pub read_receipts: bool,
     pub last_seen_visible: bool,
     pub is_bot: bool,
+    /// Atlas X: Compass Minds and other exclusive surfaces.
+    pub atlas_x: bool,
 }
 
 impl From<UserRow> for UserDto {
     fn from(u: UserRow) -> Self {
+        // Resolved before `handle` moves into the DTO below — otherwise the
+        // comparison would borrow a moved value.
+        let atlas_x = u.atlas_x || u.verified || u.handle == "atlas";
         Self {
             id: u.id,
             handle: u.handle,
@@ -109,6 +116,7 @@ impl From<UserRow> for UserDto {
             read_receipts: u.read_receipts,
             last_seen_visible: u.last_seen_visible,
             is_bot: u.is_bot,
+            atlas_x,
         }
     }
 }

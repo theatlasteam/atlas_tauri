@@ -17,6 +17,7 @@ import Licenses from "./screens/settings/Licenses";
 import NewChat from "./screens/NewChat";
 import Calls from "./screens/Calls";
 import CompassLayout from "./components/CompassLayout";
+import MindsLayout from "./components/MindsLayout";
 import SpaceView from "./screens/SpaceView";
 import CanvasView from "./screens/CanvasView";
 import Shell from "./components/Shell";
@@ -76,6 +77,8 @@ function App() {
               <Route path="/calls" component={Calls} />
               <Route path="/compass" component={CompassLayout} />
               <Route path="/compass/:id" component={CompassLayout} />
+              <Route path="/minds" component={MindsLayout} />
+              <Route path="/minds/:id" component={MindsLayout} />
               <Route path="/spaces/:id" component={SpaceView} />
               <Route path="/canvas/:id" component={CanvasView} />
               <Route path="*" component={ChatLayout} />

@@ -22,6 +22,7 @@ export interface User {
   readReceipts: boolean;
   lastSeenVisible: boolean;
   isBot?: boolean;
+  atlasX?: boolean;
 }
 
 /** Parsed body of a "call-log" message. */

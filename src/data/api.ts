@@ -370,8 +370,110 @@ export const api = {
   fetchEmojiUrl: (id: string): Promise<string> => fetchBlobUrl(`/api/emoji/${id}`),
   saveEmojiPack: (ownerId: string) => request<EmojiLibraryDto>("POST", `/api/emoji/packs/${ownerId}`),
 
+  // Atlas X — Compass Minds. Server-side rooms of persistent personas that
+  // talk to each other as well as to you; see lib/minds.ts for the types and
+  // screens/Minds*.tsx for the UI. Every route is gated on Atlas X server-side
+  // (routes/minds.rs::require_x), which is also what the client keys the whole
+  // surface's visibility on.
+  listMinds: () => request<MindDto[]>("GET", "/api/minds"),
+  createMind: (body: { name: string; prompt?: string; tools?: Record<string, boolean> }) =>
+    request<MindDto>("POST", "/api/minds", body),
+  updateMind: (
+    id: string,
+    body: { name: string; prompt?: string; tools?: Record<string, boolean>; isActive?: boolean },
+  ) => request<MindDto>("PATCH", `/api/minds/${id}`, body),
+  deleteMind: (id: string) => request<{ ok: boolean }>("DELETE", `/api/minds/${id}`),
+  runMind: (id: string, input: string) =>
+    request<MindRunDto>("POST", `/api/minds/${id}/run`, { input }),
+  listMindRuns: (id: string) => request<MindRunDto[]>("GET", `/api/minds/${id}/runs`),
+  listMindSchedules: (id: string) =>
+    request<MindScheduleDto[]>("GET", `/api/minds/${id}/schedules`),
+  createMindSchedule: (
+    id: string,
+    body: { label: string; cronExpr: string; tz?: string; task: string },
+  ) => request<MindScheduleDto>("POST", `/api/minds/${id}/schedules`, body),
+  toggleMindSchedule: (mindId: string, scheduleId: string) =>
+    request<MindScheduleDto>("PATCH", `/api/minds/${mindId}/schedules/${scheduleId}`),
+  deleteMindSchedule: (mindId: string, scheduleId: string) =>
+    request<{ ok: boolean }>("DELETE", `/api/minds/${mindId}/schedules/${scheduleId}`),
+  listMindRooms: () => request<MindRoomDto[]>("GET", "/api/minds/rooms"),
+  getMindRoom: (id: string) => request<MindRoomDto>("GET", `/api/minds/rooms/${id}`),
+  createMindRoom: (body: { title?: string; mindIds: string[] }) =>
+    request<MindRoomDto>("POST", "/api/minds/rooms", body),
+  deleteMindRoom: (id: string) => request<{ ok: boolean }>("DELETE", `/api/minds/rooms/${id}`),
+  listMindMessages: (roomId: string) =>
+    request<MindMessageDto[]>("GET", `/api/minds/rooms/${roomId}/messages`),
+  /** One turn: the human's line goes in, every Mind in the room answers in
+   *  order (each seeing the ones before it), and the whole transcript comes
+   *  back. Not streaming — a reply you can't attribute to a Mind yet isn't
+   *  worth rendering. */
+  sendMindTurn: (roomId: string, text: string) =>
+    request<MindMessageDto[]>("POST", `/api/minds/rooms/${roomId}/messages`, { text }),
+
   createCanvas: () => request<{ id: string; creatorId: string | null }>("POST", "/api/canvas"),
   getCanvas: (id: string) => request<{ id: string; creatorId: string | null }>("GET", `/api/canvas/${id}`),
+};
+
+/**
+ * A Compass Mind — an autonomous agent owned by one Atlas X account. It runs
+ * on the server 24/7 in an isolated sandbox with tools (web fetch, shell,
+ * owner messaging) and optional cron schedules.
+ */
+export type MindDto = {
+  id: string;
+  name: string;
+  /** Gradient start/end; every Mind gets its own colour so a room is readable
+   *  at a glance without reading the names. */
+  color: string;
+  colorEnd: string;
+  /** Character + job description, in the owner's own words. */
+  prompt: string;
+  /** Paused Minds keep their schedules and history but never wake up. */
+  isActive: boolean;
+  /** Tool allowlist: { browser: bool, web_fetch: bool, shell: bool, set_schedule: bool, message_owner: bool }. */
+  tools: Record<string, boolean>;
+  lastStatus: string;
+  lastRunAt: string | null;
+  createdAt: string;
+};
+
+export type MindScheduleDto = {
+  id: string;
+  label: string;
+  cronExpr: string;
+  tz: string;
+  task: string;
+  enabled: boolean;
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+};
+
+export type MindRunDto = {
+  id: string;
+  trigger: string;
+  input: string;
+  output: string;
+  toolCalls?: Array<{ name: string; arguments: any; output: string }>;
+  status: string;
+  error?: string;
+  startedAt: string;
+  finishedAt?: string;
+};
+
+export type MindRoomDto = {
+  id: string;
+  title: string;
+  minds: MindDto[];
+  createdAt: string;
+};
+
+export type MindMessageDto = {
+  id: string;
+  /** null for the human's own lines. */
+  mindId: string | null;
+  role: "user" | "mind";
+  content: string;
+  createdAt: string;
 };
 
 export type CustomEmojiDto = {

@@ -56,6 +56,8 @@ pub struct Config {
     pub compass_model: String,
     /// OpenAI-compatible base URL, no trailing slash (`COMPASS_API_BASE`).
     pub compass_api_base: String,
+    /// Directory for isolated Minds sandbox workspaces.
+    pub minds_workdir: String,
     /// Bearer / x-admin-token for official broadcasts. Falls back to
     /// `waitlist_admin_token` when unset.
     pub broadcast_admin_token: Option<String>,
@@ -124,6 +126,7 @@ impl Config {
                 .unwrap_or_else(|| "https://hybra.lol".into())
                 .trim_end_matches('/')
                 .to_string(),
+            minds_workdir: var("MINDS_WORKDIR").unwrap_or_else(|| "./data/minds_sandbox".into()),
             broadcast_admin_token: var("BROADCAST_ADMIN_TOKEN"),
         })
     }

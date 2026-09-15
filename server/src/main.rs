@@ -5,6 +5,8 @@ mod compass;
 mod config;
 mod error;
 mod mcp;
+mod minds_sandbox;
+mod minds_worker;
 mod models;
 mod push;
 mod routes;
@@ -78,6 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // without it a leaked entry makes a user permanently "busy".
     ws::calls::spawn_stale_call_reaper(state.clone());
     routes::metrics::spawn_reaper(state.clone());
+    minds_worker::spawn_worker(state.clone());
 
     let app = Router::new()
         .merge(mcp::router(state.clone()))
@@ -229,6 +232,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // realtime
         .route("/ws", get(ws::ws_handler))
         .route("/ws/canvas/{id}", get(ws::canvas::ws_handler))
+        .route("/api/minds", get(routes::minds::list_minds).post(routes::minds::create_mind))
+        .route("/api/minds/{id}", patch(routes::minds::update_mind).delete(routes::minds::delete_mind))
+        .route("/api/minds/rooms", get(routes::minds::list_rooms).post(routes::minds::create_room))
+        .route("/api/minds/rooms/{id}", get(routes::minds::get_room).delete(routes::minds::delete_room))
+        .route("/api/minds/rooms/{id}/messages", get(routes::minds::room_messages).post(routes::minds::room_turn))
+        .route("/api/minds/{id}/run", post(routes::minds::run_mind))
+        .route("/api/minds/{id}/runs", get(routes::minds::list_runs))
+        .route("/api/minds/{id}/schedules", get(routes::minds::list_schedules).post(routes::minds::create_schedule))
+        .route("/api/minds/{id}/schedules/{schedule_id}", patch(routes::minds::toggle_schedule).delete(routes::minds::delete_schedule))
         .route("/api/canvas", post(routes::canvas::create))
         .route("/api/canvas/{id}", get(routes::canvas::get))
         // Everything the routes above didn't match. `/api/*` and `/ws` are

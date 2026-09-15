@@ -837,13 +837,40 @@ async fn enqueue_update(
     Ok(())
 }
 
+fn public_https(raw: &str) -> bool {
+    let Ok(u) = reqwest::Url::parse(raw) else {
+        return false;
+    };
+    if u.scheme() != "https" || raw.len() > 2048 {
+        return false;
+    }
+    let host = u.host_str().unwrap_or("").to_ascii_lowercase();
+    if host.is_empty()
+        || host == "localhost"
+        || host.ends_with(".localhost")
+        || host.ends_with(".local")
+        || host.ends_with(".internal")
+        || host.ends_with(".lan")
+        || host.contains("metadata")
+    {
+        return false;
+    }
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        if ip.is_loopback() || ip.is_unspecified() || ip.is_multicast() {
+            return false;
+        }
+        if let std::net::IpAddr::V4(v4) = ip {
+            if v4.is_private() || v4.is_link_local() {
+                return false;
+            }
+        }
+    }
+    true
+}
+
 async fn fetch_live(state: &AppState, url: &str) -> Option<String> {
     let url = url.trim();
-    if !url.starts_with("https://") || url.len() > 2048 {
-        return None;
-    }
-    let lower = url.to_ascii_lowercase();
-    if lower.contains("localhost") || lower.contains("127.0.0.1") || lower.contains("0.0.0.0") {
+    if !public_https(url) {
         return None;
     }
     let res = state.http.get(url).send().await.ok()?;

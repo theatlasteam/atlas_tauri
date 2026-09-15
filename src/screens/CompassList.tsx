@@ -1,10 +1,13 @@
-import { For, Show } from "solid-js";
+import { For, Show, onMount } from "solid-js";
 import { A, useNavigate } from "@solidjs/router";
 import { compassChat } from "../store/compassChat";
+import { mindsStore } from "../store/minds";
+import { session } from "../store/session";
 import EmptyState from "../components/EmptyState";
 import AnimatedList from "../ui/AnimatedList";
 import Appbar from "../components/Appbar";
-import { CompassIcon, PlusIcon, TrashIcon } from "../icons";
+import MindOrb from "../components/MindOrb";
+import { CompassIcon, MindsIcon, PlusIcon, TrashIcon } from "../icons";
 import { formatRelativeTime } from "../lib/time";
 import { t } from "../lib/i18n";
 
@@ -27,23 +30,103 @@ export default function CompassList() {
     compassChat.remove(id);
   };
 
+  // Atlas X: Minds live here, inside Compass — not in Settings. A Mind is a
+  // 24/7 sandbox agent (tools + schedules), and Compass is where you talk to
+  // AI things, so this is where people look for them.
+  const isX = () => session.user()?.atlasX === true;
+  const minds = () => mindsStore.state.minds ?? [];
+  onMount(() => {
+    if (isX() && mindsStore.state.minds === null) void mindsStore.loadMinds();
+    if (isX() && mindsStore.state.rooms === null) void mindsStore.loadRooms();
+  });
+
   return (
     <div class="flex h-full flex-col">
       <Appbar
         title={t("compass.title")}
         actions={
-          <button
-            type="button"
-            onClick={startNew}
-            class="flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
-            aria-label={t("compass.newChatAria")}
-          >
-            <PlusIcon size={21} />
-          </button>
+          <div class="flex items-center">
+            {/* Atlas X: creating a Mind starts here, in Compass — not in a tab,
+                not in Settings. One tap goes to Minds, where the creator lives. */}
+            <Show when={isX()}>
+              <button
+                type="button"
+                onClick={() => navigate("/minds")}
+                class="flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
+                aria-label={t("minds.newMindAria")}
+                title={t("minds.newMind")}
+              >
+                <MindsIcon size={21} />
+              </button>
+            </Show>
+            <button
+              type="button"
+              onClick={startNew}
+              class="flex h-11 w-11 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
+              aria-label={t("compass.newChatAria")}
+            >
+              <PlusIcon size={21} />
+            </button>
+          </div>
         }
       />
 
       <div class="flex-1 overflow-y-auto overscroll-contain pb-28">
+        {/* Minds row: horizontal snap-list of your agents above the chats. */}
+        <Show when={isX()}>
+          <div class="border-b border-border px-5 pb-4 pt-2">
+            <div class="mb-2 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => navigate("/minds")}
+                class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle hover:text-ink"
+              >
+                <MindsIcon size={14} />
+                {t("minds.title")}
+              </button>
+              <Show when={minds().length > 0}>
+                <span class="text-[11px] text-ink-subtle">
+                  {minds().filter((m) => m.isActive).length}/{minds().length} {t("minds.active")}
+                </span>
+              </Show>
+            </div>
+            <Show
+              when={minds().length > 0}
+              fallback={
+                <button
+                  type="button"
+                  onClick={() => navigate("/minds")}
+                  class="flex w-full items-center gap-3 rounded-2xl border border-dashed border-border px-3 py-2.5 text-left transition hover:border-accent hover:bg-accent-soft"
+                >
+                  <MindsIcon size={18} class="shrink-0 text-ink-subtle" />
+                  <span class="text-sm text-ink-muted">{t("minds.emptyHint")}</span>
+                </button>
+              }
+            >
+              <div class="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
+                <For each={minds()}>
+                  {(mind) => (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/minds/${mind.id}`)}
+                      class="flex w-20 shrink-0 flex-col items-center gap-1.5 rounded-2xl border border-border bg-surface px-2 py-3 transition hover:border-accent active:scale-95"
+                      style={{ opacity: mind.isActive ? "1" : "0.5" }}
+                    >
+                      <MindOrb color={mind.color} colorEnd={mind.colorEnd} size={40} />
+                      <span class="w-full truncate text-center text-xs font-medium text-ink">
+                        {mind.name}
+                      </span>
+                      <Show when={!mind.isActive}>
+                        <span class="text-[10px] text-ink-subtle">{t("minds.paused")}</span>
+                      </Show>
+                    </button>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
+        </Show>
+
         <Show
           when={compassChat.threads.length > 0}
           fallback={

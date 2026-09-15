@@ -30,6 +30,7 @@ export default function Shell(props: RouteSectionProps) {
       !p.startsWith("/chat/") &&
       !p.startsWith("/user/") &&
       !p.startsWith("/compass/") &&
+      !p.startsWith("/minds/") &&
       !p.startsWith("/spaces/") &&
       !p.startsWith("/canvas/")
     );
@@ -42,7 +43,13 @@ export default function Shell(props: RouteSectionProps) {
   const showPinnedChat = () => {
     if (!isDesktop()) return false;
     const p = routePath();
-    return !(p.startsWith("/compass") || p.startsWith("/spaces") || p.startsWith("/user/") || p.startsWith("/canvas"));
+    return !(
+      p.startsWith("/compass") ||
+      p.startsWith("/minds") ||
+      p.startsWith("/spaces") ||
+      p.startsWith("/user/") ||
+      p.startsWith("/canvas")
+    );
   };
 
   const pinnedChatId = () => {
