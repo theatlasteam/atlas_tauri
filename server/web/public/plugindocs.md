@@ -6,14 +6,16 @@ stored on the server, and installed from the app's Plugins marketplace.
 
 ## AI development via MCP
 
-AI assistants can create, validate and publish plugins against this store
-through a Model Context Protocol server:
+AI assistants can create plugins **and bots** through the same Model Context
+Protocol server:
 
 - Endpoint: `https://atlasmsg.app/mcp` (streamable HTTP; same path on `s.atlasmsg.app`)
-- Tools: `list_plugins`, `get_plugin`, `validate_plugin`, `create_plugin`,
-  `update_plugin`, `delete_plugin`, `read_docs` (this document)
-- Write tools require an Atlas session token passed as the `token` argument
-  (the plugin is tied to that account; edits are owner-only).
+- Plugin tools: `list_plugins`, `get_plugin`, `validate_plugin`, `create_plugin`,
+  `update_plugin`, `delete_plugin`, `read_docs`
+- Bot tools: `list_bots`, `get_bot`, `create_bot`, `update_bot`, `delete_bot`,
+  `rotate_bot_token`, `send_bot_message`, `read_bot_docs`
+- Owner tools need an Atlas **session** token (`token` argument or `Authorization: Bearer`).
+- `send_bot_message` uses the bot token (`atlasbot_…`), not the session token.
 
 Connect with any MCP client, e.g.:
 `mcp --transport streamable-http https://atlasmsg.app/mcp`

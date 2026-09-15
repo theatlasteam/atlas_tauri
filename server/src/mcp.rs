@@ -1,14 +1,8 @@
-//! MCP server for the Atlas plugin store — lets AI assistants develop
-//! plugins. Served over the streamable HTTP transport at `/mcp`.
+//! MCP server for Atlas — plugins, bots, and SDK docs. Streamable HTTP at `/mcp`.
 //!
-//! Tools:
-//!   list_plugins        browse the store (public)
-//!   get_plugin          fetch a plugin + its files (public)
-//!   validate_plugin     validate a workspace without saving (public)
-//!   create_plugin       publish a new plugin (needs an Atlas session token)
-//!   update_plugin       edit a published plugin (token + ownership)
-//!   delete_plugin       remove a plugin (token + ownership)
-//!   read_docs           the plugin SDK reference (markdown)
+//! Plugin tools (store): list/get/validate/create/update/delete + read_docs.
+//! Bot tools (owner session): list/get/create/update/delete/rotate_token.
+//! Bot send uses the bot token (`atlasbot_…`), not the session token.
 
 use std::collections::BTreeMap;
 
@@ -29,6 +23,7 @@ use serde_json::json;
 
 use crate::auth::authenticate;
 use crate::error::AppError;
+use crate::routes::bots::{CreateBot, UpdateBot};
 use crate::routes::plugins::{validate_files, PluginDto, PluginPayload};
 use crate::state::AppState;
 
@@ -270,15 +265,231 @@ impl PluginMcpServer {
             });
         Ok(CallToolResult::success(vec![ContentBlock::text(docs)]))
     }
+
+    #[tool(description = "List Atlas bots you own. Needs a session token.")]
+    async fn list_bots(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<TokenParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let uid = authed_user(&self.state, &ctx, p.token).await?;
+        let res = crate::routes::bots::list_mine(
+            axum::extract::State(self.state.clone()),
+            crate::auth::AuthUser {
+                user_id: uid,
+                session_id: uuid::Uuid::new_v4(),
+            },
+        )
+        .await
+        .map_err(|e| tool_error(e.to_string()))?;
+        let bots: Vec<serde_json::Value> = res
+            .0
+            .iter()
+            .map(|b| {
+                json!({
+                    "id": b.id,
+                    "userId": b.user_id,
+                    "handle": b.handle,
+                    "name": b.name,
+                    "delivery": b.delivery,
+                    "webhookUrl": b.webhook_url,
+                    "welcome": b.welcome,
+                    "createdAt": b.created_at,
+                })
+            })
+            .collect();
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::to_string_pretty(&bots).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Fetch one of your bots (id UUID or @handle), including script and token.")]
+    async fn get_bot(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<GetBotParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let uid = authed_user(&self.state, &ctx, p.token.clone()).await?;
+        let res = crate::routes::bots::list_mine(
+            axum::extract::State(self.state.clone()),
+            crate::auth::AuthUser {
+                user_id: uid,
+                session_id: uuid::Uuid::new_v4(),
+            },
+        )
+        .await
+        .map_err(|e| tool_error(e.to_string()))?;
+        let needle = p.id.trim().trim_start_matches('@').to_lowercase();
+        let bot = res.0.into_iter().find(|b| {
+            b.id.to_string() == p.id || b.handle.to_lowercase() == needle
+        });
+        match bot {
+            Some(b) => Ok(CallToolResult::success(vec![ContentBlock::text(
+                serde_json::to_string_pretty(&b).unwrap_or_default(),
+            )])),
+            None => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                "no bot found for '{}'",
+                p.id
+            ))])),
+        }
+    }
+
+    #[tool(description = "Create an Atlas bot (handle + display name). Returns the bot token once. Needs a session token.")]
+    async fn create_bot(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<CreateBotParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let uid = authed_user(&self.state, &ctx, p.token).await?;
+        let created = crate::routes::bots::create(
+            axum::extract::State(self.state.clone()),
+            crate::auth::AuthUser {
+                user_id: uid,
+                session_id: uuid::Uuid::new_v4(),
+            },
+            axum::Json(CreateBot {
+                handle: p.handle,
+                name: p.name,
+            }),
+        )
+        .await
+        .map_err(|e| tool_error(e.to_string()))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::to_string_pretty(&created.0).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Update a bot you own: script (JS workspace JSON or src/bot.js text), webhookUrl, delivery (script|polling|webhook), name.")]
+    async fn update_bot(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<UpdateBotMcpParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let uid = authed_user(&self.state, &ctx, p.token).await?;
+        let id = uuid::Uuid::parse_str(&p.id)
+            .map_err(|_| McpError::invalid_params("id must be a UUID", None))?;
+        let updated = crate::routes::bots::update(
+            axum::extract::State(self.state.clone()),
+            crate::auth::AuthUser {
+                user_id: uid,
+                session_id: uuid::Uuid::new_v4(),
+            },
+            axum::extract::Path(id),
+            axum::Json(UpdateBot {
+                webhook_url: p.webhook_url,
+                script: p.script,
+                name: p.name,
+                delivery: p.delivery,
+            }),
+        )
+        .await
+        .map_err(|e| tool_error(e.to_string()))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::to_string_pretty(&updated.0).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Delete a bot you own. Needs a session token.")]
+    async fn delete_bot(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<DeleteBotParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let uid = authed_user(&self.state, &ctx, p.token).await?;
+        let id = uuid::Uuid::parse_str(&p.id)
+            .map_err(|_| McpError::invalid_params("id must be a UUID", None))?;
+        let _ = crate::routes::bots::delete(
+            axum::extract::State(self.state.clone()),
+            crate::auth::AuthUser {
+                user_id: uid,
+                session_id: uuid::Uuid::new_v4(),
+            },
+            axum::extract::Path(id),
+        )
+        .await
+        .map_err(|e| tool_error(e.to_string()))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text("deleted")]))
+    }
+
+    #[tool(description = "Mint a new atlasbot_ token for a bot you own. The previous token stops working.")]
+    async fn rotate_bot_token(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<DeleteBotParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let uid = authed_user(&self.state, &ctx, p.token).await?;
+        let id = uuid::Uuid::parse_str(&p.id)
+            .map_err(|_| McpError::invalid_params("id must be a UUID", None))?;
+        let dto = crate::routes::bots::rotate_token(
+            axum::extract::State(self.state.clone()),
+            crate::auth::AuthUser {
+                user_id: uid,
+                session_id: uuid::Uuid::new_v4(),
+            },
+            axum::extract::Path(id),
+        )
+        .await
+        .map_err(|e| tool_error(e.to_string()))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::to_string_pretty(&dto.0).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Send or edit a bot message. Use the bot token (atlasbot_…), not a user session. Set messageId to edit an existing bubble.")]
+    async fn send_bot_message(
+        &self,
+        Parameters(p): Parameters<SendBotMessageParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let chat_id = uuid::Uuid::parse_str(&p.chat_id)
+            .map_err(|_| McpError::invalid_params("chatId must be a UUID", None))?;
+        let message_id = p
+            .message_id
+            .as_deref()
+            .map(uuid::Uuid::parse_str)
+            .transpose()
+            .map_err(|_| McpError::invalid_params("messageId must be a UUID", None))?;
+        let mut headers = axum::http::HeaderMap::new();
+        let val = format!("Bearer {}", p.bot_token.trim())
+            .parse()
+            .map_err(|_| McpError::invalid_params("invalid bot token", None))?;
+        headers.insert(axum::http::header::AUTHORIZATION, val);
+        let dto = crate::routes::bots::bot_send(
+            axum::extract::State(self.state.clone()),
+            headers,
+            axum::Json(crate::routes::bots::BotSend {
+                chat_id,
+                text: p.text,
+                buttons: Vec::new(),
+                image_url: p.image_url.unwrap_or_default(),
+                attachment_id: None,
+                message_id,
+            }),
+        )
+        .await
+        .map_err(|e| tool_error(e.to_string()))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::to_string_pretty(&dto.0).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Atlas bot SDK: welcome/reply/keyboard/fetch, polling GET /api/bot/updates, POST /api/bot/messages.")]
+    async fn read_bot_docs(
+        &self,
+        Parameters(_p): Parameters<ReadDocsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        Ok(CallToolResult::success(vec![ContentBlock::text(BOT_DOCS)]))
+    }
 }
 
 #[tool_handler(
-    name = "atlas-plugins",
-    version = "0.1.0",
-    instructions = "Tools for developing plugins for the Atlas messenger. \
-        Write files as a map of path -> source (manifest.json + src/... .tsx). \
-        Validate before publishing; create/update/delete need an Atlas session \
-        token passed as the `token` argument."
+    name = "atlas",
+    version = "0.2.0",
+    instructions = "Atlas messenger MCP: plugins (store) and bots. \
+        Plugins: files map path -> source (manifest.json + src/...). Validate before publish. \
+        Bots: create with handle+name, then update_bot with src/bot.js (welcome/reply/keyboard/fetch). \
+        Session token (`token` or Authorization Bearer) for owner tools. \
+        send_bot_message uses the bot token atlasbot_…. Docs: read_docs, read_bot_docs. \
+        HTTP: https://atlasmsg.app/docs/plugins and /docs/bots."
 )]
 impl ServerHandler for PluginMcpServer {}
 
@@ -333,6 +544,112 @@ struct DeletePluginParams {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct ReadDocsParams {}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct TokenParams {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct GetBotParams {
+    /// Bot UUID or handle (without @).
+    id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct CreateBotParams {
+    handle: String,
+    name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct UpdateBotMcpParams {
+    /// Bot UUID.
+    id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    script: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    webhook_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    delivery: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct DeleteBotParams {
+    id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct SendBotMessageParams {
+    /// Bot token starting with atlasbot_.
+    bot_token: String,
+    chat_id: String,
+    text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    message_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    image_url: Option<String>,
+}
+
+const BOT_DOCS: &str = r#"# Atlas bots
+
+Bots are user accounts (`is_bot`) you own. People DM them in Atlas. Replies are plaintext (not Olm).
+
+## Create
+
+MCP: create_bot(handle, name) with a session token.
+HTTP: POST /api/bots { "handle", "name" } (session cookie/Bearer).
+
+You get `id`, `userId`, and `token` (`atlasbot_<hex>`) once. Rotate with rotate_bot_token.
+
+## Script (delivery = script)
+
+update_bot script is either raw JS or a workspace JSON:
+{ "files": { "manifest.json": "...", "src/bot.js": "..." } }
+
+src/bot.js helpers:
+  welcome("Hi");
+  reply("/start", "Welcome");
+  reply("*", "You said {{text}}");
+  keyboard("/start", [[{ "label": "Help", "data": "/help", "edit": true }]]);
+  fetch("/weather", "https://wttr.in/?format=3");
+  image("/cat", "https://…/cat.png");
+
+Button fields: label, data (callback), url, app (mini-app URL), edit, icon.
+
+## Polling
+
+delivery = polling
+GET /api/bot/updates?offset=&timeout=  Authorization: Bearer atlasbot_…
+Confirm by passing the next offset.
+
+## Webhook
+
+delivery = webhook, webhookUrl = https://…
+Atlas POSTs chat events to that URL.
+
+## Send API
+
+POST /api/bot/messages
+Authorization: Bearer atlasbot_…
+{ "chatId": "<uuid>", "text": "hi" }
+{ "chatId", "messageId", "text" } edits a bubble (callback navigation).
+
+MCP: send_bot_message(bot_token, chatId, text, messageId?).
+
+Full UI docs: https://atlasmsg.app/docs/bots
+"#;
 
 // ---------- wiring ----------
 

@@ -324,7 +324,7 @@ ctx.ui.configScreen(({ plugin, onClose }) => (
 
       <H id="mcp">MCP</H>
       <P>
-        Assistants can publish plugins over Model Context Protocol at{" "}
+        Assistants can publish plugins and bots over Model Context Protocol at{" "}
         <code class="font-mono text-ink">https://atlasmsg.app/mcp</code> (streamable HTTP).
       </P>
       <Table
@@ -336,7 +336,12 @@ ctx.ui.configScreen(({ plugin, onClose }) => (
           ["create_plugin", "Needs Atlas session token"],
           ["update_plugin", "Owner only"],
           ["delete_plugin", "Owner only"],
-          ["read_docs", "This SDK, as markdown"],
+          ["read_docs", "Plugin SDK, as markdown"],
+          ["list_bots / get_bot", "Bots you own"],
+          ["create_bot / update_bot / delete_bot", "Session token; script is src/bot.js"],
+          ["rotate_bot_token", "New atlasbot_ token"],
+          ["send_bot_message", "Bot token, not session"],
+          ["read_bot_docs", "Bot SDK, as markdown"],
         ]}
       />
       <P>
