@@ -70,11 +70,12 @@ pub fn mind_system_prompt(mind: &MindDto, context: &str) -> String {
             "- `browser(url, wait_seconds)`: stealth browser mimicking a human. Use for reading modern dynamic pages, scraping prices, checking listings, and bypassing anti-bot blockers.\n",
             "- `web_fetch(url)`: direct HTTP page text fetch. Fast and simple for articles, feeds, and plain pages.\n",
             "- `shell(command)`: run a command in your private sandbox directory. Files you write persist between your runs; use them for state (last price seen, what you already reported).\n",
+            "- `say(text)`: show a short live progress note in the chat right now (e.g. 'Checking the price now…'). Call it before slow work and again when you have the result, so the owner watches you work instead of waiting in silence.\n",
             "- `set_schedule(label, cron_expr, task)`: set or update a recurring cron schedule for yourself (e.g. check a listing every morning).\n",
             "- `message_owner(text)`: send your owner a message directly in Atlas. This is how findings reach them — a run that finds something worth knowing should end with one.\n",
             "If a tool you need is not listed, say so plainly instead of pretending you ran it.\n\n",
             "## Working rules\n",
-            "- Act, then tell. Don't narrate what you're about to do; do it and report the result.\n",
+            "- Narrate as you go with `say`, then report. Before a slow tool call, `say` one short line about what you're doing ('Checking the price now…'); after it returns, `say` or reply with the result. Never sit silent through a whole job.\n",
             "- One job per wake-up. Finish the thing that woke you before starting anything else.\n",
             "- Schedules are promises. If you were told 'every day at 09:00', the owner expects a ",
             "message every day at 09:00 — including 'no change', briefly, so they know you're alive.\n",
@@ -752,8 +753,7 @@ pub async fn run_mind(
     auth: AuthUser,
     Path(mind_id): Path<Uuid>,
     Json(body): Json<ManualRun>,
-) -> ApiResult<Json<MindRunDto>> {
-    let me = load_me(&state, auth.user_id).await?;
+) -> ApiResult<Json<MindRunDto>> {    let me = load_me(&state, auth.user_id).await?;
     require_x(&me)?;
     let mind = own_mind(&state, auth.user_id, mind_id).await?;
     if !mind.is_active {
@@ -769,7 +769,7 @@ pub async fn run_mind(
     );
 
     // Determine allowed tools based on Mind's JSON tool configuration
-    let mut allowed_tools = vec!["browser", "web_fetch", "shell", "set_schedule", "message_owner"];
+    let mut allowed_tools = vec!["browser", "web_fetch", "shell", "say", "set_schedule", "message_owner"];
     if let Some(obj) = mind.tools.as_object() {
         allowed_tools.retain(|tool| {
             obj.get(*tool).and_then(|v| v.as_bool()).unwrap_or(true)
@@ -825,6 +825,111 @@ pub async fn run_mind(
         started_at: started,
         finished_at: finished,
     }))
+}
+
+/// `POST /api/minds/{id}/run/stream` — same job as `run_mind`, but streams
+/// live progress as SSE: `status` (typing/working…), `say` (the Mind's spoken
+/// progress notes), `tool_start`/`tool_end`, and a final `done` carrying the
+/// persisted `MindRunDto`. The run is still recorded in `mind_runs`, so a
+/// refresh shows the same transcript the stream just played.
+pub async fn run_mind_stream(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(mind_id): Path<Uuid>,
+    Json(body): Json<ManualRun>,
+) -> Result<
+    axum::response::sse::Sse<impl futures_util::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>>,
+    AppError,
+> {
+    use axum::response::sse::{Event, KeepAlive, Sse};
+    use futures_util::StreamExt;
+
+    let me = load_me(&state, auth.user_id).await?;
+    require_x(&me)?;
+    let mind = own_mind(&state, auth.user_id, mind_id).await?;
+    if !mind.is_active {
+        return Err(AppError::BadRequest("this Mind is paused".into()));
+    }
+    let input = body.input.trim().chars().take(4000).collect::<String>();
+    if input.is_empty() {
+        return Err(AppError::BadRequest("tell it what to do".into()));
+    }
+    let system = mind_system_prompt(
+        &mind,
+        "This is a direct job from your owner, not a room turn. Do it with your tools and report back.",
+    );
+    let mut allowed_tools = vec!["browser", "web_fetch", "shell", "say", "set_schedule", "message_owner"];
+    if let Some(obj) = mind.tools.as_object() {
+        allowed_tools.retain(|tool| obj.get(*tool).and_then(|v| v.as_bool()).unwrap_or(true));
+    }
+
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<crate::compass::AgentEvent>();
+    let worker_state = state.clone();
+    let worker_input = input.clone();
+    let worker_name = mind.name.clone();
+    tokio::spawn(async move {
+        let started = Utc::now();
+        let res = crate::compass::run_autonomous_agent_stream(
+            &worker_state,
+            mind_id,
+            auth.user_id,
+            &worker_name,
+            system,
+            format!("Owner instruction: {worker_input}"),
+            &allowed_tools,
+            Some(tx),
+        )
+        .await;
+        let finished = Utc::now();
+        let run_id = Uuid::new_v4();
+        let tool_calls_json = serde_json::json!(res.tool_calls_log);
+        let _ = sqlx::query(
+            "INSERT INTO mind_runs (id, mind_id, trigger, input, output, tool_calls, status, error, started_at, finished_at)
+             VALUES ($1,$2,'manual',$3,$4,$5,$6,$7,$8,$9)",
+        )
+        .bind(run_id)
+        .bind(mind_id)
+        .bind(&worker_input)
+        .bind(&res.output)
+        .bind(&tool_calls_json)
+        .bind(&res.status)
+        .bind(&res.error)
+        .bind(started)
+        .bind(finished)
+        .execute(&worker_state.db)
+        .await;
+        let _ = sqlx::query("UPDATE minds SET last_run_at = $2, last_status = $3 WHERE id = $1")
+            .bind(mind_id)
+            .bind(finished)
+            .bind(&res.status)
+            .execute(&worker_state.db)
+            .await;
+    });
+
+    let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(rx).map(|ev| {
+        let (kind, payload) = match ev {
+            crate::compass::AgentEvent::Status(s) => ("status", serde_json::json!({ "text": s })),
+            crate::compass::AgentEvent::Say(s) => ("say", serde_json::json!({ "text": s })),
+            crate::compass::AgentEvent::ToolStart { name, arguments } => {
+                ("tool_start", serde_json::json!({ "name": name, "arguments": arguments }))
+            }
+            crate::compass::AgentEvent::ToolEnd { name, output_preview } => {
+                ("tool_end", serde_json::json!({ "name": name, "outputPreview": output_preview }))
+            }
+            crate::compass::AgentEvent::Done(snap) => (
+                "done",
+                serde_json::json!({
+                    "output": snap.output,
+                    "toolCalls": snap.tool_calls_log,
+                    "status": snap.status,
+                    "error": snap.error,
+                }),
+            ),
+        };
+        let data = serde_json::json!({ "kind": kind, "data": payload }).to_string();
+        Ok(Event::default().event(kind).data(data))
+    });
+    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
 pub async fn list_runs(

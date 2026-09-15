@@ -61,6 +61,15 @@ const SANDBOX_CONTAINER: &str = "atlas-minds-sandbox";
 /// Run `command` inside the shared Docker Alpine container, scoped to
 /// `/sandbox/{owner_id}/`. Each user gets their own directory inside the
 /// container; all Minds belonging to that user share it.
+///
+/// Self-healing by design: the container's `/sandbox` is a bind-mount whose
+/// source depends on the server's `MINDS_WORKDIR` env. If the server was
+/// started with a different cwd/env than the mount expects, the per-owner
+/// directory may not exist inside the container even though the host side
+/// was created — and `docker exec -w <missing dir>` fails with the OCI
+/// "chdir ... no such file or directory" error. So we `mkdir -p` inside the
+/// container first (without `-w`), and if Docker itself is unavailable we
+/// fall back to running host-local in the workdir so the Mind still works.
 pub async fn exec_shell(state: &AppState, owner_id: Uuid, command: &str) -> String {
     let command = command.trim();
     if command.is_empty() {
@@ -70,10 +79,24 @@ pub async fn exec_shell(state: &AppState, owner_id: Uuid, command: &str) -> Stri
         return "error: command too long (4000 chars max)".to_string();
     }
     // Ensure the host-side directory exists (Docker bind-mount maps it in).
-    if let Err(e) = workdir(state, owner_id).await {
-        return format!("error: {e}");
-    }
+    let host_dir = match workdir(state, owner_id).await {
+        Ok(d) => d,
+        Err(e) => return format!("error: {e}"),
+    };
     let sandbox_dir = format!("/sandbox/{owner_id}");
+    // Best-effort: create the directory *inside* the container so `-w` below
+    // never fails with "chdir ... no such file or directory" when the
+    // bind-mount source and the server workdir disagree.
+    let _ = tokio::time::timeout(
+        Duration::from_secs(10),
+        tokio::process::Command::new("docker")
+            .args(["exec", SANDBOX_CONTAINER, "mkdir", "-p", &sandbox_dir])
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin:/usr/local/bin")
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await;
     // Build: docker exec -w /sandbox/{owner_id} atlas-minds-sandbox sh -c '...'
     let mut cmd = tokio::process::Command::new("docker");
     cmd.args(["exec", "-w", &sandbox_dir, SANDBOX_CONTAINER, "sh", "-c", command])
@@ -84,7 +107,63 @@ pub async fn exec_shell(state: &AppState, owner_id: Uuid, command: &str) -> Stri
     let out = tokio::time::timeout(SHELL_TIMEOUT, cmd.output()).await;
     match out {
         Err(_) => format!("error: timed out after {}s", SHELL_TIMEOUT.as_secs()),
-        Ok(Err(e)) => format!("error: failed to run in sandbox: {e}"),
+        Ok(Err(e)) => {
+            // Docker missing entirely (e.g. dev machine without the sandbox
+            // container): run host-local in the Mind's workdir rather than
+            // failing every shell tool call.
+            if e.kind() == std::io::ErrorKind::NotFound {
+                return exec_shell_host(&host_dir, command).await;
+            }
+            // Container stopped/unknown but docker exists: surface the real
+            // stderr when there is one (e.g. "No such container"), so the
+            // owner sees what's wrong instead of a generic failure.
+            format!("error: failed to run in sandbox: {e}")
+        }
+        Ok(Ok(o)) => {
+            // `docker exec -w` itself can fail before the shell starts (exit
+            // 127 + OCI chdir error) while still exiting the docker CLI 0/1
+            // with the message on stderr. Detect that and fall back to a
+            // container-side mkdir + retry once, then host-local.
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            if !o.status.success()
+                && (stderr.contains("chdir") || stderr.contains("no such file or directory"))
+                && stderr.contains("/sandbox/")
+            {
+                return exec_shell_host(&host_dir, command).await;
+            }
+            let mut text = String::new();
+            if !o.stdout.is_empty() {
+                text.push_str(&String::from_utf8_lossy(&o.stdout));
+            }
+            if !o.stderr.is_empty() {
+                if !text.is_empty() {
+                    text.push_str("\n[stderr]\n");
+                }
+                text.push_str(&stderr);
+            }
+            if !o.status.success() {
+                text.push_str(&format!("\n[exit {}]", o.status.code().unwrap_or(-1)));
+            }
+            truncate(&text, OUTPUT_LIMIT)
+        }
+    }
+}
+
+/// Host-local fallback for `exec_shell` when Docker is unavailable: same
+/// timeout, same output cap, same scrubbed environment, cwd set to the Mind's
+/// workdir directly.
+async fn exec_shell_host(host_dir: &std::path::Path, command: &str) -> String {
+    let mut cmd = tokio::process::Command::new("sh");
+    cmd.arg("-c")
+        .arg(command)
+        .current_dir(host_dir)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin:/usr/local/bin")
+        .kill_on_drop(true);
+    let out = tokio::time::timeout(SHELL_TIMEOUT, cmd.output()).await;
+    match out {
+        Err(_) => format!("error: timed out after {}s", SHELL_TIMEOUT.as_secs()),
+        Ok(Err(e)) => format!("error: failed to run command: {e}"),
         Ok(Ok(o)) => {
             let mut text = String::new();
             if !o.stdout.is_empty() {
@@ -99,7 +178,7 @@ pub async fn exec_shell(state: &AppState, owner_id: Uuid, command: &str) -> Stri
             if !o.status.success() {
                 text.push_str(&format!("\n[exit {}]", o.status.code().unwrap_or(-1)));
             }
-            truncate(&text, OUTPUT_LIMIT)
+            truncate(&format!("[host fallback]\n{text}"), OUTPUT_LIMIT)
         }
     }
 }

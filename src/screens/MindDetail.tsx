@@ -1,24 +1,12 @@
-import { createEffect, createSignal, For, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
-import { Button, TextField, TextArea, Dialog } from "@atlas/ui";
+import { AiMessage, Button, Composer, Dialog, MessageBubble, TextArea, TextField } from "@atlas/ui";
 import { mindsStore } from "../store/minds";
 import MindOrb from "../components/MindOrb";
 import MarkdownContent from "../components/MarkdownContent";
-import EmptyState from "../components/EmptyState";
-import AnimatedList from "../ui/AnimatedList";
-import {
-  BackIcon,
-  CheckIcon,
-  CompassIcon,
-  PlayIcon,
-  PlusIcon,
-  SendIcon,
-  SettingsIcon,
-  SpinnerIcon,
-  TrashIcon,
-  WrenchIcon,
-} from "../icons";
+import { ArrowDownIcon, BackIcon, PlusIcon, SettingsIcon, TrashIcon } from "../icons";
 import { formatRelativeTime } from "../lib/time";
+import { t, type TranslationKey } from "../lib/i18n";
 import { useIsDesktopLayout } from "../lib/platform";
 
 interface ChatTurn {
@@ -30,6 +18,13 @@ interface ChatTurn {
   time: string;
 }
 
+/**
+ * A 1:1 Mind chat — deliberately the same screen as ChatView (same header,
+ * same message column, same composer), backed by the Mind's run history
+ * instead of the messages table. Runs stream: `say` notes land as bubbles
+ * in real time and the header subtitle shows live status (typing, browsing,
+ * working in the sandbox…) until the final answer arrives.
+ */
 export default function MindDetail() {
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -37,7 +32,8 @@ export default function MindDetail() {
 
   const [draft, setDraft] = createSignal("");
   const [running, setRunning] = createSignal(false);
-  const [liveAction, setLiveAction] = createSignal<string | null>(null);
+  const [pendingInput, setPendingInput] = createSignal<string | null>(null);
+  const [atBottom, setAtBottom] = createSignal(true);
   const [showSettings, setShowSettings] = createSignal(false);
   const [addingSchedule, setAddingSchedule] = createSignal(false);
 
@@ -48,11 +44,12 @@ export default function MindDetail() {
   const [schedSaving, setSchedSaving] = createSignal(false);
 
   let scrollRef: HTMLDivElement | undefined;
-  let inputRef: HTMLTextAreaElement | undefined;
+  let abort: AbortController | null = null;
 
   const mind = () => mindsStore.state.minds?.find((m) => m.id === params.id);
   const runs = () => mindsStore.state.runs[params.id] ?? [];
   const schedules = () => mindsStore.state.schedules[params.id] ?? [];
+  const live = () => mindsStore.state.live[params.id];
 
   onMount(() => {
     if (!mindsStore.state.minds) void mindsStore.loadMinds();
@@ -60,41 +57,53 @@ export default function MindDetail() {
     void mindsStore.loadSchedules(params.id);
   });
 
-  const scrollToBottom = () => {
-    queueMicrotask(() => {
-      if (scrollRef) {
-        scrollRef.scrollTop = scrollRef.scrollHeight;
-      }
-    });
-  };
-
-  createEffect(() => {
-    void runs().length;
-    void running();
-    scrollToBottom();
+  onCleanup(() => {
+    abort?.abort();
+    if (params.id) mindsStore.clearLive(params.id);
   });
 
-  // Convert persisted runs into a fluid conversational chat timeline
+  // A Mind deleted elsewhere has nothing to show.
+  createEffect(() => {
+    if (mindsStore.state.minds && !mind() && !running()) navigate("/minds", { replace: true });
+  });
+
+  const scrollToBottom = (smooth = true) => {
+    scrollRef?.scrollTo({ top: scrollRef.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  };
+
+  const handleScroll = () => {
+    if (!scrollRef) return;
+    const distanceFromBottom = scrollRef.scrollHeight - scrollRef.scrollTop - scrollRef.clientHeight;
+    setAtBottom(distanceFromBottom < 80);
+  };
+
+  // Stick to bottom as streamed notes and the final answer land (if there).
+  createEffect(
+    on(
+      () => runs().length + (live()?.says.length ?? 0) + (pendingInput() ? 1 : 0),
+      (len, prevLen) => {
+        if (prevLen !== undefined && len > prevLen && atBottom()) {
+          queueMicrotask(() => scrollToBottom());
+        }
+      },
+    ),
+  );
+
+  // Convert persisted runs into a conversational timeline, oldest first.
   const chatMessages = () => {
     const list: ChatTurn[] = [];
     const sortedRuns = [...runs()].sort(
       (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
     );
-
     for (const r of sortedRuns) {
       if (r.input) {
-        list.push({
-          id: `${r.id}-user`,
-          role: "user",
-          text: r.input,
-          time: r.startedAt,
-        });
+        list.push({ id: `${r.id}-user`, role: "user", text: r.input, time: r.startedAt });
       }
       if (r.output || (r.toolCalls && r.toolCalls.length > 0)) {
         list.push({
           id: `${r.id}-asst`,
           role: "assistant",
-          text: r.output || (r.status === "error" ? "Run failed with an error." : "Task completed."),
+          text: r.output || (r.status === "error" ? t("minds.runFailed") : t("minds.taskCompleted")),
           toolCalls: r.toolCalls,
           status: r.status,
           time: r.finishedAt || r.startedAt,
@@ -104,31 +113,22 @@ export default function MindDetail() {
     return list;
   };
 
-  const handleSend = async () => {
-    const text = draft().trim();
+  const handleSend = async (overrideText?: string) => {
+    const text = (overrideText ?? draft()).trim();
     if (!text || running()) return;
     setDraft("");
+    setPendingInput(text);
     setRunning(true);
-    setLiveAction("Starting isolated sandbox container…");
-
-    // Realistic progressive status steps while the autonomous loop executes
-    const timer1 = setTimeout(() => {
-      setLiveAction("Launching stealth browser & executing sandbox tools…");
-    }, 1500);
-    const timer2 = setTimeout(() => {
-      setLiveAction("Analyzing page content & evaluating findings…");
-    }, 4500);
-
+    queueMicrotask(() => scrollToBottom());
+    abort = new AbortController();
     try {
-      await mindsStore.runMind(params.id, text);
+      await mindsStore.runMindLive(params.id, text, { signal: abort.signal });
     } catch {
-      // Error handled in store
+      /* the store surfaces the error; the input stays visible for a retry */
     } finally {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      setLiveAction(null);
+      abort = null;
+      setPendingInput(null);
       setRunning(false);
-      inputRef?.focus();
     }
   };
 
@@ -163,278 +163,241 @@ export default function MindDetail() {
     await mindsStore.updateMind(m.id, m.name, m.prompt, { isActive: !m.isActive });
   };
 
-  return (
-    <div class="flex h-full flex-col bg-bg text-ink">
-      {/* Telegram / Grok-style Header */}
-      <header class="flex shrink-0 items-center justify-between border-b border-border bg-appbar px-4 pb-3 pt-[max(var(--safe-top),1.25rem)] backdrop-blur">
-        <div class="flex items-center gap-3">
-          <Show when={!isDesktop()}>
-            <A
-              href="/minds"
-              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted transition hover:bg-surface hover:text-ink active:scale-95"
-            >
-              <BackIcon size={20} />
-            </A>
-          </Show>
-          <Show when={mind()}>
-            {(m) => (
-              <div class="flex items-center gap-3">
-                <div class="relative">
-                  <MindOrb color={m().color} colorEnd={m().colorEnd} size={38} thinking={running()} />
-                  <span
-                    class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-appbar"
-                    classList={{
-                      "bg-success": m().isActive && !running(),
-                      "bg-accent animate-pulse": running(),
-                      "bg-ink-subtle": !m().isActive,
-                    }}
-                  />
-                </div>
-                <div>
-                  <h1 class="flex items-center gap-1.5 text-[15px] font-bold text-ink leading-tight">
-                    {m().name}
-                    <span class="rounded bg-accent-soft px-1.5 py-0.2 text-[10px] font-semibold text-accent uppercase">
-                      bot
-                    </span>
-                  </h1>
-                  <p class="text-xs text-ink-muted flex items-center gap-1">
-                    <Show
-                      when={running()}
-                      fallback={
-                        <span>
-                          {m().isActive ? "24/7 Sandbox Active" : "Paused"} ·{" "}
-                          {schedules().filter((s) => s.enabled).length} active schedules
-                        </span>
-                      }
-                    >
-                      <span class="text-accent flex items-center gap-1 font-medium">
-                        <SpinnerIcon size={12} class="animate-spin inline" />
-                        {liveAction() || "Thinking…"}
-                      </span>
-                    </Show>
-                  </p>
-                </div>
-              </div>
-            )}
-          </Show>
-        </div>
+  /** Header subtitle: live status beats schedule summary — same precedence as
+   *  ChatView's typing-beats-presence subtitle. */
+  const subtitle = () => {
+    const l = live();
+    if (l) return l.status;
+    const m = mind();
+    if (!m) return "";
+    return m.isActive
+      ? `${t("minds.sandboxActive")} · ${t("minds.schedulesActive", { n: schedules().filter((s) => s.enabled).length })}`
+      : t("minds.mindPaused");
+  };
 
-        {/* Mind Settings Gear Button */}
-        <div class="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setShowSettings(true)}
-            class="flex h-10 w-10 items-center justify-center rounded-full text-ink-muted transition hover:bg-surface hover:text-ink active:scale-95"
-            title="Mind Settings & Schedules"
+  const TOOLS: { key: string; nameKey: TranslationKey; descKey: TranslationKey }[] = [
+    { key: "browser", nameKey: "minds.toolBrowser", descKey: "minds.toolBrowserDesc" },
+    { key: "web_fetch", nameKey: "minds.toolFetch", descKey: "minds.toolFetchDesc" },
+    { key: "shell", nameKey: "minds.toolShell", descKey: "minds.toolShellDesc" },
+    { key: "set_schedule", nameKey: "minds.toolSchedule", descKey: "minds.toolScheduleDesc" },
+    { key: "message_owner", nameKey: "minds.toolMessage", descKey: "minds.toolMessageDesc" },
+  ];
+
+  return (
+    <div class="relative flex h-full flex-col">
+      <header class="flex shrink-0 items-center gap-3 border-b border-border bg-appbar px-3 pb-3 pt-[max(var(--safe-top),1.5rem)]">
+        <Show when={!isDesktop()}>
+          <A
+            href="/minds"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
           >
-            <SettingsIcon size={20} />
-          </button>
-        </div>
+            <BackIcon size={22} />
+          </A>
+        </Show>
+        <Show when={mind()}>
+          {(m) => (
+            <>
+              <span class="relative shrink-0">
+                <MindOrb color={m().color} colorEnd={m().colorEnd} size={36} thinking={running()} />
+                <span
+                  class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-appbar"
+                  classList={{
+                    "bg-success": m().isActive && !running(),
+                    "bg-accent animate-pulse": running(),
+                    "bg-ink-subtle": !m().isActive,
+                  }}
+                />
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate font-semibold leading-tight">{m().name}</p>
+                <p
+                  class="truncate text-xs"
+                  classList={{ "text-accent animate-pulse": running(), "text-ink-subtle": !running() }}
+                >
+                  {subtitle()}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSettings(true)}
+                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
+                aria-label={t("minds.settingsTitle", { name: m().name })}
+              >
+                <SettingsIcon size={20} />
+              </button>
+            </>
+          )}
+        </Show>
       </header>
 
-      {/* Main Chat Stream Container */}
-      <div ref={scrollRef} class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-        <div class="mx-auto flex max-w-3xl flex-col gap-4">
-          {/* Welcome Intro Card */}
-          <div class="mx-auto max-w-md my-4 rounded-2xl border border-border/60 bg-surface/70 p-4 text-center shadow-xs backdrop-blur">
-            <div class="mx-auto mb-2 flex justify-center">
-              <Show when={mind()}>
-                {(m) => <MindOrb color={m().color} colorEnd={m().colorEnd} size={48} />}
-              </Show>
-            </div>
-            <h2 class="text-sm font-bold text-ink">{mind()?.name}</h2>
-            <p class="mt-1 text-xs text-ink-muted leading-relaxed">
-              {mind()?.prompt || "Autonomous agent ready for 24/7 jobs, schedules, and live browsing."}
-            </p>
-            <div class="mt-3 flex flex-wrap justify-center gap-2">
-              <span class="rounded-full bg-bg px-2.5 py-1 text-[11px] font-medium text-ink-subtle border border-border">
-                🌐 Stealth Browser
-              </span>
-              <span class="rounded-full bg-bg px-2.5 py-1 text-[11px] font-medium text-ink-subtle border border-border">
-                ⚡ Persistent Shell
-              </span>
-              <span class="rounded-full bg-bg px-2.5 py-1 text-[11px] font-medium text-ink-subtle border border-border">
-                ⏰ 24/7 Cron Tasks
-              </span>
-            </div>
-          </div>
-
-          {/* Conversation Bubbles */}
-          <For each={chatMessages()}>
-            {(msg) => (
-              <div class="flex flex-col gap-1.5" classList={{ "items-end": msg.role === "user", "items-start": msg.role === "assistant" }}>
-                {/* User Bubble */}
-                <Show when={msg.role === "user"}>
-                  <div class="max-w-[85%] rounded-2xl bg-accent px-4 py-2.5 text-[15px] leading-relaxed text-white shadow-xs">
-                    <p class="whitespace-pre-wrap break-words">{msg.text}</p>
-                  </div>
-                  <span class="px-2 text-[10px] text-ink-subtle">{formatRelativeTime(msg.time)}</span>
-                </Show>
-
-                {/* Assistant (Mind) Bubble */}
-                <Show when={msg.role === "assistant"}>
-                  <div class="flex gap-2.5 max-w-[90%]">
-                    <div class="mt-1 shrink-0">
-                      <MindOrb color={mind()?.color ?? "#8a8a8a"} colorEnd={mind()?.colorEnd} size={28} />
-                    </div>
-                    <div class="flex flex-col gap-2 min-w-0">
-                      {/* Real-time Tool Activity Drawer if tools were invoked */}
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div class="relative min-h-0 flex-1">
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            class="h-full min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 pt-3 md:px-6"
+          >
+            <div class="flex w-full max-w-[40rem] flex-col gap-2.5">
+              <For each={chatMessages()}>
+                {(msg) => (
+                  <Show
+                    when={msg.role === "assistant"}
+                    fallback={
+                      <MessageBubble side="sent" time={formatRelativeTime(msg.time)}>
+                        {msg.text}
+                      </MessageBubble>
+                    }
+                  >
+                    <AiMessage name={mind()?.name ?? t("minds.title")}>
                       <Show when={msg.toolCalls && msg.toolCalls.length > 0}>
-                        <div class="rounded-xl border border-border bg-surface/90 p-2.5 text-xs shadow-xs">
-                          <div class="mb-1.5 flex items-center gap-1.5 font-semibold text-accent">
-                            <span>⚡ Autonomous Actions ({msg.toolCalls!.length})</span>
-                          </div>
+                        <div class="mb-2 rounded-xl border border-border bg-surface px-2.5 py-2 text-xs">
+                          <p class="mb-1.5 font-semibold text-accent">
+                            {t("minds.liveActions", { n: msg.toolCalls!.length })}
+                          </p>
                           <div class="flex flex-col gap-1.5">
                             <For each={msg.toolCalls}>
                               {(tc) => (
-                                <div class="rounded-lg bg-bg/80 p-2 font-mono text-[11px] text-ink-muted">
-                                  <div class="font-bold text-ink flex items-center gap-1">
-                                    <span>▸ {tc.name}</span>
-                                    <span class="font-normal text-ink-subtle text-[10px]">
+                                <div class="rounded-lg bg-bg p-2 font-mono text-[11px] text-ink-muted">
+                                  <p class="font-bold text-ink">
+                                    ▸ {tc.name}{" "}
+                                    <span class="font-normal text-[10px] text-ink-subtle">
                                       {JSON.stringify(tc.arguments)}
                                     </span>
-                                  </div>
-                                  <div class="mt-1 text-ink-muted break-words whitespace-pre-wrap max-h-24 overflow-y-auto">
+                                  </p>
+                                  <p class="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap break-words">
                                     {tc.output}
-                                  </div>
+                                  </p>
                                 </div>
                               )}
                             </For>
                           </div>
                         </div>
                       </Show>
+                      <MarkdownContent text={msg.text} />
+                      <p class="mt-1 text-[10px] text-ink-subtle">{formatRelativeTime(msg.time)}</p>
+                    </AiMessage>
+                  </Show>
+                )}
+              </For>
 
-                      {/* Mind Text Response */}
-                      <div class="rounded-2xl border border-border bg-surface px-4 py-3 text-[15px] leading-relaxed text-ink shadow-xs">
-                        <MarkdownContent text={msg.text} />
-                      </div>
-                      <span class="px-2 text-[10px] text-ink-subtle">{formatRelativeTime(msg.time)}</span>
-                    </div>
-                  </div>
-                </Show>
-              </div>
-            )}
-          </For>
+              {/* Streaming turn: the pending question plus every `say` note so
+                  far, arriving live instead of all at once at the end. */}
+              <Show when={pendingInput()}>
+                <MessageBubble side="sent" status="sending">
+                  {pendingInput()}
+                </MessageBubble>
+              </Show>
+              <For each={live()?.says ?? []}>
+                {(note) => (
+                  <AiMessage name={mind()?.name ?? t("minds.title")}>
+                    <MarkdownContent text={note} />
+                  </AiMessage>
+                )}
+              </For>
+              <Show when={running() && (live()?.says.length ?? 0) === 0}>
+                <AiMessage
+                  name={mind()?.name ?? t("minds.title")}
+                  thinking
+                  thinkingLabel={`${mind()?.name ?? t("minds.title")}…`}
+                />
+              </Show>
 
-          {/* Live Typing & Action Status Indicator */}
-          <Show when={running()}>
-            <div class="flex items-center gap-3 py-2 text-sm text-ink-muted">
-              <MindOrb color={mind()?.color ?? "#8a8a8a"} colorEnd={mind()?.colorEnd} size={28} thinking />
-              <div class="flex items-center gap-2 rounded-2xl border border-accent/40 bg-accent-soft px-3.5 py-2 text-xs font-medium text-accent">
-                <SpinnerIcon size={14} class="animate-spin inline" />
-                <span>{liveAction() || "Thinking & checking sandbox tools…"}</span>
-              </div>
+              <Show when={mindsStore.state.error}>
+                <p class="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+                  {mindsStore.state.error}
+                </p>
+              </Show>
             </div>
+          </div>
+
+          <Show when={!atBottom()}>
+            <button
+              type="button"
+              onClick={() => scrollToBottom()}
+              class="pop-in absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface-raised text-ink shadow-floating transition-transform duration-150 hover:scale-105 active:scale-95"
+              aria-label={t("chatView.scrollToLatestAria")}
+            >
+              <ArrowDownIcon size={18} />
+            </button>
           </Show>
+        </div>
+
+        <div class="shrink-0 border-t border-border bg-bg">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSend();
+            }}
+            class="w-full px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5"
+          >
+            <Composer
+              value={draft()}
+              onChange={setDraft}
+              disabled={running()}
+              placeholder={t("minds.messagePlaceholder", { name: mind()?.name ?? t("minds.title") })}
+              onSubmit={() => void handleSend()}
+            />
+          </form>
         </div>
       </div>
 
-      {/* Modern Composer */}
-      <div class="shrink-0 border-t border-border bg-surface/95 px-4 pb-[max(var(--safe-bottom),0.75rem)] pt-3 backdrop-blur">
-        <form
-          class="mx-auto flex max-w-3xl items-end gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void handleSend();
-          }}
-        >
-          <textarea
-            ref={inputRef}
-            value={draft()}
-            rows="1"
-            placeholder={`Message ${mind()?.name || "Mind"}… (e.g. check listing price every morning)`}
-            disabled={running()}
-            class="max-h-36 min-h-11 flex-1 resize-none rounded-2xl border border-border bg-bg px-4 py-2.5 text-[15px] text-ink outline-none transition placeholder:text-ink-subtle focus:border-accent disabled:opacity-60"
-            onInput={(e) => {
-              setDraft(e.currentTarget.value);
-              e.currentTarget.style.height = "auto";
-              e.currentTarget.style.height = `${Math.min(e.currentTarget.scrollHeight, 140)}px`;
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void handleSend();
-              }
-            }}
-          />
-          <button
-            type="submit"
-            disabled={!draft().trim() || running()}
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent text-white transition hover:opacity-90 active:scale-95 disabled:opacity-40"
-          >
-            <SendIcon size={18} />
-          </button>
-        </form>
-      </div>
-
-      {/* Mind Settings & 24/7 Schedules Drawer/Dialog */}
       <Dialog
         open={showSettings()}
         onOpenChange={(o) => setShowSettings(o)}
-        title={`${mind()?.name ?? "Mind"} Settings & 24/7 Schedules`}
-        description="Manage autonomous capabilities, recurring schedules, and sandbox tools."
+        title={t("minds.settingsTitle", { name: mind()?.name ?? t("minds.title") })}
+        description={t("minds.settingsDesc")}
         footer={
           <Button size="sm" onClick={() => setShowSettings(false)}>
-            Done
+            {t("minds.settingsDone")}
           </Button>
         }
       >
-        <div class="flex flex-col gap-5 max-h-[70vh] overflow-y-auto pr-1">
-          {/* Status & Active Switch */}
+        <div class="flex max-h-[70vh] flex-col gap-5 overflow-y-auto pr-1">
           <div class="flex items-center justify-between rounded-xl border border-border bg-bg p-3.5">
             <div>
-              <p class="text-sm font-semibold text-ink">24/7 Autonomous Status</p>
+              <p class="text-sm font-semibold text-ink">{t("minds.autonomousStatus")}</p>
               <p class="text-xs text-ink-muted">
-                {mind()?.isActive ? "Active and running scheduled tasks" : "Paused"}
+                {mind()?.isActive ? t("minds.autonomousActive") : t("minds.mindPaused")}
               </p>
             </div>
-            <Button
-              size="sm"
-              variant={mind()?.isActive ? "secondary" : "primary"}
-              onClick={() => void toggleActive()}
-            >
-              {mind()?.isActive ? "Pause Mind" : "Activate Mind"}
+            <Button size="sm" variant={mind()?.isActive ? "soft" : "primary"} onClick={() => void toggleActive()}>
+              {mind()?.isActive ? t("minds.pauseMind") : t("minds.activateMind")}
             </Button>
           </div>
 
-          {/* 24/7 Schedules Manager */}
           <div class="flex flex-col gap-3">
             <div class="flex items-center justify-between">
               <div>
                 <h3 class="text-xs font-bold uppercase tracking-wider text-ink-subtle">
-                  Recurring 24/7 Schedules ({schedules().length})
+                  {t("minds.schedulesTitle", { n: schedules().length })}
                 </h3>
-                <p class="text-xs text-ink-muted">Runs in background even when you're offline.</p>
+                <p class="text-xs text-ink-muted">{t("minds.schedulesHint")}</p>
               </div>
               <Button size="sm" onClick={() => setAddingSchedule(true)}>
                 <PlusIcon size={14} class="mr-1 inline" />
-                Add
+                {t("minds.add")}
               </Button>
             </div>
 
-            <Show
-              when={schedules().length > 0}
-              fallback={
-                <div class="rounded-xl border border-dashed border-border p-4 text-center text-xs text-ink-muted">
-                  No schedules active. Click "Add" or tell the Mind in chat: "Check this listing every day at 9am".
-                </div>
-              }
-            >
+            <Show when={schedules().length > 0} fallback={
+              <div class="rounded-xl border border-dashed border-border p-4 text-center text-xs text-ink-muted">
+                {t("minds.noSchedules")}
+              </div>
+            }>
               <div class="flex flex-col gap-2">
                 <For each={schedules()}>
                   {(sched) => (
                     <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
                       <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2">
-                          <span class="font-semibold text-xs text-ink">{sched.label}</span>
-                          <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-mono font-medium text-accent">
+                          <span class="text-xs font-semibold text-ink">{sched.label}</span>
+                          <span class="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-medium text-accent">
                             {sched.cronExpr}
                           </span>
                         </div>
-                        <p class="truncate text-xs text-ink-muted mt-0.5">{sched.task}</p>
+                        <p class="mt-0.5 truncate text-xs text-ink-muted">{sched.task}</p>
                       </div>
-
-                      <div class="flex items-center gap-2 shrink-0">
+                      <div class="flex shrink-0 items-center gap-2">
                         <button
                           type="button"
                           onClick={() => void mindsStore.toggleSchedule(params.id, sched.id)}
@@ -444,12 +407,12 @@ export default function MindDetail() {
                             "bg-surface text-ink-muted": !sched.enabled,
                           }}
                         >
-                          {sched.enabled ? "Active" : "Paused"}
+                          {sched.enabled ? t("minds.scheduleActive") : t("minds.schedulePaused")}
                         </button>
                         <button
                           type="button"
                           onClick={() => void mindsStore.deleteSchedule(params.id, sched.id)}
-                          class="text-ink-subtle hover:text-danger p-1"
+                          class="p-1 text-ink-subtle hover:text-danger"
                         >
                           <TrashIcon size={14} />
                         </button>
@@ -461,103 +424,70 @@ export default function MindDetail() {
             </Show>
           </div>
 
-          {/* Sandbox Tool Toggles */}
           <div class="flex flex-col gap-3">
             <h3 class="text-xs font-bold uppercase tracking-wider text-ink-subtle">
-              Allowed Sandbox Capabilities
+              {t("minds.toolsTitle")}
             </h3>
-            {[
-              {
-                key: "browser",
-                name: "Stealth Custom Browser",
-                desc: "Human-mimicking headers & dynamic DOM scraper",
-              },
-              {
-                key: "web_fetch",
-                name: "Direct Web Fetch",
-                desc: "Fast plain text fetch for lightweight URLs",
-              },
-              {
-                key: "shell",
-                name: "Sandbox Shell",
-                desc: "Persistent workspace directory to store history",
-              },
-              {
-                key: "set_schedule",
-                name: "Self-Scheduling",
-                desc: "Allows the Mind to configure its own cron schedules",
-              },
-              {
-                key: "message_owner",
-                name: "Owner Direct Messaging",
-                desc: "Delivers findings right into your Atlas chat",
-              },
-            ].map((tool) => {
-              const m = mind();
-              const enabled = () => m?.tools?.[tool.key] ?? true;
-              return (
-                <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
-                  <div>
-                    <p class="text-xs font-semibold text-ink">{tool.name}</p>
-                    <p class="text-[11px] text-ink-muted">{tool.desc}</p>
+            <For each={TOOLS}>
+              {(tool) => {
+                const enabled = () => mind()?.tools?.[tool.key] ?? true;
+                return (
+                  <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
+                    <div>
+                      <p class="text-xs font-semibold text-ink">{t(tool.nameKey)}</p>
+                      <p class="text-[11px] text-ink-muted">{t(tool.descKey)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void toggleTool(tool.key, enabled())}
+                      class="flex h-5 w-9 shrink-0 rounded-full transition-colors"
+                      classList={{ "bg-accent": enabled(), "bg-border": !enabled() }}
+                    >
+                      <span
+                        class="h-5 w-5 rounded-full bg-white shadow transition-transform"
+                        classList={{ "translate-x-4": enabled(), "translate-x-0": !enabled() }}
+                      />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void toggleTool(tool.key, enabled())}
-                    class="flex h-5 w-9 shrink-0 rounded-full transition-colors"
-                    classList={{
-                      "bg-accent": enabled(),
-                      "bg-border": !enabled(),
-                    }}
-                  >
-                    <span
-                      class="h-5 w-5 rounded-full bg-white shadow transition-transform"
-                      classList={{
-                        "translate-x-4": enabled(),
-                        "translate-x-0": !enabled(),
-                      }}
-                    />
-                  </button>
-                </div>
-              );
-            })}
+                );
+              }}
+            </For>
           </div>
         </div>
       </Dialog>
 
-      {/* New Schedule Modal */}
       <Dialog
         open={addingSchedule()}
         onOpenChange={(o) => !o && setAddingSchedule(false)}
-        title="Add Recurring 24/7 Schedule"
-        description="Set a cron task that runs continuously on the server."
+        title={t("minds.addScheduleTitle")}
+        description={t("minds.addScheduleDesc")}
         footer={
           <>
             <Button variant="ghost" size="sm" onClick={() => setAddingSchedule(false)}>
-              Cancel
+              {t("minds.cancel")}
             </Button>
             <Button size="sm" loading={schedSaving()} onClick={() => void saveSchedule()}>
-              Save Schedule
+              {t("minds.saveSchedule")}
             </Button>
           </>
         }
       >
         <div class="flex flex-col gap-3">
           <TextField
-            label="Schedule Title"
-            placeholder="e.g. Daily Price Check"
+            label={t("minds.scheduleLabel")}
+            placeholder={t("minds.scheduleLabelPlaceholder")}
             value={schedLabel()}
             onInput={(e) => setSchedLabel(e.currentTarget.value)}
           />
           <TextField
-            label="Cron Expression (5 fields)"
-            placeholder="0 9 * * * (Every day at 9am UTC)"
+            label={t("minds.scheduleCron")}
+            placeholder={t("minds.scheduleCronPlaceholder")}
             value={schedCron()}
             onInput={(e) => setSchedCron(e.currentTarget.value)}
           />
           <TextArea
-            label="Task Instructions"
-            placeholder="e.g. Fetch the listing page, scrape the price, and message me if it drops."
+            label={t("minds.scheduleTask")}
+            placeholder={t("minds.scheduleTaskPlaceholder")}
             value={schedTask()}
             onInput={(e) => setSchedTask(e.currentTarget.value)}
           />

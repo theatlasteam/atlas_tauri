@@ -174,7 +174,7 @@ async fn execute_scheduled_job(state: AppState, item: DueSchedule, started_at: D
         &format!("This is a scheduled 24/7 background task: '{}'. Do the work with your tools and report findings to your owner.", item.label),
     );
 
-    let mut allowed_tools = vec!["browser", "web_fetch", "shell", "set_schedule", "message_owner"];
+    let mut allowed_tools = vec!["browser", "web_fetch", "shell", "say", "set_schedule", "message_owner"];
     if let Some(obj) = item.mind_tools.as_object() {
         allowed_tools.retain(|tool| {
             obj.get(*tool).and_then(|v| v.as_bool()).unwrap_or(true)

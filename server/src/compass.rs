@@ -380,6 +380,18 @@ fn mind_tool_defs() -> Vec<GatewayToolDef> {
         GatewayToolDef {
             kind: "function",
             function: GatewayFunctionDef {
+                name: "say",
+                description: "Show the owner a short live progress note NOW (streams into the chat immediately, e.g. \"Checking the price now…\"). Use before slow tools (browser, shell) and after they return, so the owner watches you work instead of staring at a spinner. Keep each note to one short sentence.",
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": { "text": { "type": "string", "description": "progress note shown live in the chat" } },
+                    "required": ["text"],
+                }),
+            },
+        },
+        GatewayToolDef {
+            kind: "function",
+            function: GatewayFunctionDef {
                 name: "message_owner",
                 description: "Send your owner a message. This is how findings reach them — end runs that found something worth knowing with one call.",
                 parameters: serde_json::json!({
@@ -509,6 +521,37 @@ pub struct AutonomousAgentResult {
     pub error: String,
 }
 
+/// Live events emitted while an agent job runs. The streaming run endpoint
+/// forwards these as SSE so the chat shows real-time status (typing, working
+/// on a tool) and `say` progress notes instead of one long silence.
+#[derive(Clone, Debug)]
+pub enum AgentEvent {
+    Status(String),
+    Say(String),
+    ToolStart { name: String, arguments: serde_json::Value },
+    ToolEnd { name: String, output_preview: String },
+    Done(AutonomousAgentResultSnapshot),
+}
+
+#[derive(Clone, Debug)]
+pub struct AutonomousAgentResultSnapshot {
+    pub output: String,
+    pub tool_calls_log: Vec<serde_json::Value>,
+    pub status: String,
+    pub error: String,
+}
+
+impl From<&AutonomousAgentResult> for AutonomousAgentResultSnapshot {
+    fn from(r: &AutonomousAgentResult) -> Self {
+        Self {
+            output: r.output.clone(),
+            tool_calls_log: r.tool_calls_log.clone(),
+            status: r.status.clone(),
+            error: r.error.clone(),
+        }
+    }
+}
+
 /// Executes an autonomous multi-turn agent loop for a Mind.
 /// Keeps running tool turns until the model outputs a final answer or reaches max turns limit.
 pub async fn run_autonomous_agent(
@@ -520,6 +563,27 @@ pub async fn run_autonomous_agent(
     task_input: String,
     allowed_tools: &[&str],
 ) -> AutonomousAgentResult {
+    run_autonomous_agent_stream(state, mind_id, owner_id, mind_name, system_prompt, task_input, allowed_tools, None).await
+}
+
+/// Streaming variant: emits `AgentEvent`s through `emit` as the job runs
+/// (status lines, `say` notes, tool start/end) and returns the same result.
+/// Non-streaming callers (schedule ticks, manual JSON runs) pass `None`.
+pub async fn run_autonomous_agent_stream(
+    state: &AppState,
+    mind_id: Uuid,
+    owner_id: Uuid,
+    mind_name: &str,
+    system_prompt: String,
+    task_input: String,
+    allowed_tools: &[&str],
+    emit: Option<tokio::sync::mpsc::UnboundedSender<AgentEvent>>,
+) -> AutonomousAgentResult {
+    let emit_ev = |ev: AgentEvent| {
+        if let Some(tx) = &emit {
+            let _ = tx.send(ev);
+        }
+    };
     let mut messages = vec![
         AgentMessage::System(system_prompt),
         AgentMessage::User(task_input),
@@ -528,16 +592,19 @@ pub async fn run_autonomous_agent(
     let max_turns = 10;
     let mut final_content = String::new();
 
+    emit_ev(AgentEvent::Status("typing".into()));
     for _turn_idx in 0..max_turns {
         let turn = match complete_agent_turn(state, messages.clone(), allowed_tools).await {
             Ok(t) => t,
             Err(e) => {
-                return AutonomousAgentResult {
+                let res = AutonomousAgentResult {
                     output: final_content,
                     tool_calls_log,
                     status: "error".into(),
                     error: e.to_string(),
                 };
+                emit_ev(AgentEvent::Done(AutonomousAgentResultSnapshot::from(&res)));
+                return res;
             }
         };
 
@@ -564,18 +631,38 @@ pub async fn run_autonomous_agent(
             let args_parsed: serde_json::Value = serde_json::from_str(args_raw).unwrap_or_default();
 
             let tool_output = match fn_name.as_str() {
+                "say" => {
+                    let text = args_parsed.get("text").and_then(|v| v.as_str()).unwrap_or_default();
+                    let note = text.trim().chars().take(500).collect::<String>();
+                    if !note.is_empty() {
+                        emit_ev(AgentEvent::Say(note.clone()));
+                    }
+                    "shown in chat.".to_string()
+                }
                 "browser" => {
+                    emit_ev(AgentEvent::Status("browsing".into()));
+                    emit_ev(AgentEvent::ToolStart { name: fn_name.clone(), arguments: args_parsed.clone() });
                     let url = args_parsed.get("url").and_then(|v| v.as_str()).unwrap_or_default();
                     let wait = args_parsed.get("wait_seconds").and_then(|v| v.as_u64());
-                    crate::minds_sandbox::browser_fetch(state, url, wait).await
+                    let out = crate::minds_sandbox::browser_fetch(state, url, wait).await;
+                    emit_ev(AgentEvent::ToolEnd { name: fn_name.clone(), output_preview: preview(&out) });
+                    out
                 }
                 "web_fetch" => {
+                    emit_ev(AgentEvent::Status("reading".into()));
+                    emit_ev(AgentEvent::ToolStart { name: fn_name.clone(), arguments: args_parsed.clone() });
                     let url = args_parsed.get("url").and_then(|v| v.as_str()).unwrap_or_default();
-                    crate::minds_sandbox::fetch_url(state, url).await
+                    let out = crate::minds_sandbox::fetch_url(state, url).await;
+                    emit_ev(AgentEvent::ToolEnd { name: fn_name.clone(), output_preview: preview(&out) });
+                    out
                 }
                 "shell" => {
+                    emit_ev(AgentEvent::Status("sandbox".into()));
+                    emit_ev(AgentEvent::ToolStart { name: fn_name.clone(), arguments: args_parsed.clone() });
                     let cmd = args_parsed.get("command").and_then(|v| v.as_str()).unwrap_or_default();
-                    crate::minds_sandbox::exec_shell(state, owner_id, cmd).await
+                    let out = crate::minds_sandbox::exec_shell(state, owner_id, cmd).await;
+                    emit_ev(AgentEvent::ToolEnd { name: fn_name.clone(), output_preview: preview(&out) });
+                    out
                 }
                 "message_owner" => {
                     let text = args_parsed.get("text").and_then(|v| v.as_str()).unwrap_or_default();
@@ -627,12 +714,21 @@ pub async fn run_autonomous_agent(
         }
     }
 
-    AutonomousAgentResult {
+    let res = AutonomousAgentResult {
         output: final_content,
         tool_calls_log,
         status: "ok".into(),
         error: String::new(),
-    }
+    };
+    emit_ev(AgentEvent::Done(AutonomousAgentResultSnapshot::from(&res)));
+    res
+}
+
+/// First 200 chars of a tool result for the live activity feed — the full
+/// output still goes to the model and the run log; this is only the preview
+/// the chat shows while it works.
+fn preview(out: &str) -> String {
+    out.chars().take(200).collect()
 }
 
 async fn complete_for_client_with_model(

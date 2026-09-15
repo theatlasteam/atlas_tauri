@@ -115,9 +115,78 @@ async function streamCompassComplete(
   return full;
 }
 
+/** Reads /api/minds/{id}/run/stream's event-stream, firing `onEvent` per
+ *  JSON event ({kind, data}) and resolving with the final run on `done`. */
+async function streamMindRun(
+  id: string,
+  input: string,
+  onEvent: (ev: { kind: string; data: any }) => void,
+  opts?: { signal?: AbortSignal },
+): Promise<MindRunDto> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const startedAt = new Date().toISOString();
+  const res = await fetch(`${apiBase()}/api/minds/${id}/run/stream`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ input }),
+    signal: opts?.signal,
+  });
+  if (!res.ok || !res.body) {
+    let message = res.statusText;
+    try {
+      const data = await res.json();
+      if (typeof data?.error === "string") message = data.error;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, message);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let final: MindRunDto | null = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const events = buf.split("\n\n");
+    buf = events.pop() ?? "";
+    for (const block of events) {
+      const dataLines = block
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).replace(/^ /, ""));
+      if (dataLines.length === 0) continue;
+      const raw = dataLines.join("\n");
+      if (!raw) continue;
+      try {
+        const ev = JSON.parse(raw) as { kind: string; data: any };
+        onEvent(ev);
+        if (ev.kind === "done") {
+          final = {
+            id: `live-${Date.now()}`,
+            trigger: "manual",
+            input,
+            output: ev.data?.output ?? "",
+            toolCalls: ev.data?.toolCalls ?? [],
+            status: ev.data?.status ?? "ok",
+            error: ev.data?.error ?? "",
+            startedAt,
+            finishedAt: new Date().toISOString(),
+          };
+        }
+      } catch {
+        /* partial JSON at a chunk boundary — next read completes it */
+      }
+    }
+  }
+  if (!final) throw new ApiError(0, "stream ended without a result");
+  return final;
+}
+
 /** Shared by attachment and avatar fetches: authorized GET → blob object URL. */
-async function fetchBlobUrl(path: string): Promise<string> {
-  const headers: Record<string, string> = {};
+async function fetchBlobUrl(path: string): Promise<string> {  const headers: Record<string, string> = {};
   const t = getToken();
   if (t) headers.Authorization = `Bearer ${t}`;
   const res = await fetch(`${apiBase()}${path}`, { headers });
@@ -385,6 +454,15 @@ export const api = {
   deleteMind: (id: string) => request<{ ok: boolean }>("DELETE", `/api/minds/${id}`),
   runMind: (id: string, input: string) =>
     request<MindRunDto>("POST", `/api/minds/${id}/run`, { input }),
+  /** Streaming run: same job, live SSE events (`status`/`say`/`tool_start`/
+   *  `tool_end`/`done`). Resolves with the final run once `done` arrives. */
+  runMindStream: (
+    id: string,
+    input: string,
+    onEvent: (ev: { kind: string; data: any }) => void,
+    opts?: { signal?: AbortSignal },
+  ): Promise<MindRunDto> =>
+    streamMindRun(id, input, onEvent, opts),
   listMindRuns: (id: string) => request<MindRunDto[]>("GET", `/api/minds/${id}/runs`),
   listMindSchedules: (id: string) =>
     request<MindScheduleDto[]>("GET", `/api/minds/${id}/schedules`),

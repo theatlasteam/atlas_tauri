@@ -238,6 +238,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/minds/rooms/{id}", get(routes::minds::get_room).delete(routes::minds::delete_room))
         .route("/api/minds/rooms/{id}/messages", get(routes::minds::room_messages).post(routes::minds::room_turn))
         .route("/api/minds/{id}/run", post(routes::minds::run_mind))
+        .route("/api/minds/{id}/run/stream", post(routes::minds::run_mind_stream))
         .route("/api/minds/{id}/runs", get(routes::minds::list_runs))
         .route("/api/minds/{id}/schedules", get(routes::minds::list_schedules).post(routes::minds::create_schedule))
         .route("/api/minds/{id}/schedules/{schedule_id}", patch(routes::minds::toggle_schedule).delete(routes::minds::delete_schedule))

@@ -9,6 +9,7 @@
 import { createRoot } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { api, type MindDto, type MindMessageDto, type MindRoomDto, type MindRunDto, type MindScheduleDto } from "../data/api";
+import { t } from "../lib/i18n";
 
 function createMindsStore() {
   const [state, setState] = createStore<{
@@ -20,8 +21,10 @@ function createMindsStore() {
     runs: Record<string, MindRunDto[]>;
     /** Mind ids currently being waited on, per room. */
     thinking: Record<string, string[]>;
+    /** Live streaming state per mind while a run is in flight. */
+    live: Record<string, { status: string; says: string[]; tool: string | null }>;
     error: string | null;
-  }>({ minds: null, rooms: null, messages: {}, schedules: {}, runs: {}, thinking: {}, error: null });
+  }>({ minds: null, rooms: null, messages: {}, schedules: {}, runs: {}, thinking: {}, live: {}, error: null });
 
   const setError = (e: unknown, fallback: string) => {
     setState("error", e instanceof Error ? e.message : fallback);
@@ -139,7 +142,7 @@ function createMindsStore() {
 
   /** Forget cached transcripts on sign-out; the next account reloads them. */
   const reset = () => {
-    setState({ minds: null, rooms: null, messages: {}, schedules: {}, runs: {}, thinking: {}, error: null });
+    setState({ minds: null, rooms: null, messages: {}, schedules: {}, runs: {}, thinking: {}, live: {}, error: null });
   };
 
   const loadRuns = async (mindId: string) => {
@@ -165,6 +168,60 @@ function createMindsStore() {
       setError(e, "Failed to run Mind.");
       throw e;
     }
+  };
+
+  /**
+   * Streaming run: the same job, but `say` notes and tool activity land in
+   * `live[mindId]` in real time so the chat reads like a conversation —
+   * "Checking the price now…", tool activity, then the final answer — instead
+   * of one long silence followed by everything at once.
+   */
+  const runMindLive = async (mindId: string, input: string, opts?: { signal?: AbortSignal }) => {
+    setState("error", null);
+    setState("live", mindId, { status: t("minds.statusTyping"), says: [], tool: null });
+    try {
+      const run = await api.runMindStream(
+        mindId,
+        input,
+        (ev) => {
+          if (ev.kind === "status") {
+            const key = typeof ev.data?.text === "string" ? ev.data.text : "";
+            if (key) setState("live", mindId, "status", statusText(key));
+          } else if (ev.kind === "say") {
+            const text = typeof ev.data?.text === "string" ? ev.data.text : "";
+            if (text) setState("live", mindId, "says", (s) => [...s, text]);
+          } else if (ev.kind === "tool_start") {
+            const name = typeof ev.data?.name === "string" ? ev.data.name : "working";
+            setState("live", mindId, "tool", name);
+            setState("live", mindId, "status", toolStatus(name));
+          } else if (ev.kind === "tool_end") {
+            setState("live", mindId, "tool", null);
+          }
+        },
+        opts,
+      );
+      setState("runs", mindId, (list) => [run, ...(list ?? [])]);
+      void loadMinds();
+      return run;
+    } catch (e) {
+      setError(e, "Failed to run Mind.");
+      throw e;
+    } finally {
+      setState("live", (map) => {
+        const next = { ...map };
+        delete next[mindId];
+        return next;
+      });
+    }
+  };
+
+  const clearLive = (mindId: string) => {
+    setState("live", (map) => {
+      if (!(mindId in map)) return map;
+      const next = { ...map };
+      delete next[mindId];
+      return next;
+    });
   };
 
   const loadSchedules = async (mindId: string) => {
@@ -217,6 +274,8 @@ function createMindsStore() {
     sendTurn,
     loadRuns,
     runMind,
+    runMindLive,
+    clearLive,
     loadSchedules,
     createSchedule,
     toggleSchedule,
@@ -226,6 +285,40 @@ function createMindsStore() {
 }
 
 export const mindsStore = createRoot(createMindsStore);
+
+/** Human status line for a live tool name — shown under the Mind's name. */
+export function toolStatus(name: string): string {
+  switch (name) {
+    case "browser":
+      return t("minds.statusBrowsing");
+    case "web_fetch":
+      return t("minds.statusReading");
+    case "shell":
+      return t("minds.statusSandbox");
+    case "set_schedule":
+      return t("minds.statusSchedule");
+    case "message_owner":
+      return t("minds.statusSending");
+    default:
+      return t("minds.statusWorking");
+  }
+}
+
+/** Maps a streaming status key from the server to a localized line. */
+export function statusText(key: string): string {
+  switch (key) {
+    case "typing":
+      return t("minds.statusTyping");
+    case "browsing":
+      return t("minds.statusBrowsing");
+    case "reading":
+      return t("minds.statusReading");
+    case "sandbox":
+      return t("minds.statusSandbox");
+    default:
+      return key;
+  }
+}
 
 /** Look up a Mind that's in this room — transcripts only carry mind ids. */
 export function mindInRoom(room: MindRoomDto | undefined, mindId: string | null): MindDto | undefined {
