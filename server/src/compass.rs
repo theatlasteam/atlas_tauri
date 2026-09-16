@@ -83,7 +83,7 @@ fn system_prompt() -> String {
 #[derive(Serialize, Clone)]
 struct GatewayMessage {
     role: &'static str,
-    content: MsgContent,
+    content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_calls: Option<Vec<GatewayToolCall>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -92,31 +92,9 @@ struct GatewayMessage {
     name: Option<String>,
 }
 
-/// Plain text, or text plus an image — screenshots ride to the vision model
-/// as `image_url` parts (the gateway WAF-blocks data: URLs, so shots are
-/// served over https; see desktop::store_shot).
-#[derive(Serialize, Clone)]
-#[serde(untagged)]
-enum MsgContent {
-    Text(String),
-    Parts(Vec<ContentPart>),
-}
-
-#[derive(Serialize, Clone)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum ContentPart {
-    Text { text: String },
-    ImageUrl { image_url: ImageUrlRef },
-}
-
-#[derive(Serialize, Clone)]
-struct ImageUrlRef {
-    url: String,
-}
-
 impl GatewayMessage {
     fn plain(role: &'static str, content: String) -> Self {
-        Self { role, content: MsgContent::Text(content), tool_calls: None, tool_call_id: None, name: None }
+        Self { role, content, tool_calls: None, tool_call_id: None, name: None }
     }
 }
 
@@ -424,65 +402,6 @@ fn mind_tool_defs() -> Vec<GatewayToolDef> {
                 }),
             },
         },
-        GatewayToolDef {
-            kind: "function",
-            function: GatewayFunctionDef {
-                name: "desktop_screenshot",
-                description: "See your graphical desktop (XFCE + Chromium). Captures your private screen and shows it to you. Always look before clicking — coordinates must come from what you actually see.",
-                parameters: serde_json::json!({ "type": "object", "properties": {} }),
-            },
-        },
-        GatewayToolDef {
-            kind: "function",
-            function: GatewayFunctionDef {
-                name: "desktop_click",
-                description: "Left-click a point on your screen. Only click coordinates you read off your latest screenshot.",
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "x": { "type": "integer", "description": "x pixel, 0..1280" },
-                        "y": { "type": "integer", "description": "y pixel, 0..800" }
-                    },
-                    "required": ["x", "y"],
-                }),
-            },
-        },
-        GatewayToolDef {
-            kind: "function",
-            function: GatewayFunctionDef {
-                name: "desktop_type",
-                description: "Type text into whatever is focused on your screen. Click the field first.",
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": { "text": { "type": "string", "description": "text to type (2000 chars max)" } },
-                    "required": ["text"],
-                }),
-            },
-        },
-        GatewayToolDef {
-            kind: "function",
-            function: GatewayFunctionDef {
-                name: "desktop_key",
-                description: "Press a key or combo on your screen, e.g. Return, Tab, ctrl+l, alt+F4.",
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": { "key": { "type": "string", "description": "key or +-joined combo" } },
-                    "required": ["key"],
-                }),
-            },
-        },
-        GatewayToolDef {
-            kind: "function",
-            function: GatewayFunctionDef {
-                name: "desktop_request_takeover",
-                description: "Ask your owner to take over the screen (e.g. a login only they can do). They get an accept button; control returns to you after. Use sparingly.",
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": { "reason": { "type": "string", "description": "why you need them, one sentence" } },
-                    "required": ["reason"],
-                }),
-            },
-        },
     ]
 }
 
@@ -569,7 +488,7 @@ pub enum AgentMessage {
     System(String),
     User(String),
     Assistant { content: String, tool_calls: Vec<GatewayToolCall> },
-    Tool { call_id: String, name: String, output: String, image_url: Option<String> },
+    Tool { call_id: String, name: String, output: String },
 }
 
 impl From<AgentMessage> for GatewayMessage {
@@ -579,20 +498,14 @@ impl From<AgentMessage> for GatewayMessage {
             AgentMessage::User(content) => GatewayMessage::plain("user", content),
             AgentMessage::Assistant { content, tool_calls } => GatewayMessage {
                 role: "assistant",
-                content: MsgContent::Text(content),
+                content,
                 tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
                 tool_call_id: None,
                 name: None,
             },
-            AgentMessage::Tool { call_id, name, output, image_url } => GatewayMessage {
+            AgentMessage::Tool { call_id, name, output } => GatewayMessage {
                 role: "tool",
-                content: match image_url {
-                    Some(url) => MsgContent::Parts(vec![
-                        ContentPart::Text { text: output },
-                        ContentPart::ImageUrl { image_url: ImageUrlRef { url } },
-                    ]),
-                    None => MsgContent::Text(output),
-                },
+                content: output,
                 tool_calls: None,
                 tool_call_id: Some(call_id),
                 name: Some(name),
@@ -618,9 +531,6 @@ pub enum AgentEvent {
     Say(String),
     ToolStart { name: String, arguments: serde_json::Value },
     ToolEnd { name: String, output_preview: String },
-    /// The Mind asks its owner to take over the desktop screen (e.g. a
-    /// login only the human can do). The chat surfaces an accept button.
-    TakeoverRequested { reason: String },
     Done(AutonomousAgentResultSnapshot),
 }
 
@@ -729,9 +639,6 @@ pub async fn run_autonomous_agent_stream(
             let args_raw = &tool_call.function.arguments;
             let args_parsed: serde_json::Value = serde_json::from_str(args_raw).unwrap_or_default();
 
-            // Screenshots ride along as image parts (None for every other
-            // tool) so the vision model actually sees the screen.
-            let mut image_url: Option<String> = None;
             let tool_output = match fn_name.as_str() {
                 "say" => {
                     let text = args_parsed.get("text").and_then(|v| v.as_str()).unwrap_or_default();
@@ -774,79 +681,6 @@ pub async fn run_autonomous_agent_stream(
                         Err(e) => format!("Failed to deliver message: {e}"),
                     }
                 }
-                "desktop_screenshot" => {
-                    emit_ev(AgentEvent::Status("looking at the screen…".into()));
-                    emit_ev(AgentEvent::ToolStart { name: fn_name.clone(), arguments: args_parsed.clone() });
-                    match crate::desktop::screenshot(state, owner_id, mind_id).await {
-                        Ok(png) => {
-                            let url = crate::desktop::store_shot(state, png);
-                            image_url = Some(url.clone());
-                            emit_ev(AgentEvent::ToolEnd { name: fn_name.clone(), output_preview: "screenshot attached.".into() });
-                            format!("Screenshot captured ({url}). Describe what you see on screen, then act.")
-                        }
-                        Err(e) => {
-                            let out = format!("error: screen capture failed: {e}");
-                            emit_ev(AgentEvent::ToolEnd { name: fn_name.clone(), output_preview: preview(&out) });
-                            out
-                        }
-                    }
-                }
-                "desktop_click" => {
-                    emit_ev(AgentEvent::ToolStart { name: fn_name.clone(), arguments: args_parsed.clone() });
-                    let x = args_parsed.get("x").and_then(|v| v.as_u64()).unwrap_or(0).min(3000);
-                    let y = args_parsed.get("y").and_then(|v| v.as_u64()).unwrap_or(0).min(3000);
-                    let out = crate::desktop::input(state, owner_id, mind_id, &format!("mousemove {x} {y} click 1")).await
-                        .unwrap_or_else(|e| format!("error: {e}"));
-                    emit_ev(AgentEvent::ToolEnd { name: fn_name.clone(), output_preview: preview(&out) });
-                    out
-                }
-                "desktop_type" => {
-                    emit_ev(AgentEvent::ToolStart { name: fn_name.clone(), arguments: args_parsed.clone() });
-                    let text = args_parsed.get("text").and_then(|v| v.as_str()).unwrap_or_default();
-                    if text.len() > 2000 {
-                        let out = "error: text too long (2000 chars max)".to_string();
-                        emit_ev(AgentEvent::ToolEnd { name: fn_name.clone(), output_preview: preview(&out) });
-                        out
-                    } else {
-                        // Via stdin-quoted arg would be safer; xdotool `type`
-                        // takes the words literally — single-quote and escape.
-                        let quoted = format!("'{}'", text.replace('\'', "'\\''"));
-                        let out = crate::desktop::input(state, owner_id, mind_id, &format!("type -- {quoted}")).await
-                            .unwrap_or_else(|e| format!("error: {e}"));
-                        emit_ev(AgentEvent::ToolEnd { name: fn_name.clone(), output_preview: preview(&out) });
-                        out
-                    }
-                }
-                "desktop_key" => {
-                    emit_ev(AgentEvent::ToolStart { name: fn_name.clone(), arguments: args_parsed.clone() });
-                    let key = args_parsed.get("key").and_then(|v| v.as_str()).unwrap_or_default();
-                    // Allowlist: named keys and short combos only — never a
-                    // raw shell string near xdotool.
-                    let ok = !key.is_empty()
-                        && key.len() <= 60
-                        && key.chars().all(|c| c.is_ascii_alphanumeric() || "+_-".contains(c));
-                    let out = if !ok {
-                        "error: key must be like 'Return', 'Tab', 'ctrl+l', 'alt+F4' (60 chars max)".to_string()
-                    } else {
-                        crate::desktop::input(state, owner_id, mind_id, &format!("key {key}")).await
-                            .unwrap_or_else(|e| format!("error: {e}"))
-                    };
-                    emit_ev(AgentEvent::ToolEnd { name: fn_name.clone(), output_preview: preview(&out) });
-                    out
-                }
-                "desktop_request_takeover" => {
-                    let reason = args_parsed.get("reason").and_then(|v| v.as_str()).unwrap_or_default();
-                    let reason = reason.trim().chars().take(300).collect::<String>();
-                    let saved = if reason.is_empty() { "I need you at the screen.".into() } else { reason.clone() };
-                    let _ = sqlx::query("UPDATE desktop_displays SET takeover_request = $2 WHERE mind_id = $1")
-                        .bind(mind_id)
-                        .bind(&saved)
-                        .execute(&state.db)
-                        .await;
-                    emit_ev(AgentEvent::TakeoverRequested { reason: saved.clone() });
-                    emit_ev(AgentEvent::Say(format!("I need you at the screen: {saved}")));
-                    "Takeover requested — your owner was notified. Wait for them; keep watching with screenshots, don't click meanwhile.".to_string()
-                }
                 "set_schedule" => {
                     let label = args_parsed.get("label").and_then(|v| v.as_str()).unwrap_or("Scheduled Task");
                     let cron = args_parsed.get("cron_expr").and_then(|v| v.as_str()).unwrap_or("");
@@ -886,7 +720,6 @@ pub async fn run_autonomous_agent_stream(
                 call_id: tool_call.id,
                 name: tool_call.function.name,
                 output: tool_output,
-                image_url,
             });
         }
     }

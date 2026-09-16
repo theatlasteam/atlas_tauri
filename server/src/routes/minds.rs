@@ -74,13 +74,9 @@ pub fn mind_system_prompt(mind: &MindDto, context: &str) -> String {
             "- `set_schedule(label, cron_expr, task)`: set or update a recurring cron schedule for yourself (e.g. check a listing every morning).\n",
             "- `message_owner(text)`: send your owner a message directly in Atlas. This is how findings reach them — a run that finds something worth knowing should end with one.\n",
             "If a tool you need is not listed, say so plainly instead of pretending you ran it.\n\n",
-            "## Facts about Atlas (no tool needed — known)\n",            "- The app is Atlas, an end-to-end encrypted messenger. Repo: github.com/theatlasteam/atlas_tauri. Site: https://atlasmsg.app, PWA at https://atlasmsg.app/app.\n",
+            "## Facts about Atlas (no tool needed — known)\n",
+            "- The app is Atlas, an end-to-end encrypted messenger. Repo: github.com/theatlasteam/atlas_tauri. Site: https://atlasmsg.app, PWA at https://atlasmsg.app/app.\n",
             "- For 'latest version' questions, fetch https://atlasmsg.app/api/version (public JSON with version and repo) and answer from it. Don't guess org or repo names, don't scrape download links, don't query the GitHub API for repos you haven't verified.\n\n",
-            "## Your graphical desktop (only if desktop tools are listed)\n",
-            "- You have a private XFCE desktop with Chromium, all yours: separate screen per Mind, persistent home, nobody else watching unless your owner opens the viewer.\n",
-            "- Eyes first: `desktop_screenshot` shows you the screen — always look before you click, and re-look after anything that changes it. Coordinates come from the screenshot, never from memory.\n",
-            "- Hands: `desktop_click(x, y)` (1280x800), `desktop_type(text)` into the focused field, `desktop_key` for Return/Tab/combos.\n",
-            "- Stuck at a login or anything only a human can do: `desktop_request_takeover(reason)` once, then wait and keep watching — don't click while your owner drives.\n\n",
             "## Working rules\n",
             "- Narrate as you go with `say`, then report. Before a slow tool call, `say` one short line about what you're doing ('Checking the price now…'); after it returns, `say` or reply with the result. Never sit silent through a whole job.\n",
             "- Always end with a plain-text reply stating the outcome (the finding, the price, the version — whatever was asked). Never end a job on a tool call with no text after it.\n",
@@ -778,7 +774,7 @@ pub async fn run_mind(
     );
 
     // Determine allowed tools based on Mind's JSON tool configuration
-    let mut allowed_tools = vec!["browser", "web_fetch", "shell", "say", "set_schedule", "message_owner", "desktop_screenshot", "desktop_click", "desktop_type", "desktop_key", "desktop_request_takeover"];
+    let mut allowed_tools = vec!["browser", "web_fetch", "shell", "say", "set_schedule", "message_owner"];
     if let Some(obj) = mind.tools.as_object() {
         allowed_tools.retain(|tool| {
             obj.get(*tool).and_then(|v| v.as_bool()).unwrap_or(true)
@@ -873,7 +869,7 @@ pub async fn run_mind_stream(
         &mind,
         "This is a direct job from your owner, not a room turn. Do it with your tools and report back.",
     );
-    let mut allowed_tools = vec!["browser", "web_fetch", "shell", "say", "set_schedule", "message_owner", "desktop_screenshot", "desktop_click", "desktop_type", "desktop_key", "desktop_request_takeover"];
+    let mut allowed_tools = vec!["browser", "web_fetch", "shell", "say", "set_schedule", "message_owner"];
     if let Some(obj) = mind.tools.as_object() {
         allowed_tools.retain(|tool| obj.get(*tool).and_then(|v| v.as_bool()).unwrap_or(true));
     }
@@ -936,9 +932,6 @@ pub async fn run_mind_stream(
             }
             crate::compass::AgentEvent::ToolEnd { name, output_preview } => {
                 ("tool_end", serde_json::json!({ "name": name, "outputPreview": output_preview }))
-            }
-            crate::compass::AgentEvent::TakeoverRequested { reason } => {
-                ("takeover", serde_json::json!({ "reason": reason }))
             }
             crate::compass::AgentEvent::Done(snap) => (
                 "done",

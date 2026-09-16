@@ -3,7 +3,6 @@ mod auth;
 mod broadcast;
 mod compass;
 mod config;
-mod desktop;
 mod error;
 mod mcp;
 mod minds_sandbox;
@@ -244,10 +243,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/minds/{id}/runs", get(routes::minds::list_runs))
         .route("/api/minds/{id}/schedules", get(routes::minds::list_schedules).post(routes::minds::create_schedule))
         .route("/api/minds/{id}/schedules/{schedule_id}", patch(routes::minds::toggle_schedule).delete(routes::minds::delete_schedule))
-        .route("/api/desktop/shot/{token}", get(routes::desktop::serve_shot))
-        .route("/api/minds/{id}/desktop", get(routes::desktop::get_desktop))
-        .route("/api/minds/{id}/desktop/takeover", post(routes::desktop::takeover))
-        .route("/api/minds/{id}/desktop/release", post(routes::desktop::release))
         .route("/api/canvas", post(routes::canvas::create))
         .route("/api/canvas/{id}", get(routes::canvas::get))
         // Everything the routes above didn't match. `/api/*` and `/ws` are

@@ -4,7 +4,6 @@ pub mod calls;
 pub mod canvas;
 pub mod chats;
 pub mod devices;
-pub mod desktop;
 pub mod emoji;
 pub mod folders;
 pub mod keys;
