@@ -23,15 +23,19 @@ let orbSeq = 0;
  * pointer (clamped, smoothed by CSS transition); blinking runs on a random
  * loop; each state changes the eyes and the body language.
  */
-export default function MascotOrb(props: { state: MascotState; size?: number }) {
+export default function MascotOrb(props: { state: MascotState; size?: number; tone?: number }) {
   const size = () => props.size ?? 220;
   let svgRef: SVGSVGElement | undefined;
   const [gaze, setGaze] = createSignal({ x: 0, y: 0 });
   const [blink, setBlink] = createSignal(false);
-  // One random identity per mount (plus a unique gradient id — duplicates
-  // would all resolve url(#…) to the first instance and share its colors).
+  // One identity per mount: random by default, or pinned via `tone` so the
+  // same character (e.g. Doccy) renders identically in every instance.
+  // (Plus a unique gradient id — duplicates would all resolve url(#…) to
+  // the first instance and share its colors.)
   const gid = `mx-grad-${++orbSeq}`;
-  const [colors] = createSignal(PALETTE[Math.floor(Math.random() * PALETTE.length)]);
+  const [colors] = createSignal(
+    PALETTE[props.tone ?? Math.floor(Math.random() * PALETTE.length)] ?? PALETTE[0],
+  );
 
   // Pupils follow the cursor: vector from orb centre to pointer, clamped to
   // the eye radius so they never leave the whites. Runs on rAF-throttled

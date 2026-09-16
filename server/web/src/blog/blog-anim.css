@@ -59,25 +59,10 @@
   .mx-hero-line,
   .mx-flip-char,
   .art-orb,
-  .art-orb-slow,
-  .doccy-bob {
+  .art-orb-slow {
     animation: none;
     opacity: 1;
     filter: none;
     transform: none;
-  }
-}
-/* Doccy's corner peek: one slow, shallow bob. Everything else about him
- * moves only on click/hover. */
-.doccy-bob {
-  animation: doccy-bob 4.5s ease-in-out infinite;
-}
-@keyframes doccy-bob {
-  0%,
-  100% {
-    margin-bottom: 0;
-  }
-  50% {
-    margin-bottom: 7px;
   }
 }

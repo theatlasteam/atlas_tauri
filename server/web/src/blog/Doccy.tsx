@@ -159,18 +159,13 @@ export default function Doccy(props: { slug: string; faqs: DoccyFaq[] }) {
         class="fixed bottom-0 right-0 z-50"
       >
         <span
-          class="doccy-bob relative block transition-transform duration-300"
+          class="relative block -rotate-6 transition-transform duration-300"
           classList={{
             "translate-x-[45%] translate-y-[45%] hover:translate-x-[20%] hover:translate-y-[20%]": !open(),
           }}
         >
-          <Show when={!open()}>
-            <span class="absolute -left-44 top-2 hidden whitespace-nowrap rounded-2xl rounded-br-md bg-ink px-3.5 py-2 text-left text-[13px] text-bg shadow-xl sm:block">
-              {t("doccy.teaser")}
-            </span>
-          </Show>
           <span class="block drop-shadow-[-10px_-10px_18px_rgba(0,0,0,0.55)]">
-            <MascotOrb state={open() ? "happy" : thinking() ? "thinking" : "idle"} size={88} />
+            <MascotOrb state={open() ? "happy" : thinking() ? "thinking" : "idle"} size={88} tone={6} />
           </span>
         </span>
       </button>
@@ -182,7 +177,7 @@ export default function Doccy(props: { slug: string; faqs: DoccyFaq[] }) {
           class="fixed bottom-24 right-3 z-50 flex max-h-[70vh] w-[calc(100vw-1.5rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl sm:right-5"
         >
           <header class="flex items-center gap-2.5 border-b border-border px-4 py-3">
-            <MascotOrb state="happy" size={34} />
+            <MascotOrb state="happy" size={34} tone={6} />
             <p class="flex-1 text-[15px] font-semibold">{t("doccy.name")}</p>
             <button
               type="button"
