@@ -61,6 +61,22 @@ pub struct Config {
     /// Bearer / x-admin-token for official broadcasts. Falls back to
     /// `waitlist_admin_token` when unset.
     pub broadcast_admin_token: Option<String>,
+    /// Graphical desktops for Minds (XFCE + Chromium behind VNC). Off unless
+    /// explicitly enabled: one desktop container needs gigabytes the small
+    /// VPS doesn't have — point this at a bigger Docker host.
+    pub desktop_enabled: bool,
+    /// Image with XFCE, TigerVNC, noVNC/websockify, Chromium, xdotool, scrot.
+    pub desktop_image: String,
+    /// Host dir for per-user desktop homes (persisted profiles/logins).
+    pub desktop_data_dir: String,
+    /// Public base URL used for screenshot links handed to the vision model
+    /// (data: URLs are WAF-blocked by the gateway — shots must be fetchable
+    /// https URLs). No trailing slash.
+    pub desktop_public_base: String,
+    /// First ports of the /32 ranges mapped into each desktop container for
+    /// per-display VNC and noVNC/websockify.
+    pub desktop_vnc_base_port: u16,
+    pub desktop_novnc_base_port: u16,
 }
 
 fn var(key: &str) -> Option<String> {
@@ -128,6 +144,19 @@ impl Config {
                 .to_string(),
             minds_workdir: var("MINDS_WORKDIR").unwrap_or_else(|| "./data/minds_sandbox".into()),
             broadcast_admin_token: var("BROADCAST_ADMIN_TOKEN"),
+            desktop_enabled: var("DESKTOP_ENABLED").is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
+            desktop_image: var("DESKTOP_IMAGE").unwrap_or_else(|| "atlas-desktop:latest".into()),
+            desktop_data_dir: var("DESKTOP_DATA_DIR").unwrap_or_else(|| "./data/desktops".into()),
+            desktop_public_base: var("DESKTOP_PUBLIC_BASE")
+                .unwrap_or_else(|| "https://atlasmsg.app".into())
+                .trim_end_matches('/')
+                .to_string(),
+            desktop_vnc_base_port: var("DESKTOP_VNC_BASE_PORT")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(15900),
+            desktop_novnc_base_port: var("DESKTOP_NOVNC_BASE_PORT")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(16900),
         })
     }
 }

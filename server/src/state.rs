@@ -33,6 +33,10 @@ pub struct AppState {
     pub official_user_id: Uuid,
     pub broadcast_chat_id: Uuid,
     pub canvas: Arc<CanvasHub>,
+    /// Short-lived desktop screenshots, keyed by unguessable token, served
+    /// publicly so the vision gateway can fetch them (data: URLs are
+    /// WAF-blocked). Evicted lazily on access past expiry — see desktop.rs.
+    pub desktop_shots: Arc<dashmap::DashMap<String, crate::desktop::DesktopShot>>,
 }
 
 impl AppState {
@@ -62,6 +66,7 @@ impl AppState {
             official_user_id,
             broadcast_chat_id,
             canvas: Arc::new(CanvasHub::default()),
+            desktop_shots: Arc::new(dashmap::DashMap::new()),
         }
     }
 }
