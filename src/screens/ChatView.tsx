@@ -654,8 +654,8 @@ export default function ChatView() {
                       <div
                         onClick={() => bubbleRetry(message)}
                         classList={{
-                          "mt-3": (isFirst() || !!message.callLog) && !(preferences.bubbleStyle === "compact" && isDesktop()),
-                          "mt-2": (isFirst() || !!message.callLog) && preferences.bubbleStyle === "compact" && isDesktop(),
+                          "mt-3": (isFirst() || !!message.callLog) && preferences.bubbleStyle !== "compact",
+                          "mt-2": (isFirst() || !!message.callLog) && preferences.bubbleStyle === "compact",
                           "mt-[2px]": !isFirst() && !message.callLog,
                         }}
                       >

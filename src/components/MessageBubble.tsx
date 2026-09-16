@@ -1,5 +1,5 @@
 import { MessageSurface, Twemoji, type MessageButton, type MessageComments } from "@atlas/ui";
-import { createEffect, createResource, createSignal, For, on, onCleanup, Show } from "solid-js";
+import { createEffect, createResource, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js";
 import { api } from "../data/api";
 import Avatar from "./Avatar";
 import VerifiedBadge from "./VerifiedBadge";
@@ -14,7 +14,6 @@ import {
 } from "../lib/time";
 import { session } from "../store/session";
 import { preferences } from "../store/preferences";
-import { useIsDesktopLayout } from "../lib/platform";
 import { messagesStore } from "../store/messages";
 import {
   CheckIcon,
@@ -272,12 +271,16 @@ export default function MessageBubble(props: {
   chat: Chat | undefined;
   /** Resolved sender profile for group-chat bubbles (name + avatar). */
   author?: User;
+  /** Custom author name override (e.g. for Mind name). */
+  authorName?: string;
+  /** Custom avatar element (e.g. for MindOrb in Mind chat). */
+  avatar?: JSX.Element;
   /** First/last message in a consecutive run from the same sender. */
   isFirstInGroup?: boolean;
   isLastInGroup?: boolean;
-  onReply: (message: Message) => void;
+  onReply?: (message: Message) => void;
   /** Open the message-actions sheet (reactions, reply, edit, unsend). */
-  onActions: (message: Message, anchor: HTMLElement) => void;
+  onActions?: (message: Message, anchor: HTMLElement) => void;
   /** Channel comments. Omit on DMs/groups so the bubble stays as wide as its text. */
   comments?: MessageComments;
   /** Bot / channel inline keyboard. */
@@ -289,6 +292,9 @@ export default function MessageBubble(props: {
     fetch?: string;
     edit?: boolean;
   }) => void;
+  /** Custom body/content override or append (e.g. for markdown or tool calls in Mind chat). */
+  children?: JSX.Element;
+  content?: JSX.Element;
 }) {
   const isFirst = () => props.isFirstInGroup ?? true;
   const isLast = () => props.isLastInGroup ?? true;
@@ -314,7 +320,8 @@ export default function MessageBubble(props: {
    * just the reaction row.
    */
   const startPress = () => {
-    pressTimer = setTimeout(() => props.onActions(m(), bubbleRef!), HOLD_MS);
+    if (!props.onActions) return;
+    pressTimer = setTimeout(() => props.onActions?.(m(), bubbleRef!), HOLD_MS);
   };
   const cancelPress = () => pressTimer && clearTimeout(pressTimer);
   onCleanup(cancelPress);
@@ -330,8 +337,7 @@ export default function MessageBubble(props: {
    * what it is allowed to show.
    */
   const sealed = () => !!m().sealed;
-  const isDesktop = useIsDesktopLayout();
-  const compact = () => preferences.bubbleStyle === "compact" && isDesktop();
+  const compact = () => preferences.bubbleStyle === "compact";
   const keyboard = (): MessageButton[] | undefined => {
     const list = m().buttons;
     if (!list?.length) return undefined;
@@ -359,7 +365,7 @@ export default function MessageBubble(props: {
   const compactName = () =>
     mine()
       ? (session.user()?.name ?? t("appearance.previewYou"))
-      : (props.author?.name ?? props.chat?.name ?? "");
+      : (props.authorName ?? props.author?.name ?? props.chat?.name ?? "");
 
   return (
     <Show
@@ -374,16 +380,20 @@ export default function MessageBubble(props: {
       <div class="bubble-in group flex w-full items-end justify-start gap-1">
         {/* Avatar slot for received group messages — only drawn on the last
             bubble of a run, but reserved on every row so bubbles stay aligned. */}
-        <Show when={!mine() && isGroupChat()}>
+        <Show when={props.avatar || (!mine() && isGroupChat())}>
           <div class="flex h-6 w-6 shrink-0 items-end self-end">
             <Show when={isLast()}>
-              <Avatar
-                size={24}
-                color={props.author?.avatarColor ?? "#94a3b8"}
-                initial={(props.author?.name?.[0] ?? "?").toUpperCase()}
-                userId={props.author?.id}
-                hasPhoto={props.author?.hasAvatar}
-              />
+              <Show when={props.avatar} fallback={
+                <Avatar
+                  size={24}
+                  color={props.author?.avatarColor ?? "#94a3b8"}
+                  initial={(props.author?.name?.[0] ?? "?").toUpperCase()}
+                  userId={props.author?.id}
+                  hasPhoto={props.author?.hasAvatar}
+                />
+              }>
+                {props.avatar}
+              </Show>
             </Show>
           </div>
         </Show>
@@ -394,7 +404,7 @@ export default function MessageBubble(props: {
             comments={props.comments}
             keyboard={keyboard()}
             ref={bubbleRef}
-            onDblClick={() => props.onReply(m())}
+            onDblClick={() => props.onReply?.(m())}
             onTouchStart={startPress}
             onTouchEnd={cancelPress}
             onTouchMove={cancelPress}
@@ -441,8 +451,12 @@ export default function MessageBubble(props: {
                 when={!sealed()}
                 fallback={<SealedCapsule message={m()} peerUserId={props.chat?.peerUserId} />}
               >
-                <Show when={m().callLog} fallback={<MessageBody message={m()} />}>
-                  <CallLogBubble message={m()} />
+                <Show when={props.content ?? props.children} fallback={
+                  <Show when={m().callLog} fallback={<MessageBody message={m()} />}>
+                    <CallLogBubble message={m()} />
+                  </Show>
+                }>
+                  {(custom) => custom()}
                 </Show>
               </Show>
             </Show>
@@ -470,7 +484,9 @@ export default function MessageBubble(props: {
           </Show>
         </div>
 
-        <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
+        <Show when={props.onReply || props.onActions}>
+          <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
+        </Show>
       </div>
 
       {/* Timestamp + delivery status: only on the last bubble of a group,
@@ -512,17 +528,21 @@ export default function MessageBubble(props: {
       <div class="group flex w-full gap-2.5">
         <div class="w-9 shrink-0 pt-0.5">
           <Show when={isFirst()}>
-            <Avatar
-              size={36}
-              color={mine() ? (session.user()?.avatarColor ?? "#94a3b8") : (props.author?.avatarColor ?? props.chat?.avatarColor ?? "#94a3b8")}
-              initial={
-                mine()
-                  ? (session.user()?.avatarInitial ?? "Y")
-                  : (props.author?.name?.[0] ?? props.chat?.avatarInitial ?? "?").toUpperCase()
-              }
-              userId={mine() ? session.user()?.id : (props.author?.id ?? props.chat?.peerUserId)}
-              hasPhoto={mine() ? session.user()?.hasAvatar : (props.author?.hasAvatar ?? props.chat?.peerHasAvatar)}
-            />
+            <Show when={props.avatar} fallback={
+              <Avatar
+                size={36}
+                color={mine() ? (session.user()?.avatarColor ?? "#94a3b8") : (props.author?.avatarColor ?? props.chat?.avatarColor ?? "#94a3b8")}
+                initial={
+                  mine()
+                    ? (session.user()?.avatarInitial ?? "Y")
+                    : (props.author?.name?.[0] ?? props.chat?.avatarInitial ?? "?").toUpperCase()
+                }
+                userId={mine() ? session.user()?.id : (props.author?.id ?? props.chat?.peerUserId)}
+                hasPhoto={mine() ? session.user()?.hasAvatar : (props.author?.hasAvatar ?? props.chat?.peerHasAvatar)}
+              />
+            }>
+              {props.avatar}
+            </Show>
           </Show>
         </div>
         <div class="min-w-0 flex-1">
@@ -542,7 +562,7 @@ export default function MessageBubble(props: {
             ref={bubbleRef}
             class="text-[15px] leading-snug text-ink"
             classList={{ "opacity-60": !!m().pending, "text-danger": !!m().failed }}
-            onDblClick={() => props.onReply(m())}
+            onDblClick={() => props.onReply?.(m())}
             onTouchStart={startPress}
             onTouchEnd={cancelPress}
             onTouchMove={cancelPress}
@@ -561,8 +581,12 @@ export default function MessageBubble(props: {
                 when={!sealed()}
                 fallback={<SealedCapsule message={m()} peerUserId={props.chat?.peerUserId} />}
               >
-                <Show when={m().callLog} fallback={<MessageBody message={m()} />}>
-                  <CallLogBubble message={m()} />
+                <Show when={props.content ?? props.children} fallback={
+                  <Show when={m().callLog} fallback={<MessageBody message={m()} />}>
+                    <CallLogBubble message={m()} />
+                  </Show>
+                }>
+                  {(custom) => custom()}
                 </Show>
               </Show>
             </Show>
@@ -590,7 +614,9 @@ export default function MessageBubble(props: {
             </div>
           </Show>
         </div>
-        <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
+        <Show when={props.onReply || props.onActions}>
+          <BubbleActions message={m()} onReply={props.onReply} onActions={props.onActions} />
+        </Show>
       </div>
     </Show>
   );
@@ -716,8 +742,8 @@ function MessageBody(props: { message: Message }) {
 
 function BubbleActions(props: {
   message: Message;
-  onReply: (message: Message) => void;
-  onActions: (message: Message, anchor: HTMLElement) => void;
+  onReply?: (message: Message) => void;
+  onActions?: (message: Message, anchor: HTMLElement) => void;
 }) {
   let moreBtn: HTMLButtonElement | undefined;
   const action =
@@ -734,10 +760,10 @@ function BubbleActions(props: {
           phone reaches by pressing and holding, so no action can end up
           desktop-only again. Phosphor icons rather than literal "↩" glyphs,
           which rendered at a different size and weight on every platform. */}
-      <Show when={!inert()}>
+      <Show when={!inert() && props.onReply}>
         <button
           type="button"
-          onClick={() => props.onReply(m())}
+          onClick={() => props.onReply?.(m())}
           class={action}
           aria-label={t("messageBubble.replyAria")}
           title={t("messageBubble.replyAria")}
@@ -745,16 +771,18 @@ function BubbleActions(props: {
           <ReplyIcon size={16} />
         </button>
       </Show>
-      <button
-        ref={moreBtn}
-        type="button"
-        onClick={() => props.onActions(m(), moreBtn!)}
-        class={action}
-        aria-label={t("messageBubble.moreAria")}
-        title={t("messageBubble.moreTitle")}
-      >
-        <DotsIcon size={16} />
-      </button>
+      <Show when={props.onActions}>
+        <button
+          ref={moreBtn}
+          type="button"
+          onClick={() => props.onActions?.(m(), moreBtn!)}
+          class={action}
+          aria-label={t("messageBubble.moreAria")}
+          title={t("messageBubble.moreTitle")}
+        >
+          <DotsIcon size={16} />
+        </button>
+      </Show>
     </div>
   );
 }

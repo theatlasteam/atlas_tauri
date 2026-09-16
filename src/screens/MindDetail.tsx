@@ -1,12 +1,15 @@
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
-import { Button, Composer, Dialog, MessageBubble, TextArea, TextField } from "@atlas/ui";
+import { Button, Composer, Dialog, TextArea, TextField } from "@atlas/ui";
 import { mindsStore } from "../store/minds";
+import { preferences } from "../store/preferences";
+import { session } from "../store/session";
+import type { Message } from "../data/types";
+import MessageBubble from "../components/MessageBubble";
 import MindOrb from "../components/MindOrb";
 import MarkdownContent from "../components/MarkdownContent";
 import MindTool from "../components/MindTool";
 import { ArrowDownIcon, BackIcon, PlusIcon, SettingsIcon, SpinnerIcon, TrashIcon } from "../icons";
-import { formatRelativeTime } from "../lib/time";
 import { t, type TranslationKey } from "../lib/i18n";
 import { useIsDesktopLayout } from "../lib/platform";
 import { MIND_PALETTE, darkenColor } from "../lib/minds";
@@ -23,7 +26,7 @@ interface ChatTurn {
 /** Tools worth showing in the activity drawer. `say` is excluded — its note
  *  already streams into the chat as a bubble, so listing it again (with its
  *  "shown in chat." receipt) is pure noise. */
-function visibleTools(msg: ChatTurn): NonNullable<ChatTurn["toolCalls"]> {
+function visibleTools(msg: { toolCalls?: ChatTurn["toolCalls"] }): NonNullable<ChatTurn["toolCalls"]> {
   return (msg.toolCalls ?? []).filter((tc) => tc.name !== "say");
 }
 
@@ -139,23 +142,37 @@ export default function MindDetail() {
   );
 
   // Convert persisted runs into a conversational timeline, oldest first.
-  const chatMessages = () => {
-    const list: ChatTurn[] = [];
+  const feedMessages = () => {
+    const list: Array<Message & { toolCalls?: ChatTurn["toolCalls"] }> = [];
     const sortedRuns = [...runs()].sort(
       (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
     );
+    const userId = session.user()?.id ?? "me";
+    const mindId = params.id;
     for (const r of sortedRuns) {
       if (r.input) {
-        list.push({ id: `${r.id}-user`, role: "user", text: r.input, time: r.startedAt });
+        list.push({
+          id: `${r.id}-user`,
+          chatId: mindId,
+          authorId: userId,
+          text: r.input,
+          scheme: "plain",
+          sentAt: r.startedAt,
+          mine: true,
+          reactions: [],
+        });
       }
       if (r.output || (r.toolCalls && r.toolCalls.length > 0)) {
         list.push({
           id: `${r.id}-asst`,
-          role: "assistant",
+          chatId: mindId,
+          authorId: mindId,
           text: r.output || (r.status === "error" ? t("minds.runFailed") : t("minds.taskCompleted")),
+          scheme: "plain",
+          sentAt: r.finishedAt || r.startedAt,
+          mine: false,
+          reactions: [],
           toolCalls: r.toolCalls,
-          status: r.status,
-          time: r.finishedAt || r.startedAt,
         });
       }
     }
@@ -562,68 +579,130 @@ export default function MindDetail() {
               <div
                 ref={scrollRef}
                 onScroll={handleScroll}
+                data-wallpaper={preferences.wallpaper}
                 class="h-full min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 pt-3 md:px-6"
               >
-                <div class="flex w-full max-w-[40rem] flex-col gap-2.5">
-                  <For each={chatMessages()}>
-                    {(msg) => (
-                      <Show
-                        when={msg.role === "assistant"}
-                        fallback={
-                          <MessageBubble side="sent" time={formatRelativeTime(msg.time)}>
-                            {msg.text}
-                          </MessageBubble>
-                        }
-                      >
-                        <div class="mr-auto flex w-fit max-w-[min(88%,36rem)] items-end gap-2.5">
-                          <span class="mb-0.5 shrink-0">
-                            <MindOrb color={mind()?.color ?? "#8a8a8a"} colorEnd={mind()?.colorEnd} size={30} />
-                          </span>
+                <div class="flex w-full max-w-[40rem] flex-col">
+                  <For each={feedMessages()}>
+                    {(message, i) => {
+                      const list = () => feedMessages();
+                      const groupable = (m: (Message & { toolCalls?: ChatTurn["toolCalls"] }) | undefined) => !!m;
+                      const prev = () => list()[i() - 1];
+                      const next = () => list()[i() + 1];
+                      const isFirst = () => !groupable(prev()) || prev()!.authorId !== message.authorId;
+                      const isLast = () => !groupable(next()) || next()!.authorId !== message.authorId;
+                      const mMind = () => mind();
+                      return (
+                        <div
+                          classList={{
+                            "mt-3": isFirst() && preferences.bubbleStyle !== "compact",
+                            "mt-2": isFirst() && preferences.bubbleStyle === "compact",
+                            "mt-[2px]": !isFirst(),
+                          }}
+                        >
                           <MessageBubble
-                            side="received"
-                            name={mind()?.name}
-                            time={formatRelativeTime(msg.time)}
-                            class="!max-w-full"
-                          >
-                            <MarkdownContent text={msg.text} />
-                            <Show when={visibleTools(msg).length > 0}>
-                              <div class="mt-2 flex flex-col gap-1.5">
-                                <For each={visibleTools(msg)}>
-                                  {(tc) => (
-                                    <MindTool
-                                      name={tc.name}
-                                      args={typeof tc.arguments === "string" ? tc.arguments : JSON.stringify(tc.arguments ?? {})}
-                                      output={tc.output}
-                                      state={tc.output.trimStart().startsWith("error:") ? "error" : "done"}
-                                    />
-                                  )}
-                                </For>
+                            message={message}
+                            chat={undefined}
+                            authorName={message.mine ? undefined : mMind()?.name}
+                            avatar={
+                              message.mine ? undefined : (
+                                <MindOrb
+                                  color={mMind()?.color ?? "#8a8a8a"}
+                                  colorEnd={mMind()?.colorEnd}
+                                  size={preferences.bubbleStyle === "compact" ? 36 : 24}
+                                />
+                              )
+                            }
+                            isFirstInGroup={isFirst()}
+                            isLastInGroup={isLast()}
+                            content={
+                              <div>
+                                <MarkdownContent text={message.text} />
+                                <Show when={visibleTools(message).length > 0}>
+                                  <div class="mt-2 flex flex-col gap-1.5">
+                                    <For each={visibleTools(message)}>
+                                      {(tc) => (
+                                        <MindTool
+                                          name={tc.name}
+                                          args={typeof tc.arguments === "string" ? tc.arguments : JSON.stringify(tc.arguments ?? {})}
+                                          output={tc.output}
+                                          state={tc.output.trimStart().startsWith("error:") ? "error" : "done"}
+                                        />
+                                      )}
+                                    </For>
+                                  </div>
+                                </Show>
                               </div>
-                            </Show>
-                          </MessageBubble>
+                            }
+                          />
                         </div>
-                      </Show>
-                    )}
+                      );
+                    }}
                   </For>
 
-                  {/* Live turn: says and tool cards interleaved */}
+                  {/* Live turn: user's sending bubble, says, and tool cards */}
                   <Show when={pendingInput()}>
-                    <MessageBubble side="sent" status="sending">
-                      {pendingInput()}
-                    </MessageBubble>
+                    <div
+                      classList={{
+                        "mt-3": preferences.bubbleStyle !== "compact",
+                        "mt-2": preferences.bubbleStyle === "compact",
+                      }}
+                    >
+                      <MessageBubble
+                        message={{
+                          id: "pending-user",
+                          chatId: params.id,
+                          authorId: session.user()?.id ?? "me",
+                          text: pendingInput()!,
+                          scheme: "plain",
+                          sentAt: new Date().toISOString(),
+                          mine: true,
+                          pending: true,
+                          reactions: [],
+                        }}
+                        chat={undefined}
+                        isFirstInGroup={true}
+                        isLastInGroup={true}
+                      />
+                    </div>
                   </Show>
+
                   <For each={live()?.events ?? []}>
                     {(item) => (
                       <Show
                         when={item.kind === "tool"}
                         fallback={
-                          <div class="mr-auto flex w-fit max-w-[min(88%,36rem)] items-end gap-2.5">
-                            <span class="mb-0.5 shrink-0">
-                              <MindOrb color={mind()?.color ?? "#8a8a8a"} colorEnd={mind()?.colorEnd} size={30} thinking />
-                            </span>
-                            <MessageBubble side="received" name={mind()?.name} class="!max-w-full">
-                              <MarkdownContent text={(item as { text: string }).text} />
-                            </MessageBubble>
+                          <div
+                            classList={{
+                              "mt-3": preferences.bubbleStyle !== "compact",
+                              "mt-2": preferences.bubbleStyle === "compact",
+                            }}
+                          >
+                            <MessageBubble
+                              message={{
+                                id: "live-asst",
+                                chatId: params.id,
+                                authorId: params.id,
+                                text: (item as { text: string }).text,
+                                scheme: "plain",
+                                sentAt: new Date().toISOString(),
+                                mine: false,
+                                reactions: [],
+                              }}
+                              chat={undefined}
+                              authorName={mind()?.name}
+                              avatar={
+                                <MindOrb
+                                  color={mind()?.color ?? "#8a8a8a"}
+                                  colorEnd={mind()?.colorEnd}
+                                  size={preferences.bubbleStyle === "compact" ? 36 : 24}
+                                  thinking
+                                />
+                              }
+                              isFirstInGroup={true}
+                              isLastInGroup={true}
+                              content={<MarkdownContent text={(item as { text: string }).text} />}
+                            />
                           </div>
                         }
                       >
@@ -635,7 +714,7 @@ export default function MindDetail() {
                             state: "running" | "done";
                           };
                           return (
-                            <div class="max-w-full">
+                            <div class="mt-2 max-w-full">
                               <MindTool
                                 name={tool.name}
                                 args={tool.args}
@@ -649,21 +728,24 @@ export default function MindDetail() {
                       </Show>
                     )}
                   </For>
+
+                  {/* Live typing / thinking indicator formatted like ChatView liveDrafts */}
                   <Show when={running() && (live()?.events.length ?? 0) === 0}>
-                    <div class="mr-auto flex items-end gap-2.5">
-                      <span class="mb-0.5 shrink-0">
-                        <MindOrb color={mind()?.color ?? "#8a8a8a"} colorEnd={mind()?.colorEnd} size={30} thinking />
-                      </span>
-                      <MessageBubble side="received" name={mind()?.name}>
-                        <span class="inline-flex items-center gap-1.5 text-xs text-ink-muted">
-                          <span class="animate-pulse">{mind()?.name ?? t("minds.title")}…</span>
-                        </span>
-                      </MessageBubble>
+                    <div class="mt-2.5 flex w-full max-w-[40rem] justify-start">
+                      <div class="max-w-[86%] rounded-[1.1rem] rounded-bl-md border border-dashed border-accent/40 bg-bubble-received/60 px-3 py-1.5 text-bubble-received-ink md:max-w-[28rem]">
+                        <p class="mb-0.5 truncate text-xs font-semibold text-accent">
+                          {mind()?.name ?? t("minds.title")}
+                        </p>
+                        <p class="whitespace-pre-wrap break-words text-[0.95em] leading-snug opacity-70">
+                          <span class="animate-pulse">{subtitle() || `${mind()?.name ?? t("minds.title")}…`}</span>
+                          <span class="ml-0.5 inline-block animate-pulse font-semibold text-accent">▍</span>
+                        </p>
+                      </div>
                     </div>
                   </Show>
 
                   <Show when={mindsStore.state.error}>
-                    <p class="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+                    <p class="mt-3 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
                       {mindsStore.state.error}
                     </p>
                   </Show>
