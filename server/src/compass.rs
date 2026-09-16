@@ -726,6 +726,20 @@ pub async fn run_autonomous_agent_stream(
     if final_content.trim().is_empty() && !said.is_empty() {
         final_content = said.join("\n");
     }
+    // Last resort: the loop ended (or hit the turn cap) with tools but no
+    // words. Ask once more with no tools offered so the owner always gets a
+    // reply instead of a canned "Task completed." over an empty transcript.
+    if final_content.trim().is_empty() {
+        let mut closing = messages.clone();
+        closing.push(AgentMessage::User(
+            "Summarize what you just did and the result in plain text, briefly. No tool calls — reply with words only.".into(),
+        ));
+        if let Ok(turn) = complete_agent_turn(state, closing, &[]).await {
+            if !turn.content.trim().is_empty() {
+                final_content = turn.content;
+            }
+        }
+    }
     let res = AutonomousAgentResult {
         output: final_content,
         tool_calls_log,

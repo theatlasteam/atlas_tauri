@@ -77,6 +77,7 @@ pub fn mind_system_prompt(mind: &MindDto, context: &str) -> String {
             "## Working rules\n",
             "- Narrate as you go with `say`, then report. Before a slow tool call, `say` one short line about what you're doing ('Checking the price now…'); after it returns, `say` or reply with the result. Never sit silent through a whole job.\n",
             "- Always end with a plain-text reply stating the outcome (the finding, the price, the version — whatever was asked). Never end a job on a tool call with no text after it.\n",
+            "- Don't hammer: one or two fetches per source is enough. If a page won't give you the fact after two tries, report what you got and move on — nine fetches for one question is a failure.\n",
             "- One job per wake-up. Finish the thing that woke you before starting anything else.\n",
             "- Schedules are promises. If you were told 'every day at 09:00', the owner expects a ",
             "message every day at 09:00 — including 'no change', briefly, so they know you're alive.\n",
@@ -947,10 +948,12 @@ pub async fn run_mind_stream(
 
 /// Recent manual-run history for one Mind, oldest first, as conversation
 /// context. Without this every run starts blank — the Mind re-asks what it
-/// was tracking instead of continuing the conversation.
+/// was tracking instead of continuing the conversation. Tool calls ride along
+/// (names + short results, narration excluded) so follow-ups like "what was
+/// the result?" can be answered from history without re-running anything.
 async fn recent_history(state: &AppState, mind_id: Uuid) -> String {
-    let rows: Vec<(String, String)> = sqlx::query_as(
-        "SELECT input, output FROM mind_runs WHERE mind_id = $1 ORDER BY started_at DESC LIMIT 6",
+    let rows: Vec<(String, String, serde_json::Value)> = sqlx::query_as(
+        "SELECT input, output, tool_calls FROM mind_runs WHERE mind_id = $1 ORDER BY started_at DESC LIMIT 6",
     )
     .bind(mind_id)
     .fetch_all(&state.db)
@@ -959,11 +962,47 @@ async fn recent_history(state: &AppState, mind_id: Uuid) -> String {
     if rows.is_empty() {
         return String::new();
     }
-    let mut out = String::from("Recent conversation with your owner (oldest first — continue it, don't restart it):\n");
-    for (input, output) in rows.into_iter().rev() {
-        let i: String = input.chars().take(800).collect();
-        let o: String = output.chars().take(800).collect();
-        out.push_str(&format!("Owner: {i}\nYou: {o}\n"));
+    fn trunc(s: &str, n: usize) -> String {
+        let flat: String = s.split_whitespace().collect::<Vec<_>>().join(" ");
+        if flat.chars().count() <= n {
+            flat
+        } else {
+            let mut out: String = flat.chars().take(n).collect();
+            out.push('…');
+            out
+        }
+    }
+    let mut out = String::from(
+        "Recent conversation with your owner (oldest first — continue it, don't restart it). \
+         Past tool results are included: answer follow-ups from them, don't redo finished work.\n",
+    );
+    for (input, output, tool_calls) in rows.into_iter().rev() {
+        out.push_str(&format!("Owner: {}\n", trunc(&input, 800)));
+        if let Some(calls) = tool_calls.as_array() {
+            let shown: Vec<String> = calls
+                .iter()
+                .filter_map(|c| {
+                    let name = c.get("name")?.as_str()?;
+                    if name == "say" {
+                        return None;
+                    }
+                    let args = trunc(&c.get("arguments").map(|a| a.to_string()).unwrap_or_default(), 120);
+                    let res = trunc(c.get("output").and_then(|o| o.as_str()).unwrap_or(""), 300);
+                    Some(format!("{name}({args}) → {res}"))
+                })
+                .take(5)
+                .collect();
+            if !shown.is_empty() {
+                out.push_str(&format!("You did: {}\n", shown.join(" | ")));
+            }
+        }
+        let reply = output.trim();
+        let reply = if reply.is_empty() {
+            "(no text reply recorded)".to_string()
+        } else {
+            trunc(reply, 800)
+        };
+        out.push_str(&format!("You: {reply}\n"));
     }
     out
 }
