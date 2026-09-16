@@ -219,6 +219,7 @@ pub async fn ensure_user(db: &sqlx::PgPool) -> Result<Uuid, AppError> {
 /// auto-reply path and the `/api/compass/complete` proxy the client calls
 /// for DMs and the separate local-only Compass chat.
 const ALLOWED_MODELS: &[&str] = &[
+    "kimi-k3",
     "glm-5.3-flash",
     "kimi-k2.7-code",
     "deepseek-v4-pro",

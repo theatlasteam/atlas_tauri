@@ -85,6 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .merge(mcp::router(state.clone()))
         .route("/api/health", get(health))
+        .route("/api/version", get(version))
         // auth & sessions
         .route("/api/auth/register", post(auth::register))
         .route("/api/auth/check-handle", post(auth::check_handle))
@@ -264,6 +265,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "ok": true }))
+}
+
+/// Public build facts: the answer to "what's the latest Atlas version".
+/// Minds fetch this instead of guessing GitHub repos or scraping download
+/// links (see mind_system_prompt); monitoring can poll it too.
+async fn version() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "app": "atlas",
+        "version": env!("CARGO_PKG_VERSION"),
+        "repo": "theatlasteam/atlas_tauri",
+        "site": "https://atlasmsg.app",
+        "pwa": "https://atlasmsg.app/app",
+    }))
 }
 
 /// Serves the built `web/` site (Vite `dist`) for anything no route above

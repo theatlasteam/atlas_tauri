@@ -121,7 +121,7 @@ impl Config {
             metrics_admin_token: var("METRICS_ADMIN_TOKEN"),
             api_only_hostname: var("API_ONLY_HOSTNAME").map(|h| h.to_lowercase()),
             compass_api_key: var("COMPASS_API_KEY"),
-            compass_model: var("COMPASS_MODEL").unwrap_or_else(|| "kimi-k2.7-code".into()),
+            compass_model: var("COMPASS_MODEL").unwrap_or_else(|| "kimi-k3".into()),
             compass_api_base: var("COMPASS_API_BASE")
                 .unwrap_or_else(|| "https://hybra.lol".into())
                 .trim_end_matches('/')
