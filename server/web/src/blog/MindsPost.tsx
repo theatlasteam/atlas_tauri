@@ -1,8 +1,10 @@
-import { createSignal, For, onCleanup, onMount } from "solid-js";
+import { For, onCleanup, onMount } from "solid-js";
 import { ArrowLeft, ArrowUpRight } from "phosphor-solid-js";
 import { t, type TranslationKey } from "../lib/i18n";
 import Reveal from "../components/Reveal";
-import MascotOrb, { type MascotState } from "./MascotOrb";
+import MascotOrb from "./MascotOrb";
+import TalkingMascot from "./TalkingMascot";
+import DemoChat from "./DemoChat";
 import { BlogFooter, blogPath } from "./BlogIndex";
 import { Navbar, NavbarBrand, NavbarLink, NavbarLinks } from "@atlas/ui";
 import LanguageSwitcher from "../components/LanguageSwitcher";
@@ -16,19 +18,10 @@ const SECTIONS: { titleKey: TranslationKey; bodyKey: TranslationKey }[] = [
   { titleKey: "blog.minds.s5.title", bodyKey: "blog.minds.s5.body" },
 ];
 
-const MOODS: { id: MascotState; labelKey: TranslationKey }[] = [
-  { id: "idle", labelKey: "blog.minds.demo.idle" },
-  { id: "thinking", labelKey: "blog.minds.demo.thinking" },
-  { id: "happy", labelKey: "blog.minds.demo.happy" },
-  { id: "sleeping", labelKey: "blog.minds.demo.sleeping" },
-];
-
 /** The Minds launch post, styled after the xAI Grok Bot landing: black
  *  page, centered hero with the mascot inline in the title, announcement
- *  pill, the minds.png cover in a rounded showcase frame, dark cards. */
+ *  pill, a self-playing chat demo, dark cards. */
 export default function MindsPost() {
-  const [mood, setMood] = createSignal<MascotState>("thinking");
-
   // The post is a black page end to end (footer included): pin the theme
   // while mounted, restore whatever the visitor had on the way out.
   onMount(() => {
@@ -109,45 +102,23 @@ export default function MindsPost() {
               </a>
             </div>
           </Reveal>
-        </section>
-
-        {/* ============================= SHOWCASE ============================= */}
-        <section class="mx-auto max-w-5xl px-6">
-          <Reveal>
-            <div class="overflow-hidden rounded-2xl border border-white/10">
-              <img src="/minds.png" alt="Minds" class="block w-full" loading="eager" />
+          <Reveal delay={200}>
+            <div class="mx-auto mt-14 w-fit">
+              <TalkingMascot size={190} />
             </div>
           </Reveal>
         </section>
 
-        {/* ============================= LIVE MASCOT ============================= */}
-        <section class="mx-auto max-w-5xl px-6 py-24">
+        {/* ============================= LIVE DEMO ============================= */}
+        <section class="mx-auto max-w-5xl px-6 py-20">
           <Reveal>
-            <div class="grid items-center gap-10 rounded-2xl bg-white/[0.04] p-8 sm:p-12 lg:grid-cols-[auto_1fr]">
-              <div class="mx-auto transition-transform duration-300 hover:scale-[1.03]">
-                <MascotOrb state={mood()} size={190} />
-              </div>
-              <div>
-                <p class="text-[15px] leading-relaxed text-white/60">{t("blog.minds.demo.label")}</p>
-                <div class="mt-5 flex flex-wrap gap-2">
-                  <For each={MOODS}>
-                    {(m) => (
-                      <button
-                        type="button"
-                        onClick={() => setMood(m.id)}
-                        class="rounded-full px-4 py-2 text-[13px] font-medium transition"
-                        classList={{
-                          "bg-white text-black": mood() === m.id,
-                          "bg-white/10 text-white/70 hover:bg-white/15 hover:text-white":
-                            mood() !== m.id,
-                        }}
-                      >
-                        {t(m.labelKey)}
-                      </button>
-                    )}
-                  </For>
-                </div>
-              </div>
+            <p class="mb-8 text-center text-[13px] font-medium uppercase tracking-[0.22em] text-white/40">
+              {t("blog.demo.kicker")}
+            </p>
+          </Reveal>
+          <Reveal delay={80}>
+            <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-10">
+              <DemoChat />
             </div>
           </Reveal>
         </section>
