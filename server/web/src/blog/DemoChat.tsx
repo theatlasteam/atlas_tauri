@@ -9,7 +9,7 @@ import MascotOrb from "./MascotOrb";
  * left with its tool card underneath — the exact shapes of the real
  * MindDetail screen, performing a version check on a loop.
  */
-export default function DemoChat() {
+export default function DemoChat(props: { bare?: boolean }) {
   // 0=user, 1=status+tool running, 2=tool done, 3=answer
   const [step, setStep] = createSignal(0);
   const timers: number[] = [];
@@ -35,7 +35,12 @@ export default function DemoChat() {
   const working = () => step() >= 1 && step() < 3;
 
   return (
-    <div class="mx-auto w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#111]">
+    <div
+      class="mx-auto w-full max-w-2xl"
+      classList={{
+        "overflow-hidden rounded-2xl border border-white/10 bg-[#111]": !props.bare,
+      }}
+    >
       {/* Chat header, like the app: orb, name, live status */}
       <div class="flex items-center gap-3 border-b border-white/10 px-4 py-3">
         <MascotOrb state={step() >= 3 ? "idle" : "thinking"} size={36} />

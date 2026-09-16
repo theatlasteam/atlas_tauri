@@ -3,7 +3,6 @@ import { ArrowLeft, ArrowUpRight } from "phosphor-solid-js";
 import { t, type TranslationKey } from "../lib/i18n";
 import Reveal from "../components/Reveal";
 import MascotOrb from "./MascotOrb";
-import TalkingMascot from "./TalkingMascot";
 import DemoChat from "./DemoChat";
 import { BlogFooter, blogPath } from "./BlogIndex";
 import { Navbar, NavbarBrand, NavbarLink, NavbarLinks } from "@atlas/ui";
@@ -54,6 +53,11 @@ export default function MindsPost() {
 
   return (
     <div class="min-h-screen bg-[#0a0a0a] text-white">
+      <style>{`
+        .mx-hero-line { display: inline-block; opacity: 0; filter: blur(14px); transform: translateY(26px); animation: mx-hero-in 0.9s cubic-bezier(0.22,1,0.36,1) forwards; }
+        @keyframes mx-hero-in { to { opacity: 1; filter: blur(0); transform: none; } }
+        @media (prefers-reduced-motion: reduce) { .mx-hero-line { animation: none; opacity: 1; filter: none; transform: none; } }
+      `}</style>
       <Navbar variant="pill">
         <NavbarBrand href="/" class="text-white">
           <img src={logo} alt="" width="20" height="15" />
@@ -92,11 +96,11 @@ export default function MindsPost() {
           </Reveal>
           <Reveal delay={60}>
             <h1 class="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-5xl font-medium tracking-tight sm:text-7xl">
-              <span>{t("blog.minds.hero.titleA")}</span>
-              <span class="inline-flex h-[1.1em] items-center">
+              <span class="mx-hero-line" style={{ "animation-delay": "0.05s" }}>{t("blog.minds.hero.titleA")}</span>
+              <span class="mx-hero-line inline-flex h-[1.1em] items-center" style={{ "animation-delay": "0.17s" }}>
                 <MascotOrb state="thinking" size={84} />
               </span>
-              <span>{t("blog.minds.hero.titleB")}</span>
+              <span class="mx-hero-line" style={{ "animation-delay": "0.29s" }}>{t("blog.minds.hero.titleB")}</span>
             </h1>
           </Reveal>
           <Reveal delay={120}>
@@ -121,22 +125,8 @@ export default function MindsPost() {
             </div>
           </Reveal>
           <Reveal delay={200}>
-            <div class="mx-auto mt-14 w-fit">
-              <TalkingMascot size={190} />
-            </div>
-          </Reveal>
-        </section>
-
-        {/* ============================= LIVE DEMO ============================= */}
-        <section class="mx-auto max-w-5xl px-6 py-20">
-          <Reveal>
-            <p class="mb-8 text-center text-[13px] font-medium uppercase tracking-[0.22em] text-white/40">
-              {t("blog.demo.kicker")}
-            </p>
-          </Reveal>
-          <Reveal delay={80}>
-            <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-10">
-              <DemoChat />
+            <div class="mx-auto mt-14 w-full max-w-2xl text-left">
+              <DemoChat bare />
             </div>
           </Reveal>
         </section>
