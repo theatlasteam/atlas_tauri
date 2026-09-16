@@ -1,8 +1,7 @@
-import { For, Show, onMount } from "solid-js";
+import { For, Show, createEffect, onMount } from "solid-js";
 import { A, useNavigate } from "@solidjs/router";
 import { compassChat } from "../store/compassChat";
 import { mindsStore } from "../store/minds";
-import { session } from "../store/session";
 import EmptyState from "../components/EmptyState";
 import AnimatedList from "../ui/AnimatedList";
 import Appbar from "../components/Appbar";
@@ -30,14 +29,19 @@ export default function CompassList() {
     compassChat.remove(id);
   };
 
-  // Atlas X: Minds live here, inside Compass — not in Settings. A Mind is a
+  // Atlas X / Free Minds: Minds live here, inside Compass — not in Settings. A Mind is a
   // 24/7 sandbox agent (tools + schedules), and Compass is where you talk to
   // AI things, so this is where people look for them.
-  const isX = () => session.user()?.atlasX === true;
+  const hasAccess = () => mindsStore.hasAccess();
   const minds = () => mindsStore.state.minds ?? [];
   onMount(() => {
-    if (isX() && mindsStore.state.minds === null) void mindsStore.loadMinds();
-    if (isX() && mindsStore.state.rooms === null) void mindsStore.loadRooms();
+    void mindsStore.checkAccess();
+  });
+  createEffect(() => {
+    if (hasAccess()) {
+      if (mindsStore.state.minds === null) void mindsStore.loadMinds();
+      if (mindsStore.state.rooms === null) void mindsStore.loadRooms();
+    }
   });
 
   return (
@@ -48,7 +52,7 @@ export default function CompassList() {
           <div class="flex items-center">
             {/* Atlas X: creating a Mind starts here, in Compass — not in a tab,
                 not in Settings. One tap goes to Minds, where the creator lives. */}
-            <Show when={isX()}>
+            <Show when={hasAccess()}>
               <button
                 type="button"
                 onClick={() => navigate("/minds")}
@@ -73,7 +77,7 @@ export default function CompassList() {
 
       <div class="flex-1 overflow-y-auto overscroll-contain pb-28">
         {/* Minds row: horizontal snap-list of your agents above the chats. */}
-        <Show when={isX()}>
+        <Show when={hasAccess()}>
           <div class="border-b border-border px-5 pb-4 pt-2">
             <div class="mb-2 flex items-center justify-between">
               <button

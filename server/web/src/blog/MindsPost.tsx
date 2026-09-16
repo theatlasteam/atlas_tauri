@@ -1,6 +1,6 @@
 import { For, onCleanup, onMount } from "solid-js";
 import { ArrowLeft, ArrowUpRight } from "phosphor-solid-js";
-import { t, type TranslationKey } from "../lib/i18n";
+import { locale, t, type TranslationKey } from "../lib/i18n";
 import Reveal from "../components/Reveal";
 import MascotOrb from "./MascotOrb";
 import DemoChat from "./DemoChat";
@@ -16,6 +16,35 @@ const SECTIONS: { titleKey: TranslationKey; bodyKey: TranslationKey }[] = [
   { titleKey: "blog.minds.s4.title", bodyKey: "blog.minds.s4.body" },
   { titleKey: "blog.minds.s5.title", bodyKey: "blog.minds.s5.body" },
 ];
+
+/** Lede with an xAI-style 3D pop-in: word by word, each tilting up around
+ *  its baseline axis with a fade. Remounts (replays) on locale change via
+ *  the caller's key. */
+function FlipLede(props: { text: string; baseDelayMs?: number }) {
+  const words = () => props.text.split(/(\s+)/);
+  const base = () => props.baseDelayMs ?? 500;
+  let n = 0;
+  return (
+    <span class="mx-flip-stage" aria-label={props.text}>
+      <For each={words()}>
+        {(w) => {
+          if (/^\s+$/.test(w)) return <>{w}</>;
+          const i = n++;
+          return (
+            <span class="mx-flip-mask" aria-hidden="true">
+              <span
+                class="mx-flip-char"
+                style={{ "animation-delay": `${Math.round(base() + i * 28)}ms` }}
+              >
+                {w}
+              </span>
+            </span>
+          );
+        }}
+      </For>
+    </span>
+  );
+}
 
 /** The Minds launch post, styled after the xAI Grok Bot landing: black
  *  page, centered hero with the mascot inline in the title, announcement
@@ -56,7 +85,11 @@ export default function MindsPost() {
       <style>{`
         .mx-hero-line { display: inline-block; opacity: 0; filter: blur(14px); transform: translateY(26px); animation: mx-hero-in 0.9s cubic-bezier(0.22,1,0.36,1) forwards; }
         @keyframes mx-hero-in { to { opacity: 1; filter: blur(0); transform: none; } }
-        @media (prefers-reduced-motion: reduce) { .mx-hero-line { animation: none; opacity: 1; filter: none; transform: none; } }
+        .mx-flip-stage { perspective: 700px; }
+        .mx-flip-mask { display: inline-block; overflow: hidden; vertical-align: bottom; padding-bottom: 0.1em; margin-bottom: -0.1em; }
+        .mx-flip-char { display: inline-block; opacity: 0; transform: translateY(70%) rotateX(75deg) scale(0.95); transform-origin: 50% 100%; animation: mx-flip-in 0.45s cubic-bezier(0.22,1,0.36,1) forwards; will-change: transform, opacity; }
+        @keyframes mx-flip-in { to { opacity: 1; transform: none; } }
+        @media (prefers-reduced-motion: reduce) { .mx-hero-line, .mx-flip-char { animation: none; opacity: 1; filter: none; transform: none; } }
       `}</style>
       <Navbar variant="pill">
         <NavbarBrand href="/" class="text-white">
@@ -105,7 +138,7 @@ export default function MindsPost() {
           </Reveal>
           <Reveal delay={120}>
             <p class="mx-auto mt-6 max-w-2xl text-[15px] leading-relaxed text-white/55 sm:text-base">
-              {t("blog.minds.hero.lede")}
+              <FlipLede key={locale()} text={t("blog.minds.hero.lede")} />
             </p>
           </Reveal>
           <Reveal delay={160}>
@@ -134,29 +167,36 @@ export default function MindsPost() {
         {/* ============================= SECTIONS ============================= */}
         <section id="how" class="mx-auto max-w-5xl scroll-mt-24 px-6 pb-24">
           <Reveal>
-            <a
-              href={blogPath()}
-              class="mb-10 inline-flex items-center gap-2 text-sm font-medium text-white/45 transition hover:text-white"
-            >
-              <ArrowLeft size={15} weight="bold" />
-              {t("blog.back")}
-            </a>
+            <div class="mx-auto mb-12 flex max-w-2xl flex-col gap-4 text-center">
+              <h2 class="text-3xl font-medium tracking-tight sm:text-4xl">
+                {t("blog.minds.how")}
+              </h2>
+            </div>
           </Reveal>
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div class="grid gap-5 sm:grid-cols-2">
             <For each={SECTIONS}>
               {(s, i) => (
                 <Reveal delay={(i() % 2) * 60}>
-                  <article class="h-full rounded-2xl bg-white/[0.04] p-8">
-                    <p class="mb-4 text-sm font-medium text-white/35">
-                      {String(i() + 1).padStart(2, "0")}
-                    </p>
-                    <h2 class="mb-2 text-xl font-medium tracking-tight">{t(s.titleKey)}</h2>
-                    <p class="text-[15px] leading-relaxed text-white/60">{t(s.bodyKey)}</p>
+                  <article
+                    class="h-full rounded-3xl bg-white/[0.04] p-6 transition-colors duration-200 hover:bg-white/[0.06] sm:p-8"
+                    classList={{ "sm:col-span-2": i() === SECTIONS.length - 1 }}
+                  >
+                    <h3 class="mb-2 text-base font-medium leading-relaxed">{t(s.titleKey)}</h3>
+                    <p class="max-w-xl text-[15px] leading-relaxed text-white/60">{t(s.bodyKey)}</p>
                   </article>
                 </Reveal>
               )}
             </For>
           </div>
+          <Reveal>
+            <a
+              href={blogPath()}
+              class="mt-10 inline-flex items-center gap-2 text-sm font-medium text-white/45 transition hover:text-white"
+            >
+              <ArrowLeft size={15} weight="bold" />
+              {t("blog.back")}
+            </a>
+          </Reveal>
         </section>
 
         {/* ============================= CTA ============================= */}

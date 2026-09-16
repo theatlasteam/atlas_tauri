@@ -6,7 +6,7 @@
 // is currently mid-reply, which is a fact about an in-flight request and not
 // about the data.
 
-import { createRoot } from "solid-js";
+import { createEffect, createRoot } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { api, type MindDto, type MindMessageDto, type MindRoomDto, type MindRunDto, type MindScheduleDto } from "../data/api";
 import { session } from "./session";
@@ -44,6 +44,17 @@ function createMindsStore() {
     setState("error", e instanceof Error ? e.message : fallback);
   };
 
+  const checkAccess = async () => {
+    try {
+      const res = await api.mindAccess();
+      setState("access", res.allowed);
+      return res.allowed;
+    } catch {
+      /* access stays at its last value; the account bit covers us */
+      return hasAccess();
+    }
+  };
+
   const loadMinds = async () => {
     try {
       setState("minds", await api.listMinds());
@@ -54,16 +65,20 @@ function createMindsStore() {
     } catch (e) {
       setError(e, "Couldn't load Minds.");
     }
-    try {
-      setState("access", (await api.mindAccess()).allowed);
-    } catch {
-      /* access stays at its last value; the account bit covers us */
-    }
+    await checkAccess();
   };
 
   /** Server-advertised gate: flag-aware access, falling back to the
    *  account's own Atlas X bit until the first check lands. */
   const hasAccess = () => state.access ?? session.user()?.atlasX === true;
+
+  createEffect(() => {
+    if (session.status() === "signedIn") {
+      void checkAccess();
+    } else if (session.status() === "signedOut") {
+      reset();
+    }
+  });
 
   const loadRooms = async () => {
     try {
@@ -318,6 +333,7 @@ function createMindsStore() {
   return {
     state,
     hasAccess,
+    checkAccess,
     refresh,
     loadMinds,
     loadRooms,
