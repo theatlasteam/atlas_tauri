@@ -11,6 +11,11 @@ import { createStore, produce } from "solid-js/store";
 import { api, type MindDto, type MindMessageDto, type MindRoomDto, type MindRunDto, type MindScheduleDto } from "../data/api";
 import { t } from "../lib/i18n";
 
+/** One item of a Mind's live stream, in the exact order it happened. */
+export type LiveEvent =
+  | { kind: "say"; text: string }
+  | { kind: "tool"; name: string; args: string; output: string; state: "running" | "done" };
+
 function createMindsStore() {
   const [state, setState] = createStore<{
     /** null until the first load — lets the UI tell "no Minds" from "not loaded yet". */
@@ -24,11 +29,9 @@ function createMindsStore() {
     /** Live streaming state per mind while a run is in flight. */
     live: Record<string, {
       status: string;
-      says: string[];
-      tool: { name: string; args: string } | null;
-      /** Finished tools, in order — rendered as collapsed cards while the
-       *  run streams so the trace grows instead of flashing one card. */
-      doneTools: { name: string; args: string; output: string }[];
+      /** One chronological stream: `say` notes and tool cards in the exact
+       *  order the Mind produced them — never grouped by kind. */
+      events: LiveEvent[];
     }>;
     error: string | null;
   }>({ minds: null, rooms: null, messages: {}, schedules: {}, runs: {}, thinking: {}, live: {}, error: null });
@@ -185,7 +188,7 @@ function createMindsStore() {
    */
   const runMindLive = async (mindId: string, input: string, opts?: { signal?: AbortSignal }) => {
     setState("error", null);
-    setState("live", mindId, { status: t("minds.statusTyping"), says: [], tool: null, doneTools: [] });
+    setState("live", mindId, { status: t("minds.statusTyping"), events: [] });
     try {
       const run = await api.runMindStream(
         mindId,
@@ -196,24 +199,33 @@ function createMindsStore() {
             if (key) setState("live", mindId, "status", statusText(key));
           } else if (ev.kind === "say") {
             const text = typeof ev.data?.text === "string" ? ev.data.text : "";
-            if (text) setState("live", mindId, "says", (s) => [...s, text]);
+            if (text) {
+              const item: LiveEvent = { kind: "say", text };
+              setState("live", mindId, "events", (list) => [...list, item]);
+            }
           } else if (ev.kind === "tool_start") {
             const name = typeof ev.data?.name === "string" ? ev.data.name : "working";
             const args =
               typeof ev.data?.arguments === "string"
                 ? ev.data.arguments
                 : JSON.stringify(ev.data?.arguments ?? {});
-            setState("live", mindId, "tool", { name, args });
+            const item: LiveEvent = { kind: "tool", name, args, output: "", state: "running" };
+            setState("live", mindId, "events", (list) => [...list, item]);
             setState("live", mindId, "status", toolStatus(name));
           } else if (ev.kind === "tool_end") {
             const name = typeof ev.data?.name === "string" ? ev.data.name : "working";
             const output = typeof ev.data?.outputPreview === "string" ? ev.data.outputPreview : "";
-            const current = state.live[mindId];
-            const args = current?.tool?.name === name ? (current.tool?.args ?? "") : "";
-            setState("live", mindId, "tool", null);
-            if (name !== "say") {
-              setState("live", mindId, "doneTools", (list) => [...list, { name, args, output }]);
-            }
+            setState("live", mindId, "events", (list) => {
+              const next: LiveEvent[] = [...list];
+              for (let i = next.length - 1; i >= 0; i--) {
+                const item = next[i];
+                if (item.kind === "tool" && item.state === "running" && (item.name === name || name === "working")) {
+                  next[i] = { ...item, output, state: "done" };
+                  break;
+                }
+              }
+              return next;
+            });
           }
         },
         opts,

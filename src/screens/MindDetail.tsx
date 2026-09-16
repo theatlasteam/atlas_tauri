@@ -88,7 +88,7 @@ export default function MindDetail() {
   // Stick to bottom as streamed notes and the final answer land (if there).
   createEffect(
     on(
-      () => runs().length + (live()?.says.length ?? 0) + (pendingInput() ? 1 : 0),
+      () => runs().length + (live()?.events.length ?? 0) + (pendingInput() ? 1 : 0),
       (len, prevLen) => {
         if (prevLen !== undefined && len > prevLen && atBottom()) {
           queueMicrotask(() => scrollToBottom());
@@ -276,44 +276,46 @@ export default function MindDetail() {
                 )}
               </For>
 
-              {/* Streaming turn: the pending question plus every `say` note so
-                  far, arriving live instead of all at once at the end. */}
+              {/* Live turn: says and tool cards interleaved in the exact order
+                  the Mind produced them — note, tool, note, tool. */}
               <Show when={pendingInput()}>
                 <MessageBubble side="sent" status="sending">
                   {pendingInput()}
                 </MessageBubble>
               </Show>
-              <For each={live()?.says ?? []}>
-                {(note) => (
-                  <AiMessage name={mind()?.name ?? t("minds.title")}>
-                    <MarkdownContent text={note} />
-                  </AiMessage>
+              <For each={live()?.events ?? []}>
+                {(item) => (
+                  <Show
+                    when={item.kind === "tool"}
+                    fallback={
+                      <AiMessage name={mind()?.name ?? t("minds.title")}>
+                        <MarkdownContent text={(item as { text: string }).text} />
+                      </AiMessage>
+                    }
+                  >
+                    {(() => {
+                      const tool = item as {
+                        name: string;
+                        args: string;
+                        output: string;
+                        state: "running" | "done";
+                      };
+                      return (
+                        <div class="max-w-full">
+                          <MindTool
+                            name={tool.name}
+                            args={tool.args}
+                            output={tool.state === "done" ? tool.output : undefined}
+                            state={tool.state === "running" ? "running" : tool.output.trimStart().startsWith("error:") ? "error" : "done"}
+                            defaultOpen={tool.state === "running"}
+                          />
+                        </div>
+                      );
+                    })()}
+                  </Show>
                 )}
               </For>
-              {/* In-flight tool, AI-Elements style: running badge, expands for
-                  input; the completed card lands under the answer instead. */}
-              <Show when={(live()?.doneTools.length ?? 0) > 0}>
-                <div class="flex flex-col gap-1.5">
-                  <For each={live()?.doneTools ?? []}>
-                    {(tool) => (
-                      <MindTool
-                        name={tool.name}
-                        args={tool.args}
-                        output={tool.output}
-                        state={tool.output.trimStart().startsWith("error:") ? "error" : "done"}
-                      />
-                    )}
-                  </For>
-                </div>
-              </Show>
-              <Show when={live()?.tool}>
-                {(tool) => (
-                  <div class="max-w-full">
-                    <MindTool name={tool().name} args={tool().args} state="running" defaultOpen />
-                  </div>
-                )}
-              </Show>
-              <Show when={running() && (live()?.says.length ?? 0) === 0}>
+              <Show when={running() && (live()?.events.length ?? 0) === 0}>
                 <AiMessage
                   name={mind()?.name ?? t("minds.title")}
                   thinking
