@@ -776,6 +776,12 @@ pub async fn run_mind(
         });
     }
 
+    let history = recent_history(&state, mind_id).await;
+    let task = if history.is_empty() {
+        format!("Owner instruction: {input}")
+    } else {
+        format!("Owner instruction: {input}\n\n{history}")
+    };
     let started = Utc::now();
     let res = crate::compass::run_autonomous_agent(
         &state,
@@ -783,7 +789,7 @@ pub async fn run_mind(
         auth.user_id,
         &mind.name,
         system,
-        format!("Owner instruction: {input}"),
+        task,
         &allowed_tools,
     ).await;
     let finished = Utc::now();
@@ -867,6 +873,12 @@ pub async fn run_mind_stream(
     let worker_state = state.clone();
     let worker_input = input.clone();
     let worker_name = mind.name.clone();
+    let history = recent_history(&state, mind_id).await;
+    let task = if history.is_empty() {
+        format!("Owner instruction: {worker_input}")
+    } else {
+        format!("Owner instruction: {worker_input}\n\n{history}")
+    };
     tokio::spawn(async move {
         let started = Utc::now();
         let res = crate::compass::run_autonomous_agent_stream(
@@ -875,7 +887,7 @@ pub async fn run_mind_stream(
             auth.user_id,
             &worker_name,
             system,
-            format!("Owner instruction: {worker_input}"),
+            task,
             &allowed_tools,
             Some(tx),
         )
@@ -930,6 +942,29 @@ pub async fn run_mind_stream(
         Ok(Event::default().event(kind).data(data))
     });
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
+}
+
+/// Recent manual-run history for one Mind, oldest first, as conversation
+/// context. Without this every run starts blank — the Mind re-asks what it
+/// was tracking instead of continuing the conversation.
+async fn recent_history(state: &AppState, mind_id: Uuid) -> String {
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT input, output FROM mind_runs WHERE mind_id = $1 ORDER BY started_at DESC LIMIT 6",
+    )
+    .bind(mind_id)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+    if rows.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("Recent conversation with your owner (oldest first — continue it, don't restart it):\n");
+    for (input, output) in rows.into_iter().rev() {
+        let i: String = input.chars().take(800).collect();
+        let o: String = output.chars().take(800).collect();
+        out.push_str(&format!("Owner: {i}\nYou: {o}\n"));
+    }
+    out
 }
 
 pub async fn list_runs(

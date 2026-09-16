@@ -49,6 +49,11 @@ export default function Composer(props: {
   banner?: JSX.Element;
   tray?: JSX.Element;
   field?: JSX.Element;
+  /** Hide the + button (chats without attachments, e.g. Mind DMs). */
+  hideAdd?: boolean;
+  /** Hide the mic fallback: the action button is always send, disabled until
+   *  there is something to send (chats without voice messages). */
+  hideVoice?: boolean;
 }) {
   const canSend = () => props.value.trim().length > 0 || !!props.forceSend;
 
@@ -87,8 +92,10 @@ export default function Composer(props: {
         <div class="border-b border-border px-3 py-2">{props.banner}</div>
       </Show>
       <div class="flex items-end gap-1 p-1.5">
-        <Show when={props.addItems?.length} fallback={addBtn}>
-          <Menu align="left" trigger={addBtn} items={props.addItems!} />
+        <Show when={!props.hideAdd}>
+          <Show when={props.addItems?.length} fallback={addBtn}>
+            <Menu align="left" trigger={addBtn} items={props.addItems!} />
+          </Show>
         </Show>
         <Show
           when={props.field}
@@ -119,7 +126,7 @@ export default function Composer(props: {
         <button
           type="button"
           ref={(el) => props.actionRef?.(el)}
-          disabled={props.disabled}
+          disabled={props.hideVoice ? !canSend() || props.disabled : props.disabled}
           onClick={() => (canSend() ? submit() : props.onVoice?.())}
           onPointerDown={(e) => props.onActionPointerDown?.(e)}
           onPointerUp={(e) => props.onActionPointerUp?.(e)}
@@ -131,10 +138,10 @@ export default function Composer(props: {
             background: props.recording && !canSend() ? "var(--color-danger)" : "var(--color-accent)",
             color: props.recording && !canSend() ? "#fff" : "var(--color-accent-ink)",
           }}
-          aria-label={canSend() ? "Send" : props.recording ? "Stop recording" : "Voice message"}
+          aria-label={canSend() || props.hideVoice ? "Send" : props.recording ? "Stop recording" : "Voice message"}
         >
           <span class="grid place-items-center">
-            <Show when={canSend()} fallback={props.recording ? <StopIcon /> : <MicIcon />}>
+            <Show when={props.hideVoice || canSend()} fallback={props.recording ? <StopIcon /> : <MicIcon />}>
               <PaperPlaneTilt size={18} weight="bold" />
             </Show>
           </span>

@@ -18,6 +18,13 @@ interface ChatTurn {
   time: string;
 }
 
+/** Tools worth showing in the activity drawer. `say` is excluded — its note
+ *  already streams into the chat as a bubble, so listing it again (with its
+ *  "shown in chat." receipt) is pure noise. */
+function visibleTools(msg: ChatTurn): NonNullable<ChatTurn["toolCalls"]> {
+  return (msg.toolCalls ?? []).filter((tc) => tc.name !== "say");
+}
+
 /**
  * A 1:1 Mind chat — deliberately the same screen as ChatView (same header,
  * same message column, same composer), backed by the Mind's run history
@@ -165,8 +172,7 @@ export default function MindDetail() {
 
   /** Header subtitle: live status beats schedule summary — same precedence as
    *  ChatView's typing-beats-presence subtitle. */
-  const subtitle = () => {
-    const l = live();
+  const subtitle = () => {    const l = live();
     if (l) return l.status;
     const m = mind();
     if (!m) return "";
@@ -175,8 +181,7 @@ export default function MindDetail() {
       : t("minds.mindPaused");
   };
 
-  const TOOLS: { key: string; nameKey: TranslationKey; descKey: TranslationKey }[] = [
-    { key: "browser", nameKey: "minds.toolBrowser", descKey: "minds.toolBrowserDesc" },
+  const TOOLS: { key: string; nameKey: TranslationKey; descKey: TranslationKey }[] = [    { key: "browser", nameKey: "minds.toolBrowser", descKey: "minds.toolBrowserDesc" },
     { key: "web_fetch", nameKey: "minds.toolFetch", descKey: "minds.toolFetchDesc" },
     { key: "shell", nameKey: "minds.toolShell", descKey: "minds.toolShellDesc" },
     { key: "set_schedule", nameKey: "minds.toolSchedule", descKey: "minds.toolScheduleDesc" },
@@ -249,13 +254,13 @@ export default function MindDetail() {
                     }
                   >
                     <AiMessage name={mind()?.name ?? t("minds.title")}>
-                      <Show when={msg.toolCalls && msg.toolCalls.length > 0}>
+                      <Show when={visibleTools(msg).length > 0}>
                         <div class="mb-2 rounded-xl border border-border bg-surface px-2.5 py-2 text-xs">
                           <p class="mb-1.5 font-semibold text-accent">
-                            {t("minds.liveActions", { n: msg.toolCalls!.length })}
+                            {t("minds.liveActions", { n: visibleTools(msg).length })}
                           </p>
                           <div class="flex flex-col gap-1.5">
-                            <For each={msg.toolCalls}>
+                            <For each={visibleTools(msg)}>
                               {(tc) => (
                                 <div class="rounded-lg bg-bg p-2 font-mono text-[11px] text-ink-muted">
                                   <p class="font-bold text-ink">
@@ -334,6 +339,8 @@ export default function MindDetail() {
               value={draft()}
               onChange={setDraft}
               disabled={running()}
+              hideAdd
+              hideVoice
               placeholder={t("minds.messagePlaceholder", { name: mind()?.name ?? t("minds.title") })}
               onSubmit={() => void handleSend()}
             />
