@@ -216,10 +216,10 @@ export interface IceServer {
 export const api = {
   // auth
   checkHandle: (handle: string) => request<{ exists: boolean }>("POST", "/api/auth/check-handle", { handle }),
-  register: (handle: string, name: string, password: string, deviceName: string) =>
-    request<AuthResponse>("POST", "/api/auth/register", { handle, name, password, deviceName }),
-  login: (handle: string, password: string, deviceName: string) =>
-    request<AuthResponse>("POST", "/api/auth/login", { handle, password, deviceName }),
+  register: (handle: string, name: string, password: string, deviceName: string, deviceFp?: string) =>
+    request<AuthResponse>("POST", "/api/auth/register", { handle, name, password, deviceName, deviceFp }),
+  login: (handle: string, password: string, deviceName: string, deviceFp?: string) =>
+    request<AuthResponse>("POST", "/api/auth/login", { handle, password, deviceName, deviceFp }),
   logout: () => request<{ ok: boolean }>("POST", "/api/auth/logout"),
   deleteAccount: () => request<{ ok: boolean }>("DELETE", "/api/auth/delete-account"),
   listSessions: () => request<SessionDto[]>("GET", "/api/sessions"),

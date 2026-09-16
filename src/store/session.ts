@@ -11,6 +11,7 @@ import type { UserDto } from "../data/generated";
 import type { User } from "../data/types";
 import { e2eeAvailable, isTauri, secretDelete, secretGet, secretSet } from "../lib/tauri";
 import { e2ee } from "./e2ee";
+import { deviceFingerprint } from "../lib/fingerprint";
 import { requestNotificationPermission } from "../lib/notify";
 import { preferences } from "./preferences";
 
@@ -121,12 +122,12 @@ function createSessionStore() {
   };
 
   const login = async (handle: string, password: string) => {
-    const res = await api.login(handle, password, deviceName());
+    const res = await api.login(handle, password, deviceName(), await deviceFingerprint());
     await applySignIn(res.token, res.user);
   };
 
   const register = async (handle: string, name: string, password: string) => {
-    const res = await api.register(handle, name, password, deviceName());
+    const res = await api.register(handle, name, password, deviceName(), await deviceFingerprint());
     await applySignIn(res.token, res.user);
   };
 

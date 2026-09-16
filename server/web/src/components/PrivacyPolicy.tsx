@@ -35,7 +35,7 @@ function PrivacyPolicyRu() {
     <article class="prose-policy">
       <h1 class="font-heading text-3xl font-bold">Политика обработки персональных данных</h1>
       <p class="mt-1 text-sm text-ink-subtle">
-        Последнее обновление: 14 сентября 2026 г. Действует в отношении сайта atlasmsg.app и приложения
+        Последнее обновление: 16 сентября 2026 г. Действует в отношении сайта atlasmsg.app и приложения
         Atlas.
       </p>
 
@@ -84,6 +84,18 @@ function PrivacyPolicyRu() {
           <strong>Технические и служебные данные</strong> — токен push-уведомлений устройства (для
           Android), сведения об активных сессиях (для входа в аккаунт на нескольких устройствах),
           статус «в сети» / время последнего визита (если не отключено в настройках приватности).
+        </li>
+        <li>
+          <strong>Защита от злоупотреблений при регистрации.</strong> Чтобы нельзя было массово
+          создавать аккаунты, при регистрации и входе мы учитываем IP-адрес, User-Agent и
+          отпечаток устройства (coarse-признаки платформы, без canvas/WebGL-слежки), а также
+          частоту попыток. IP, User-Agent и отпечаток <strong>никогда не хранятся в открытом
+          виде — только их необратимые SHA-256 хеши</strong>, по которым нельзя восстановить
+          исходное значение. На их основе вычисляется оценка риска 0–100 (повторные регистрации
+          с одной сети/устройства, отсутствие отпечатка, серии подряд); при превышении лимитов
+          (по умолчанию не более 3 аккаунтов с одной сети за 24 часа и не более 3 с одного
+          устройства за 30 дней, либо риск ≥ 80) регистрация отклоняется. Неудачные попытки входа
+          фиксируются (логин + хеш IP) для защиты от подбора паролей.
         </li>
         <li>
           <strong>Локальные настройки устройства</strong> — тема, язык интерфейса, акцентный цвет и
@@ -158,6 +170,8 @@ function PrivacyPolicyRu() {
       </p>
       <p>
         Данные хранятся до тех пор, пока учётная запись активна, либо до вашего запроса на удаление.
+        Хеши отпечатков для защиты от массовых регистраций хранятся вместе с учётной записью и
+        удаляются вместе с ней. Записи о неудачных попытках входа хранятся не более 30 дней.
         Адрес из списка ожидания хранится до отправки уведомления о запуске либо до вашего запроса на
         удаление.
       </p>
@@ -210,7 +224,7 @@ function PrivacyPolicyEn() {
     <article class="prose-policy">
       <h1 class="font-heading text-3xl font-bold">Privacy Policy</h1>
       <p class="mt-1 text-sm text-ink-subtle">
-        Last updated: 14 September 2026. Applies to atlasmsg.app and the Atlas app.
+        Last updated: 16 September 2026. Applies to atlasmsg.app and the Atlas app.
       </p>
 
       <div class="my-6 rounded-2xl border border-border bg-surface p-4 text-sm">
@@ -252,6 +266,17 @@ function PrivacyPolicyEn() {
           <strong>Technical data</strong> — push notification device tokens (Android), active session
           records (for multi-device sign-in), online status / last-seen time (unless you disable this
           in privacy settings).
+        </li>
+        <li>
+          <strong>Signup abuse prevention.</strong> To stop mass account creation, registration and
+          login consider your IP address, User-Agent, and a coarse device fingerprint (platform
+          traits only — no canvas/WebGL tracking), plus attempt frequency. IPs, User-Agents and
+          fingerprints are <strong>never stored raw — only as irreversible SHA-256 hashes</strong>
+          that cannot be turned back into the original value. They feed a 0–100 risk score (repeat
+          signups from one network/device, missing fingerprint, rapid bursts); signup is refused
+          past the caps (by default max 3 accounts per network per 24 hours and max 3 per device
+          per 30 days, or risk ≥ 80). Failed login attempts are logged (handle + IP hash) to block
+          password guessing.
         </li>
         <li>
           <strong>Local device settings</strong> — theme, interface language, accent color, and
@@ -313,8 +338,10 @@ function PrivacyPolicyEn() {
         notification previews appear only after the device decrypts them).
       </p>
       <p>
-        Data is retained while your account is active, or until you request deletion. A waitlist
-        email is retained until the launch notification is sent, or until you request removal.
+        Data is retained while your account is active, or until you request deletion. Abuse-prevention
+        fingerprint hashes live with the account and are deleted with it. Failed-login records are
+        kept for at most 30 days. A waitlist email is retained until the launch notification is sent,
+        or until you request removal.
       </p>
 
       <h2>6. Your rights</h2>

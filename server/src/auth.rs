@@ -2,6 +2,7 @@ use argon2::password_hash::rand_core::OsRng as HashOsRng;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
 use axum::extract::{FromRequestParts, State};
+use axum::http::HeaderMap;
 use axum::http::request::Parts;
 use axum::Json;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64URL;
@@ -146,8 +147,10 @@ pub struct CheckHandleResponse { pub exists: bool }
 
 pub async fn check_handle(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<CheckHandlePayload>,
 ) -> ApiResult<Json<CheckHandleResponse>> {
+    crate::auth_guard::limit_check_handle(&crate::auth_guard::client_ip(&headers))?;
     let handle = payload.handle.trim().to_lowercase();
     if !valid_handle(&handle) {
         return Err(AppError::BadRequest("invalid handle".into()));
@@ -187,6 +190,9 @@ pub struct RegisterPayload {
     pub name: String,
     pub password: String,
     pub device_name: Option<String>,
+    /// Client-computed stable device fingerprint (platform, screen, tz…).
+    /// Optional for backward compat; absence raises the risk score.
+    pub device_fp: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -195,6 +201,7 @@ pub struct LoginPayload {
     pub handle: String,
     pub password: String,
     pub device_name: Option<String>,
+    pub device_fp: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -234,8 +241,19 @@ async fn create_session(
 
 pub async fn register(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<RegisterPayload>,
 ) -> ApiResult<Json<AuthResponse>> {
+    use crate::auth_guard::{Signals, assess_signup, client_ip, limit_register, record_signup};
+    let ip = client_ip(&headers);
+    limit_register(&ip)?;
+    // Risk is assessed BEFORE the expensive Argon2 hash so floods are cheap
+    // to reject; the fingerprint row is written only after a successful insert.
+    let risk = assess_signup(
+        &state.db,
+        &Signals { ip, device_fp: payload.device_fp.clone().unwrap_or_default(), headers },
+    )
+    .await?;
     let handle = payload.handle.trim().to_lowercase();
     if !valid_handle(&handle) {
         return Err(AppError::BadRequest(
@@ -284,6 +302,7 @@ pub async fn register(
     .ok_or_else(|| AppError::Conflict("handle already taken".into()))?;
 
     let token = create_session(&state, user.id, payload.device_name).await?;
+    let _ = record_signup(&state.db, user.id, &risk).await?;
     let _ = crate::broadcast::add_member(&state, user.id).await;
     Ok(Json(AuthResponse { token, user: user.into() }))
 }
@@ -312,8 +331,14 @@ struct LoginRow {
 
 pub async fn login(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<LoginPayload>,
 ) -> ApiResult<Json<AuthResponse>> {
+    use crate::auth_guard::{client_ip, limit_login_handle, limit_login_ip, record_failure};
+    let ip = client_ip(&headers);
+    limit_login_ip(&ip)?;
+    let handle_norm = payload.handle.trim().to_lowercase();
+    limit_login_handle(&handle_norm)?;
     let row: Option<LoginRow> = sqlx::query_as(&format!(
         "SELECT password_hash, {USER_COLUMNS} FROM users WHERE handle = $1"
     ))
@@ -324,10 +349,12 @@ pub async fn login(
     let Some(row) = row else {
         // Burn the same work as a real verification, then fail generically.
         let _ = verify_password(payload.password, dummy_hash()).await;
+        record_failure(&state.db, &handle_norm, &ip).await;
         return Err(AppError::Unauthorized);
     };
 
     if !verify_password(payload.password, row.password_hash).await? {
+        record_failure(&state.db, &handle_norm, &ip).await;
         return Err(AppError::Unauthorized);
     }
 

@@ -1,5 +1,6 @@
 mod ai_proxy;
 mod auth;
+mod auth_guard;
 mod broadcast;
 mod compass;
 mod config;
