@@ -11,6 +11,7 @@ export interface DoccyFaq {
 interface Msg {
   from: "doccy" | "you";
   text: string;
+  reasoning: string;
 }
 
 const STOP = new Set([
@@ -58,6 +59,70 @@ async function askRemote(
   }
 }
 
+/** Streams one Doccy turn (`reason`/`say` SSE events), appending chunks to
+ *  the open message as they arrive. Resolves true once any content streamed
+ *  — partial text on transport cuts is kept, not discarded. */
+async function streamReply(
+  slug: string,
+  faqs: { title: string; body: string }[],
+  history: { role: string; content: string }[],
+  question: string,
+  signal: AbortSignal,
+  onChunk: (kind: "reason" | "say", chunk: string) => void,
+): Promise<boolean> {
+  let res: Response;
+  try {
+    res = await fetch("/api/blog/ask/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug, locale: locale(), question, faqs, history }),
+      signal,
+    });
+  } catch {
+    return false;
+  }
+  if (!res.ok || !res.body) return false;
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  let got = false;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx: number;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const block = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        let event = "";
+        const datas: string[] = [];
+        for (const line of block.split("\n")) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          else if (line.startsWith("data:")) datas.push(line.slice(5).trim());
+        }
+        const data = datas.join("\n");
+        if ((event === "say" || event === "reason") && data) {
+          got = true;
+          onChunk(event, data);
+        } else if (event === "done" || event === "error") {
+          reader.cancel().catch(() => {});
+          return got;
+        }
+      }
+    }
+  } catch {
+    return got;
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Already released via cancel — nothing to do.
+    }
+  }
+  return got;
+}
+
 /** Offline fallback: extractive Q&A over the post's own sections — the
  *  best-matching section body wins. */
 function findAnswer(q: string, faqs: { title: string; body: string }[]): string | null {
@@ -92,14 +157,19 @@ function findAnswer(q: string, faqs: { title: string; body: string }[]): string 
  *  no other motion. */
 export default function Doccy(props: { slug: string; faqs: DoccyFaq[] }) {
   const [open, setOpen] = createSignal(false);
-  const [msgs, setMsgs] = createSignal<Msg[]>([{ from: "doccy", text: t("doccy.greeting") }]);
+  const [msgs, setMsgs] = createSignal<Msg[]>([
+    { from: "doccy", text: t("doccy.greeting"), reasoning: "" },
+  ]);
   const [draft, setDraft] = createSignal("");
   const [thinking, setThinking] = createSignal(false);
   let scrollBox: HTMLDivElement | undefined;
   let inflight: AbortController | undefined;
   let alive = true;
+  // Serializes overlapping turns: only the latest reply may write.
+  let turn = 0;
   onCleanup(() => {
     alive = false;
+    turn += 1;
     inflight?.abort();
   });
 
@@ -115,7 +185,7 @@ export default function Doccy(props: { slug: string; faqs: DoccyFaq[] }) {
     const prior = msgs()
       .slice(-6)
       .map((m) => ({ role: m.from === "you" ? "user" : "assistant", content: m.text }));
-    setMsgs((m) => [...m, { from: "you", text: q }]);
+    setMsgs((m) => [...m, { from: "you", text: q, reasoning: "" }]);
     setDraft("");
     setThinking(true);
     scrollDown();
@@ -124,26 +194,53 @@ export default function Doccy(props: { slug: string; faqs: DoccyFaq[] }) {
 
   const reply = async (q: string, history: { role: string; content: string }[]) => {
     const faqs = props.faqs.map((f) => ({ title: t(f.titleKey), body: t(f.bodyKey) }));
+    const myTurn = (turn += 1);
     inflight?.abort();
     const ctrl = new AbortController();
     inflight = ctrl;
-    const timer = window.setTimeout(() => ctrl.abort(), 60_000);
-    let remote: string | null = null;
+    const timer = window.setTimeout(() => ctrl.abort(), 120_000);
+    // Streaming placeholder first, so arriving chunks have a home.
+    setMsgs((m) => [...m, { from: "doccy", text: "", reasoning: "" }]);
+    scrollDown();
+    let got = false;
     try {
-      remote = await askRemote(props.slug, faqs, history, q, ctrl.signal);
+      got = await streamReply(props.slug, faqs, history, q, ctrl.signal, (kind, chunk) => {
+        setMsgs((m) => {
+          const last = m[m.length - 1];
+          if (!last || last.from !== "doccy") return m;
+          const next = [...m];
+          next[next.length - 1] =
+            kind === "reason"
+              ? { ...last, reasoning: last.reasoning + chunk }
+              : { ...last, text: last.text + chunk };
+          return next;
+        });
+        scrollDown();
+      });
     } finally {
       window.clearTimeout(timer);
       if (inflight === ctrl) inflight = undefined;
     }
-    if (!alive) return;
-    const text =
-      remote ?? findAnswer(q, faqs) ?? `${t("doccy.fallback")} ${faqs.map((f) => f.title).join(" · ")}`;
+    if (!alive || myTurn !== turn) return;
+    if (!got) {
+      // The stream produced nothing (offline, rate-limited, no key, timeout):
+      // fall back to the plain endpoint, then to local extractive matching.
+      const remote = await askRemote(props.slug, faqs, history, q, ctrl.signal);
+      if (!alive || myTurn !== turn) return;
+      const text =
+        remote ??
+        findAnswer(q, faqs) ??
+        `${t("doccy.fallback")} ${faqs.map((f) => f.title).join(" · ")}`;
+      setMsgs((m) => {
+        const next = [...m];
+        const last = next[next.length - 1];
+        if (last && last.from === "doccy") next[next.length - 1] = { ...last, text };
+        return next;
+      });
+    }
     setThinking(false);
-    setMsgs((m) => [...m, { from: "doccy", text }]);
     scrollDown();
   };
-
-  onCleanup(() => window.clearTimeout(replyTimer));
 
   const chips = () => props.faqs.slice(0, 3).map((f) => t(f.titleKey));
 
@@ -191,17 +288,31 @@ export default function Doccy(props: { slug: string; faqs: DoccyFaq[] }) {
 
           <div ref={scrollBox} class="max-h-80 space-y-3 overflow-y-auto p-4">
             <For each={msgs()}>
-              {(m) => (
-                <p
-                  classList={{
-                    "mr-auto rounded-bl-md bg-border/60 text-ink": m.from === "doccy",
-                    "ml-auto rounded-br-md bg-accent text-white": m.from === "you",
-                  }}
-                  class="w-fit max-w-[90%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed"
-                >
-                  {m.text}
-                </p>
-              )}
+              {(m) =>
+                m.from === "you" ? (
+                  <p class="ml-auto w-fit max-w-[90%] rounded-2xl rounded-br-md bg-accent px-3.5 py-2 text-sm leading-relaxed text-white">
+                    {m.text}
+                  </p>
+                ) : (
+                  <div class="mr-auto w-fit max-w-[90%] space-y-2">
+                    <Show when={m.reasoning}>
+                      <div class="rounded-2xl rounded-bl-md border border-border bg-bg px-3.5 py-2">
+                        <p class="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-subtle">
+                          {t("doccy.reasoning")}
+                        </p>
+                        <p class="whitespace-pre-wrap text-[13px] leading-relaxed text-ink-muted">
+                          {m.reasoning}
+                        </p>
+                      </div>
+                    </Show>
+                    <Show when={m.text}>
+                      <p class="w-fit rounded-2xl rounded-bl-md bg-border/60 px-3.5 py-2 text-sm leading-relaxed text-ink">
+                        {m.text}
+                      </p>
+                    </Show>
+                  </div>
+                )
+              }
             </For>
             <Show when={thinking()}>
               <p class="w-fit rounded-2xl rounded-bl-md bg-border/60 px-3.5 py-2 text-sm text-ink-muted">

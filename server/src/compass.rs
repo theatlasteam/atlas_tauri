@@ -843,6 +843,10 @@ struct StreamChoice {
 #[derive(Deserialize, Default)]
 struct StreamDelta {
     content: Option<String>,
+    /// Thinking-model trace (kimi reasoning). Absent on plain completions —
+    /// everything downstream treats it as optional.
+    #[serde(default)]
+    reasoning_content: Option<String>,
 }
 
 /// Turns the gateway's raw `text/event-stream` bytes into a stream of plain
@@ -948,6 +952,140 @@ pub async fn complete_stream_route(
     }
 
     Ok(Sse::new(sse_from_gateway(res.bytes_stream())).keep_alive(KeepAlive::default()))
+}
+
+/// Tool-free streaming completion for Doccy blog Q&A: same inputs and kimi-k3
+/// default model as `complete_sandboxed`, but the reply streams as typed SSE
+/// events — `reason` for the model's thinking trace (only when the gateway
+/// provides one), `say` for answer text — ending with `done` or `error`.
+pub(crate) async fn complete_sandboxed_stream(
+    state: &AppState,
+    system: String,
+    turns: Vec<(String, String)>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
+    let Some(api_key) = &state.cfg.compass_api_key else {
+        return Err(AppError::BadRequest(
+            "Compass isn't configured on this server (no API key set)".into(),
+        ));
+    };
+
+    let mut messages = vec![GatewayMessage::plain("system", system)];
+    for (role, content) in turns {
+        let role = match role.as_str() {
+            "assistant" => "assistant",
+            _ => "user",
+        };
+        messages.push(GatewayMessage::plain(role, content));
+    }
+
+    let body = ChatCompletionRequest {
+        model: resolve_model(state, None),
+        messages,
+        temperature: 0.7,
+        stream: true,
+        max_tokens: 65_536,
+    };
+
+    let res = state
+        .http
+        .post(format!("{}/v1/chat/completions", state.cfg.compass_api_base))
+        .timeout(std::time::Duration::from_secs(600))
+        .bearer_auth(api_key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("compass gateway request failed: {e}")))?;
+
+    if !res.status().is_success() {
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+        tracing::warn!(%status, body = %text, "compass gateway returned an error");
+        return Err(AppError::Internal("Compass couldn't come up with a reply just now.".into()));
+    }
+
+    Ok(Sse::new(sse_doccy_from_gateway(res.bytes_stream())).keep_alive(KeepAlive::default()))
+}
+
+/// Like `sse_from_gateway`, but typed: reasoning deltas become `reason`
+/// events, answer deltas become `say` events, and the stream always ends
+/// with `done` (or `error` on transport failure). Total emitted text is
+/// capped like `complete_sandboxed`'s truncation.
+fn sse_doccy_from_gateway(
+    byte_stream: impl Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin + Send + 'static,
+) -> impl Stream<Item = Result<Event, Infallible>> {
+    struct ScanState<S> {
+        stream: S,
+        buf: String,
+        emitted: usize,
+        done_sent: bool,
+    }
+    const MAX_EMITTED_CHARS: usize = 6000;
+    futures_util::stream::unfold(
+        ScanState { stream: byte_stream, buf: String::new(), emitted: 0, done_sent: false },
+        |mut st| async move {
+            if st.emitted >= MAX_EMITTED_CHARS && !st.done_sent {
+                st.done_sent = true;
+                return Some((Ok(Event::default().event("done").data("done")), st));
+            }
+            loop {
+                if let Some(pos) = st.buf.find("\n\n") {
+                    let block = st.buf[..pos].to_string();
+                    st.buf.drain(..=pos + 1);
+                    for line in block.lines() {
+                        let Some(data) = line.trim().strip_prefix("data:") else { continue };
+                        let data = data.trim();
+                        if data == "[DONE]" {
+                            st.done_sent = true;
+                            return Some((Ok(Event::default().event("done").data("done")), st));
+                        }
+                        if let Ok(chunk) = serde_json::from_str::<StreamChunk>(data) {
+                            if let Some(delta) =
+                                chunk.choices.into_iter().next().map(|c| c.delta)
+                            {
+                                let room = MAX_EMITTED_CHARS.saturating_sub(st.emitted);
+                                if let Some(reason) = delta.reasoning_content {
+                                    if !reason.is_empty() && room > 0 {
+                                        let take: String = reason.chars().take(room).collect();
+                                        st.emitted += take.chars().count();
+                                        return Some((
+                                            Ok(Event::default().event("reason").data(take)),
+                                            st,
+                                        ));
+                                    }
+                                }
+                                if let Some(content) = delta.content {
+                                    if !content.is_empty() && room > 0 {
+                                        let take: String = content.chars().take(room).collect();
+                                        st.emitted += take.chars().count();
+                                        return Some((
+                                            Ok(Event::default().event("say").data(take)),
+                                            st,
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    continue;
+                }
+                match st.stream.next().await {
+                    Some(Ok(bytes)) => {
+                        st.buf.push_str(&String::from_utf8_lossy(&bytes));
+                    }
+                    Some(Err(_)) => {
+                        return Some((Ok(Event::default().event("error").data("error")), st));
+                    }
+                    None => {
+                        if st.done_sent {
+                            return None;
+                        }
+                        st.done_sent = true;
+                        return Some((Ok(Event::default().event("done").data("done")), st));
+                    }
+                }
+            }
+        },
+    )
 }
 
 /// A group message mentioned @compass and the server can read it (it's

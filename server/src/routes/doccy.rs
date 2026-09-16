@@ -14,8 +14,11 @@ use std::time::{Duration, Instant};
 
 use axum::extract::State;
 use axum::http::HeaderMap;
+use axum::response::sse::Sse;
 use axum::Json;
+use futures_util::Stream;
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 
 use crate::error::{ApiResult, AppError};
 use crate::state::AppState;
@@ -101,7 +104,29 @@ pub async fn ask(
     Json(payload): Json<AskPayload>,
 ) -> ApiResult<Json<AskResponse>> {
     check_rate_limit(&client_ip(&headers))?;
+    let (system, turns) = prepare(payload)?;
+    // Same gateway and default model (kimi-k3) as Minds; the helper truncates
+    // long replies and strips tool-call fences.
+    let answer = crate::compass::complete_sandboxed(&state, system, turns).await?;
+    Ok(Json(AskResponse { answer }))
+}
 
+/// `POST /api/blog/ask/stream` — same inputs and guards as `ask`, but the
+/// reply streams as typed SSE events (`reason` for the thinking trace,
+/// `say` for answer text, ending with `done`/`error`). No auth, same as
+/// `ask`: anonymous blog readers.
+pub async fn ask_stream(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<AskPayload>,
+) -> ApiResult<Sse<impl Stream<Item = Result<axum::response::sse::Event, Infallible>>>> {
+    check_rate_limit(&client_ip(&headers))?;
+    let (system, turns) = prepare(payload)?;
+    Ok(crate::compass::complete_sandboxed_stream(&state, system, turns).await?)
+}
+
+/// Shared validation + prompt building for both Doccy endpoints.
+fn prepare(payload: AskPayload) -> Result<(String, Vec<(String, String)>), AppError> {
     if !KNOWN_SLUGS.contains(&payload.slug.as_str()) {
         return Err(AppError::BadRequest("unknown post".into()));
     }
@@ -157,8 +182,5 @@ pub async fn ask(
         .collect();
     turns.push(("user".to_string(), question));
 
-    // Same gateway and default model (kimi-k3) as Minds; the helper truncates
-    // long replies and strips tool-call fences.
-    let answer = crate::compass::complete_sandboxed(&state, system, turns).await?;
-    Ok(Json(AskResponse { answer }))
+    Ok((system, turns))
 }
