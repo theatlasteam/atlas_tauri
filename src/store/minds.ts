@@ -94,9 +94,13 @@ function createMindsStore() {
     await Promise.all([loadMinds(), loadRooms()]);
   };
 
-  const createMind = async (name: string, prompt: string, tools?: Record<string, boolean>) => {
+  const createMind = async (
+    name: string,
+    prompt: string,
+    opts?: { tools?: Record<string, boolean>; color?: string; colorEnd?: string },
+  ) => {
     setState("error", null);
-    const mind = await api.createMind({ name: name.trim(), prompt: prompt.trim(), tools });
+    const mind = await api.createMind({ name: name.trim(), prompt: prompt.trim(), ...opts });
     setState("minds", (list) => [...(list ?? []), mind]);
     return mind;
   };
@@ -105,7 +109,7 @@ function createMindsStore() {
     id: string,
     name: string,
     prompt: string,
-    opts?: { tools?: Record<string, boolean>; isActive?: boolean },
+    opts?: { tools?: Record<string, boolean>; isActive?: boolean; color?: string; colorEnd?: string },
   ) => {
     setState("error", null);
     const updated = await api.updateMind(id, {

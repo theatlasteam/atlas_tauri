@@ -72,15 +72,6 @@ export default function MindOrb(props: {
             <g class="orb-eyes orb-blink" classList={{ "orb-blink-fast": props.thinking }}>
               <circle cx="151.5" cy="178.5" r="52.5" fill="white" />
               <circle cx="327.796" cy="178.5" r="52.5" fill="white" />
-              <g
-                class="orb-pupils"
-                classList={{ "orb-dart": props.thinking, "orb-drift": !props.thinking }}
-              >
-                <circle cx="160" cy="184" r="20" fill="#1a1410" opacity="0.62" />
-                <circle cx="336" cy="184" r="20" fill="#1a1410" opacity="0.62" />
-                <circle cx="168" cy="176" r="7" fill="white" opacity="0.9" />
-                <circle cx="344" cy="176" r="7" fill="white" opacity="0.9" />
-              </g>
             </g>
           }
         >

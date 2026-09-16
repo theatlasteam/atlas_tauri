@@ -8,7 +8,7 @@ import EmptyState from "../components/EmptyState";
 import AnimatedList from "../ui/AnimatedList";
 import { CheckIcon, PlusIcon, TrashIcon, UsersIcon } from "../icons";
 import { t } from "../lib/i18n";
-import { MAX_MINDS, MAX_ROOM_MINDS, personalitySummary, roomRoster } from "../lib/minds";
+import { MAX_MINDS, MAX_ROOM_MINDS, MIND_PALETTE, darkenColor, personalitySummary, roomRoster } from "../lib/minds";
 import { formatRelativeTime } from "../lib/time";
 
 /**
@@ -220,8 +220,8 @@ export default function Minds() {
       <MindEditor
         open={creating()}
         onClose={() => setCreating(false)}
-        onCreate={async (name, prompt) => {
-          await mindsStore.createMind(name, prompt);
+        onCreate={async (name, prompt, color, colorEnd) => {
+          await mindsStore.createMind(name, prompt, { color, colorEnd });
           setCreating(false);
         }}
       />
@@ -335,8 +335,8 @@ function MindRow(props: { mindId: string; onDeleted: () => void }) {
             open={editing()}
             initial={m()}
             onClose={() => setEditing(false)}
-            onCreate={async (name, prompt) => {
-              await mindsStore.updateMind(m().id, name, prompt);
+            onCreate={async (name, prompt, color, colorEnd) => {
+              await mindsStore.updateMind(m().id, name, prompt, { color, colorEnd });
               setEditing(false);
             }}
           />
@@ -352,12 +352,14 @@ function MindRow(props: { mindId: string; onDeleted: () => void }) {
  */
 function MindEditor(props: {
   open: boolean;
-  initial?: { name: string; prompt: string };
+  initial?: { name: string; prompt: string; color?: string; colorEnd?: string };
   onClose: () => void;
-  onCreate: (name: string, prompt: string) => Promise<void>;
+  onCreate: (name: string, prompt: string, color: string, colorEnd: string) => Promise<void>;
 }) {
   const [name, setName] = createSignal("");
   const [prompt, setPrompt] = createSignal("");
+  const [color, setColor] = createSignal(MIND_PALETTE[0].color);
+  const [colorEnd, setColorEnd] = createSignal(MIND_PALETTE[0].colorEnd);
   const [error, setError] = createSignal<string | null>(null);
   const [saving, setSaving] = createSignal(false);
 
@@ -366,6 +368,8 @@ function MindEditor(props: {
   const seed = () => {
     setName(props.initial?.name ?? "");
     setPrompt(props.initial?.prompt ?? "");
+    setColor(props.initial?.color ?? MIND_PALETTE[0].color);
+    setColorEnd(props.initial?.colorEnd ?? MIND_PALETTE[0].colorEnd);
     setError(null);
   };
 
@@ -376,7 +380,7 @@ function MindEditor(props: {
     }
     setSaving(true);
     try {
-      await props.onCreate(name(), prompt());
+      await props.onCreate(name(), prompt(), color(), colorEnd());
     } catch (e) {
       setError(e instanceof Error ? e.message : t("minds.failed"));
     } finally {
@@ -403,7 +407,60 @@ function MindEditor(props: {
         </>
       }
     >
-      <div class="flex flex-col gap-3">
+      <div class="flex flex-col gap-4">
+        {/* Live Orb Preview */}
+        <div class="flex flex-col items-center justify-center pt-1">
+          <MindOrb color={color()} colorEnd={colorEnd()} size={68} />
+        </div>
+
+        {/* Color Palette */}
+        <div>
+          <label class="mb-2 block text-xs font-semibold uppercase tracking-wider text-ink-subtle">
+            {t("minds.colorLabel")}
+          </label>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <For each={MIND_PALETTE}>
+              {(p) => {
+                const isSelected = () => color().toLowerCase() === p.color.toLowerCase();
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setColor(p.color);
+                      setColorEnd(p.colorEnd);
+                    }}
+                    class="relative h-7 w-7 rounded-full transition-transform active:scale-90"
+                    style={{
+                      background: `linear-gradient(180deg, ${p.color}, ${p.colorEnd})`,
+                    }}
+                    aria-label={p.color}
+                  >
+                    <Show when={isSelected()}>
+                      <span class="absolute inset-0 rounded-full ring-2 ring-accent ring-offset-2 ring-offset-surface" />
+                    </Show>
+                  </button>
+                );
+              }}
+            </For>
+            <label
+              class="relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-dashed border-border text-ink-muted transition hover:border-accent hover:text-accent active:scale-90"
+              title={t("minds.colorCustom")}
+            >
+              <input
+                type="color"
+                value={color()}
+                onInput={(e) => {
+                  const val = e.currentTarget.value;
+                  setColor(val);
+                  setColorEnd(darkenColor(val));
+                }}
+                class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+              <span class="text-xs font-bold leading-none">+</span>
+            </label>
+          </div>
+        </div>
+
         <TextField
           label={t("minds.nameLabel")}
           placeholder={t("minds.namePlaceholder")}

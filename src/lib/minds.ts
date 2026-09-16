@@ -38,3 +38,36 @@ export function roomTitleFromMinds(minds: MindDto[]): string {
 export function roomRoster(room: MindRoomDto): string {
   return room.minds.map((m) => m.name).join(", ");
 }
+
+export interface MindColorPreset {
+  color: string;
+  colorEnd: string;
+}
+
+export const MIND_PALETTE: MindColorPreset[] = [
+  { color: "#FF0080", colorEnd: "#99004D" },
+  { color: "#C9772E", colorEnd: "#7A4A1C" },
+  { color: "#3B82F6", colorEnd: "#1D4ED8" },
+  { color: "#22C55E", colorEnd: "#15803D" },
+  { color: "#A855F7", colorEnd: "#6B21A8" },
+  { color: "#E24B4A", colorEnd: "#991B1B" },
+  { color: "#14B8A6", colorEnd: "#0F766E" },
+  { color: "#F59E0B", colorEnd: "#B45309" },
+  { color: "#06B6D4", colorEnd: "#0E7490" },
+  { color: "#EC4899", colorEnd: "#BE185D" },
+  { color: "#8B5CF6", colorEnd: "#5B21B6" },
+  { color: "#64748B", colorEnd: "#334155" },
+];
+
+/** Darken a hex color by a ratio (default 35%) to generate a pleasing gradient bottom. */
+export function darkenColor(hex: string, amount = 0.35): string {
+  const clean = hex.replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const num = parseInt(full, 16);
+  if (isNaN(num)) return hex;
+  const r = Math.max(0, Math.min(255, Math.floor((num >> 16) * (1 - amount))));
+  const g = Math.max(0, Math.min(255, Math.floor(((num >> 8) & 0xff) * (1 - amount))));
+  const b = Math.max(0, Math.min(255, Math.floor((num & 0xff) * (1 - amount))));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+

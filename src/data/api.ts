@@ -449,11 +449,23 @@ export const api = {
    *  The client gates the whole surface on this so flipping the flag lights
    *  the UI up without a relogin. */
   mindAccess: () => request<{ allowed: boolean }>("GET", "/api/minds/access"),
-  createMind: (body: { name: string; prompt?: string; tools?: Record<string, boolean> }) =>
-    request<MindDto>("POST", "/api/minds", body),
+  createMind: (body: {
+    name: string;
+    prompt?: string;
+    tools?: Record<string, boolean>;
+    color?: string;
+    colorEnd?: string;
+  }) => request<MindDto>("POST", "/api/minds", body),
   updateMind: (
     id: string,
-    body: { name: string; prompt?: string; tools?: Record<string, boolean>; isActive?: boolean },
+    body: {
+      name: string;
+      prompt?: string;
+      tools?: Record<string, boolean>;
+      isActive?: boolean;
+      color?: string;
+      colorEnd?: string;
+    },
   ) => request<MindDto>("PATCH", `/api/minds/${id}`, body),
   deleteMind: (id: string) => request<{ ok: boolean }>("DELETE", `/api/minds/${id}`),
   runMind: (id: string, input: string) =>

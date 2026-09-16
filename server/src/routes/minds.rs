@@ -212,6 +212,10 @@ pub struct NewMind {
     pub tools: Option<serde_json::Value>,
     #[serde(default)]
     pub is_active: Option<bool>,
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default, alias = "colorEnd")]
+    pub color_end: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -274,14 +278,18 @@ pub async fn create_mind(
     let id = Uuid::new_v4();
     let prompt: String = body.prompt.chars().take(PROMPT_LIMIT).collect();
     let tools = body.tools.clone().unwrap_or(serde_json::json!({"web_fetch": true, "shell": true, "message_owner": true}));
+    let color = body.color.as_deref().filter(|s| !s.trim().is_empty()).unwrap_or(COLORS[i]);
+    let color_end = body.color_end.as_deref().filter(|s| !s.trim().is_empty()).unwrap_or_else(|| {
+        body.color.as_deref().filter(|s| !s.trim().is_empty()).unwrap_or(COLOR_ENDS[i])
+    });
     sqlx::query(
         "INSERT INTO minds (id, owner_id, name, color, color_end, prompt, tools) VALUES ($1,$2,$3,$4,$5,$6,$7)",
     )
     .bind(id)
     .bind(auth.user_id)
     .bind(name)
-    .bind(COLORS[i])
-    .bind(COLOR_ENDS[i])
+    .bind(color)
+    .bind(color_end)
     .bind(&prompt)
     .bind(&tools)
     .execute(&state.db)
@@ -293,7 +301,7 @@ pub async fn create_mind(
     Ok(Json(mind_from_row(row)))
 }
 
-/// `PATCH /api/minds/{id}` — rename a Mind and/or rewrite its personality.
+/// `PATCH /api/minds/{id}` — rename a Mind, recolor it, and/or rewrite its personality.
 /// Being able to fix a personality is the whole point of having one: the first
 /// draft of a voice is almost never the one you want after hearing it talk.
 pub async fn update_mind(
@@ -312,7 +320,9 @@ pub async fn update_mind(
     let row: Option<MindRow> = sqlx::query_as(&format!(
         "UPDATE minds SET name = $3, prompt = $4,
             tools = COALESCE($5, tools),
-            is_active = COALESCE($6, is_active)
+            is_active = COALESCE($6, is_active),
+            color = COALESCE($7, color),
+            color_end = COALESCE($8, color_end)
          WHERE id = $1 AND owner_id = $2
          RETURNING {MIND_COLUMNS}",
     ))
@@ -322,6 +332,8 @@ pub async fn update_mind(
     .bind(&prompt)
     .bind(body.tools.clone())
     .bind(body.is_active)
+    .bind(body.color.as_deref().filter(|s| !s.trim().is_empty()))
+    .bind(body.color_end.as_deref().filter(|s| !s.trim().is_empty()))
     .fetch_optional(&state.db)
     .await?;
     let Some(row) = row else {

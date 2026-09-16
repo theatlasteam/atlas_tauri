@@ -1,14 +1,15 @@
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
-import { AiMessage, Button, Composer, Dialog, MessageBubble, TextArea, TextField } from "@atlas/ui";
+import { Button, Composer, Dialog, MessageBubble, TextArea, TextField } from "@atlas/ui";
 import { mindsStore } from "../store/minds";
 import MindOrb from "../components/MindOrb";
 import MarkdownContent from "../components/MarkdownContent";
 import MindTool from "../components/MindTool";
-import { ArrowDownIcon, BackIcon, PlusIcon, SettingsIcon, TrashIcon } from "../icons";
+import { ArrowDownIcon, BackIcon, PlusIcon, SettingsIcon, SpinnerIcon, TrashIcon } from "../icons";
 import { formatRelativeTime } from "../lib/time";
 import { t, type TranslationKey } from "../lib/i18n";
 import { useIsDesktopLayout } from "../lib/platform";
+import { MIND_PALETTE, darkenColor } from "../lib/minds";
 
 interface ChatTurn {
   id: string;
@@ -50,6 +51,46 @@ export default function MindDetail() {
   const [schedCron, setSchedCron] = createSignal("0 9 * * *");
   const [schedTask, setSchedTask] = createSignal("");
   const [schedSaving, setSchedSaving] = createSignal(false);
+
+  const [editName, setEditName] = createSignal("");
+  const [editPrompt, setEditPrompt] = createSignal("");
+  const [editColor, setEditColor] = createSignal(MIND_PALETTE[0].color);
+  const [editColorEnd, setEditColorEnd] = createSignal(MIND_PALETTE[0].colorEnd);
+  const [savingProfile, setSavingProfile] = createSignal(false);
+
+  const openSettings = () => {
+    const m = mind();
+    if (m) {
+      setEditName(m.name);
+      setEditPrompt(m.prompt);
+      setEditColor(m.color);
+      setEditColorEnd(m.colorEnd);
+    }
+    setShowSettings(true);
+  };
+
+  const saveMindProfile = async () => {
+    const m = mind();
+    if (!m || !editName().trim()) return;
+    setSavingProfile(true);
+    try {
+      await mindsStore.updateMind(m.id, editName(), editPrompt(), {
+        color: editColor(),
+        colorEnd: editColorEnd(),
+      });
+      setShowSettings(false);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const deleteThisMind = async () => {
+    const m = mind();
+    if (!m) return;
+    if (!confirm(t("minds.deleteConfirm", { name: m.name }))) return;
+    await mindsStore.deleteMind(m.id);
+    navigate("/minds", { replace: true });
+  };
 
   let scrollRef: HTMLDivElement | undefined;
   let abort: AbortController | null = null;
@@ -171,6 +212,7 @@ export default function MindDetail() {
     await mindsStore.updateMind(m.id, m.name, m.prompt, { isActive: !m.isActive });
   };
 
+
   /** Header subtitle: live status beats schedule summary — same precedence as
    *  ChatView's typing-beats-presence subtitle. */
   const subtitle = () => {    const l = live();
@@ -191,293 +233,477 @@ export default function MindDetail() {
 
   return (
     <div class="relative flex h-full flex-col">
-      <header class="flex shrink-0 items-center gap-3 border-b border-border bg-appbar px-3 pb-3 pt-[max(var(--safe-top),1.5rem)]">
-        <Show when={!isDesktop()}>
-          <A
-            href="/minds"
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
-          >
-            <BackIcon size={22} />
-          </A>
-        </Show>
-        <Show when={mind()}>
-          {(m) => (
-            <>
-              <span class="relative shrink-0">
-                <MindOrb color={m().color} colorEnd={m().colorEnd} size={36} thinking={running()} sleeping={!m().isActive && !running()} />
-                <span
-                  class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-appbar"
-                  classList={{
-                    "bg-success": m().isActive && !running(),
-                    "bg-accent animate-pulse": running(),
-                    "bg-ink-subtle": !m().isActive,
-                  }}
-                />
-              </span>
-              <div class="min-w-0 flex-1">
-                <p class="truncate font-semibold leading-tight">{m().name}</p>
-                <p
-                  class="truncate text-xs"
-                  classList={{ "text-accent animate-pulse": running(), "text-ink-subtle": !running() }}
-                >
-                  {subtitle()}
-                </p>
-              </div>
+      <Show
+        when={!showSettings()}
+        fallback={
+          <div class="flex h-full flex-col overflow-hidden bg-bg">
+            <header class="flex shrink-0 items-center justify-between border-b border-border bg-appbar px-4 pb-3 pt-[max(var(--safe-top),1.5rem)]">
               <button
                 type="button"
-                onClick={() => setShowSettings(true)}
+                onClick={() => setShowSettings(false)}
                 class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
-                aria-label={t("minds.settingsTitle", { name: m().name })}
+                aria-label={t("profile.cancel")}
               >
-                <SettingsIcon size={20} />
+                <BackIcon size={22} />
               </button>
-            </>
-          )}
-        </Show>
-      </header>
+              <h1 class="font-heading text-lg font-bold text-ink">
+                {t("minds.editTitle")}
+              </h1>
+              <button
+                type="button"
+                onClick={() => void saveMindProfile()}
+                disabled={savingProfile() || !editName().trim()}
+                class="min-h-11 rounded-pill px-3 text-sm font-semibold text-accent transition active:opacity-60 disabled:opacity-40"
+              >
+                <Show when={!savingProfile()} fallback={<SpinnerIcon size={16} class="animate-spin" />}>
+                  {t("minds.save")}
+                </Show>
+              </button>
+            </header>
 
-      <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div class="relative min-h-0 flex-1">
-          <div
-            ref={scrollRef}
-            onScroll={handleScroll}
-            class="h-full min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 pt-3 md:px-6"
-          >
-            <div class="flex w-full max-w-[40rem] flex-col gap-2.5">
-              <For each={chatMessages()}>
-                {(msg) => (
-                  <Show
-                    when={msg.role === "assistant"}
-                    fallback={
-                      <MessageBubble side="sent" time={formatRelativeTime(msg.time)}>
-                        {msg.text}
-                      </MessageBubble>
-                    }
-                  >
-                    <AiMessage name={mind()?.name ?? t("minds.title")}>
-                      <MarkdownContent text={msg.text} />
-                      <Show when={visibleTools(msg).length > 0}>
-                        <div class="mt-2 flex flex-col gap-1.5">
-                          <For each={visibleTools(msg)}>
-                            {(tc) => (
-                              <MindTool
-                                name={tc.name}
-                                args={typeof tc.arguments === "string" ? tc.arguments : JSON.stringify(tc.arguments ?? {})}
-                                output={tc.output}
-                                state={tc.output.trimStart().startsWith("error:") ? "error" : "done"}
-                              />
-                            )}
-                          </For>
-                        </div>
-                      </Show>
-                      <p class="mt-1 text-[10px] text-ink-subtle">{formatRelativeTime(msg.time)}</p>
-                    </AiMessage>
-                  </Show>
-                )}
-              </For>
+            <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-28">
+              <div class="mx-auto flex max-w-lg flex-col items-center gap-3 px-5 pt-4">
+                {/* Hero Avatar with glow blur */}
+                <div class="relative mt-2">
+                  <div
+                    class="absolute inset-0 -z-10 rounded-full opacity-40 blur-2xl transition-all duration-300"
+                    style={{
+                      background: `linear-gradient(180deg, ${editColor()}, ${editColorEnd()})`,
+                    }}
+                  />
+                  <MindOrb
+                    color={editColor()}
+                    colorEnd={editColorEnd()}
+                    size={96}
+                    thinking={running()}
+                    sleeping={!mind()?.isActive}
+                  />
+                </div>
 
-              {/* Live turn: says and tool cards interleaved in the exact order
-                  the Mind produced them — note, tool, note, tool. */}
-              <Show when={pendingInput()}>
-                <MessageBubble side="sent" status="sending">
-                  {pendingInput()}
-                </MessageBubble>
-              </Show>
-              <For each={live()?.events ?? []}>
-                {(item) => (
-                  <Show
-                    when={item.kind === "tool"}
-                    fallback={
-                      <AiMessage name={mind()?.name ?? t("minds.title")}>
-                        <MarkdownContent text={(item as { text: string }).text} />
-                      </AiMessage>
-                    }
-                  >
-                    {(() => {
-                      const tool = item as {
-                        name: string;
-                        args: string;
-                        output: string;
-                        state: "running" | "done";
-                      };
-                      return (
-                        <div class="max-w-full">
-                          <MindTool
-                            name={tool.name}
-                            args={tool.args}
-                            output={tool.state === "done" ? tool.output : undefined}
-                            state={tool.state === "running" ? "running" : tool.output.trimStart().startsWith("error:") ? "error" : "done"}
-                            defaultOpen={tool.state === "running"}
-                          />
-                        </div>
-                      );
-                    })()}
-                  </Show>
-                )}
-              </For>
-              <Show when={running() && (live()?.events.length ?? 0) === 0}>
-                <AiMessage
-                  name={mind()?.name ?? t("minds.title")}
-                  thinking
-                  thinkingLabel={`${mind()?.name ?? t("minds.title")}…`}
-                />
-              </Show>
-
-              <Show when={mindsStore.state.error}>
-                <p class="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
-                  {mindsStore.state.error}
-                </p>
-              </Show>
-            </div>
-          </div>
-
-          <Show when={!atBottom()}>
-            <button
-              type="button"
-              onClick={() => scrollToBottom()}
-              class="pop-in absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface-raised text-ink shadow-floating transition-transform duration-150 hover:scale-105 active:scale-95"
-              aria-label={t("chatView.scrollToLatestAria")}
-            >
-              <ArrowDownIcon size={18} />
-            </button>
-          </Show>
-        </div>
-
-        <div class="shrink-0 border-t border-border bg-bg">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void handleSend();
-            }}
-            class="w-full px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5"
-          >
-            <Composer
-              value={draft()}
-              onChange={setDraft}
-              disabled={running()}
-              hideAdd
-              hideVoice
-              placeholder={t("minds.messagePlaceholder", { name: mind()?.name ?? t("minds.title") })}
-              onSubmit={() => void handleSend()}
-            />
-          </form>
-        </div>
-      </div>
-
-      <Dialog
-        open={showSettings()}
-        onOpenChange={(o) => setShowSettings(o)}
-        title={t("minds.settingsTitle", { name: mind()?.name ?? t("minds.title") })}
-        description={t("minds.settingsDesc")}
-        footer={
-          <Button size="sm" onClick={() => setShowSettings(false)}>
-            {t("minds.settingsDone")}
-          </Button>
-        }
-      >
-        <div class="flex max-h-[70vh] flex-col gap-5 overflow-y-auto pr-1">
-          <div class="flex items-center justify-between rounded-xl border border-border bg-bg p-3.5">
-            <div>
-              <p class="text-sm font-semibold text-ink">{t("minds.autonomousStatus")}</p>
-              <p class="text-xs text-ink-muted">
-                {mind()?.isActive ? t("minds.autonomousActive") : t("minds.mindPaused")}
-              </p>
-            </div>
-            <Button size="sm" variant={mind()?.isActive ? "soft" : "primary"} onClick={() => void toggleActive()}>
-              {mind()?.isActive ? t("minds.pauseMind") : t("minds.activateMind")}
-            </Button>
-          </div>
-
-          <div class="flex flex-col gap-3">
-            <div class="flex items-center justify-between">
-              <div>
-                <h3 class="text-xs font-bold uppercase tracking-wider text-ink-subtle">
-                  {t("minds.schedulesTitle", { n: schedules().length })}
-                </h3>
-                <p class="text-xs text-ink-muted">{t("minds.schedulesHint")}</p>
-              </div>
-              <Button size="sm" onClick={() => setAddingSchedule(true)}>
-                <PlusIcon size={14} class="mr-1 inline" />
-                {t("minds.add")}
-              </Button>
-            </div>
-
-            <Show when={schedules().length > 0} fallback={
-              <div class="rounded-xl border border-dashed border-border p-4 text-center text-xs text-ink-muted">
-                {t("minds.noSchedules")}
-              </div>
-            }>
-              <div class="flex flex-col gap-2">
-                <For each={schedules()}>
-                  {(sched) => (
-                    <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
-                      <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-2">
-                          <span class="text-xs font-semibold text-ink">{sched.label}</span>
-                          <span class="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-medium text-accent">
-                            {sched.cronExpr}
-                          </span>
-                        </div>
-                        <p class="mt-0.5 truncate text-xs text-ink-muted">{sched.task}</p>
-                      </div>
-                      <div class="flex shrink-0 items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void mindsStore.toggleSchedule(params.id, sched.id)}
-                          class="rounded-lg px-2 py-1 text-xs font-medium transition"
-                          classList={{
-                            "bg-accent-soft text-accent": sched.enabled,
-                            "bg-surface text-ink-muted": !sched.enabled,
-                          }}
-                        >
-                          {sched.enabled ? t("minds.scheduleActive") : t("minds.schedulePaused")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void mindsStore.deleteSchedule(params.id, sched.id)}
-                          class="p-1 text-ink-subtle hover:text-danger"
-                        >
-                          <TrashIcon size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </For>
-              </div>
-            </Show>
-          </div>
-
-          <div class="flex flex-col gap-3">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-ink-subtle">
-              {t("minds.toolsTitle")}
-            </h3>
-            <For each={TOOLS}>
-              {(tool) => {
-                const enabled = () => mind()?.tools?.[tool.key] ?? true;
-                return (
-                  <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
-                    <div>
-                      <p class="text-xs font-semibold text-ink">{t(tool.nameKey)}</p>
-                      <p class="text-[11px] text-ink-muted">{t(tool.descKey)}</p>
-                    </div>
+                {/* Name & status */}
+                <div class="mt-1 text-center">
+                  <h2 class="text-xl font-bold text-ink">{editName() || mind()?.name}</h2>
+                  <p class="text-sm text-ink-subtle">@mind · Compass</p>
+                  <div class="mt-2 flex items-center justify-center gap-2">
                     <button
                       type="button"
-                      onClick={() => void toggleTool(tool.key, enabled())}
-                      class="flex h-5 w-9 shrink-0 rounded-full transition-colors"
-                      classList={{ "bg-accent": enabled(), "bg-border": !enabled() }}
+                      onClick={() => void toggleActive()}
+                      class="inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-xs font-medium transition active:scale-95"
+                      classList={{
+                        "bg-success/10 text-success": mind()?.isActive,
+                        "bg-ink-subtle/10 text-ink-subtle": !mind()?.isActive,
+                      }}
                     >
                       <span
-                        class="h-5 w-5 rounded-full bg-white shadow transition-transform"
-                        classList={{ "translate-x-4": enabled(), "translate-x-0": !enabled() }}
+                        class="h-1.5 w-1.5 rounded-full"
+                        classList={{
+                          "bg-success": mind()?.isActive,
+                          "bg-ink-subtle": !mind()?.isActive,
+                        }}
                       />
+                      {mind()?.isActive ? t("minds.autonomousActive") : t("minds.mindPaused")}
                     </button>
                   </div>
-                );
-              }}
-            </For>
+                </div>
+
+                {/* Main Card: Name, Personality (Bio), and Color */}
+                <div class="mt-4 w-full overflow-hidden rounded-2xl border border-border bg-surface">
+                  <div class="p-4">
+                    <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+                      {t("minds.nameLabel")}
+                    </h3>
+                    <input
+                      type="text"
+                      value={editName()}
+                      onInput={(e) => setEditName(e.currentTarget.value)}
+                      placeholder={t("minds.namePlaceholder")}
+                      maxLength={40}
+                      class="w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-ink outline-none transition focus:border-accent"
+                    />
+                  </div>
+
+                  <div class="border-t border-border p-4">
+                    <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+                      {t("minds.promptLabel")}
+                    </h3>
+                    <textarea
+                      rows={4}
+                      value={editPrompt()}
+                      onInput={(e) => setEditPrompt(e.currentTarget.value)}
+                      placeholder={t("minds.promptPlaceholder")}
+                      maxLength={2000}
+                      class="w-full resize-none rounded-xl border border-border bg-bg px-3 py-2 text-sm leading-relaxed text-ink outline-none transition focus:border-accent"
+                    />
+                    <p class="mt-1 text-[11px] text-ink-subtle">{t("minds.promptHint")}</p>
+                  </div>
+
+                  <div class="border-t border-border p-4">
+                    <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+                      {t("minds.colorLabel")}
+                    </h3>
+                    <div class="flex flex-wrap items-center gap-2.5">
+                      <For each={MIND_PALETTE}>
+                        {(p) => {
+                          const isSelected = () => editColor().toLowerCase() === p.color.toLowerCase();
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditColor(p.color);
+                                setEditColorEnd(p.colorEnd);
+                              }}
+                              class="relative h-7 w-7 rounded-full transition-transform active:scale-90"
+                              style={{
+                                background: `linear-gradient(180deg, ${p.color}, ${p.colorEnd})`,
+                              }}
+                              aria-label={p.color}
+                            >
+                              <Show when={isSelected()}>
+                                <span class="absolute inset-0 rounded-full ring-2 ring-accent ring-offset-2 ring-offset-surface" />
+                              </Show>
+                            </button>
+                          );
+                        }}
+                      </For>
+                      <label
+                        class="relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-dashed border-border text-ink-muted transition hover:border-accent hover:text-accent active:scale-90"
+                        title={t("minds.colorCustom")}
+                      >
+                        <input
+                          type="color"
+                          value={editColor()}
+                          onInput={(e) => {
+                            const val = e.currentTarget.value;
+                            setEditColor(val);
+                            setEditColorEnd(darkenColor(val));
+                          }}
+                          class="absolute inset-0 cursor-pointer opacity-0 w-full h-full"
+                        />
+                        <span class="text-xs font-bold leading-none">+</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Schedules Card */}
+                <div class="mt-2 w-full overflow-hidden rounded-2xl border border-border bg-surface p-4">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+                        {t("minds.schedulesTitle", { n: schedules().length })}
+                      </h3>
+                      <p class="text-xs text-ink-muted">{t("minds.schedulesHint")}</p>
+                    </div>
+                    <Button size="sm" onClick={() => setAddingSchedule(true)}>
+                      <PlusIcon size={14} class="mr-1 inline" />
+                      {t("minds.add")}
+                    </Button>
+                  </div>
+
+                  <Show
+                    when={schedules().length > 0}
+                    fallback={
+                      <div class="mt-3 rounded-xl border border-dashed border-border p-4 text-center text-xs text-ink-muted">
+                        {t("minds.noSchedules")}
+                      </div>
+                    }
+                  >
+                    <div class="mt-3 flex flex-col gap-2">
+                      <For each={schedules()}>
+                        {(sched) => (
+                          <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
+                            <div class="min-w-0 flex-1">
+                              <div class="flex items-center gap-2">
+                                <span class="text-xs font-semibold text-ink">{sched.label}</span>
+                                <span class="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-medium text-accent">
+                                  {sched.cronExpr}
+                                </span>
+                              </div>
+                              <p class="mt-0.5 truncate text-xs text-ink-muted">{sched.task}</p>
+                            </div>
+                            <div class="flex shrink-0 items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void mindsStore.toggleSchedule(params.id, sched.id)}
+                                class="rounded-lg px-2 py-1 text-xs font-medium transition"
+                                classList={{
+                                  "bg-accent-soft text-accent": sched.enabled,
+                                  "bg-surface text-ink-muted": !sched.enabled,
+                                }}
+                              >
+                                {sched.enabled ? t("minds.scheduleActive") : t("minds.schedulePaused")}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void mindsStore.deleteSchedule(params.id, sched.id)}
+                                class="p-1 text-ink-subtle hover:text-danger"
+                              >
+                                <TrashIcon size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                </div>
+
+                {/* Tools Card */}
+                <div class="mt-2 w-full overflow-hidden rounded-2xl border border-border bg-surface p-4">
+                  <h3 class="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+                    {t("minds.toolsTitle")}
+                  </h3>
+                  <div class="flex flex-col gap-2.5">
+                    <For each={TOOLS}>
+                      {(tool) => {
+                        const enabled = () => mind()?.tools?.[tool.key] ?? true;
+                        return (
+                          <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
+                            <div>
+                              <p class="text-xs font-semibold text-ink">{t(tool.nameKey)}</p>
+                              <p class="text-[11px] text-ink-muted">{t(tool.descKey)}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void toggleTool(tool.key, enabled())}
+                              class="flex h-5 w-9 shrink-0 rounded-full transition-colors"
+                              classList={{ "bg-accent": enabled(), "bg-border": !enabled() }}
+                            >
+                              <span
+                                class="h-5 w-5 rounded-full bg-white shadow transition-transform"
+                                classList={{ "translate-x-4": enabled(), "translate-x-0": !enabled() }}
+                              />
+                            </button>
+                          </div>
+                        );
+                      }}
+                    </For>
+                  </div>
+                </div>
+
+                {/* Actions like UserProfile */}
+                <div class="mt-4 flex w-full flex-col gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => void toggleActive()}
+                    class="flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface py-3 text-sm font-semibold text-ink transition active:scale-[0.98]"
+                  >
+                    {mind()?.isActive ? t("minds.pauseMind") : t("minds.activateMind")}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void deleteThisMind()}
+                    class="flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface py-3 text-sm font-semibold text-danger transition active:scale-[0.98]"
+                  >
+                    <TrashIcon size={16} />
+                    {t("minds.delete")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+      >
+        <div class="flex h-full flex-col overflow-hidden">
+          <header class="flex shrink-0 items-center gap-3 border-b border-border bg-appbar px-3 pb-3 pt-[max(var(--safe-top),1.5rem)]">
+            <Show when={!isDesktop()}>
+              <A
+                href="/minds"
+                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
+              >
+                <BackIcon size={22} />
+              </A>
+            </Show>
+            <Show when={mind()}>
+              {(m) => (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => openSettings()}
+                    class="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-1 text-left transition-colors duration-150 hover:bg-surface active:bg-surface"
+                  >
+                    <span class="relative shrink-0">
+                      <MindOrb color={m().color} colorEnd={m().colorEnd} size={36} thinking={running()} sleeping={!m().isActive && !running()} />
+                      <span
+                        class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-appbar"
+                        classList={{
+                          "bg-success": m().isActive && !running(),
+                          "bg-accent animate-pulse": running(),
+                          "bg-ink-subtle": !m().isActive,
+                        }}
+                      />
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate font-semibold leading-tight">{m().name}</p>
+                      <p
+                        class="truncate text-xs"
+                        classList={{ "text-accent animate-pulse": running(), "text-ink-subtle": !running() }}
+                      >
+                        {subtitle()}
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openSettings()}
+                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-ink active:scale-95 active:bg-surface"
+                    aria-label={t("minds.settingsTitle", { name: m().name })}
+                  >
+                    <SettingsIcon size={20} />
+                  </button>
+                </>
+              )}
+            </Show>
+          </header>
+
+          <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div class="relative min-h-0 flex-1">
+              <div
+                ref={scrollRef}
+                onScroll={handleScroll}
+                class="h-full min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 pt-3 md:px-6"
+              >
+                <div class="flex w-full max-w-[40rem] flex-col gap-2.5">
+                  <For each={chatMessages()}>
+                    {(msg) => (
+                      <Show
+                        when={msg.role === "assistant"}
+                        fallback={
+                          <MessageBubble side="sent" time={formatRelativeTime(msg.time)}>
+                            {msg.text}
+                          </MessageBubble>
+                        }
+                      >
+                        <div class="mr-auto flex w-fit max-w-[min(88%,36rem)] items-end gap-2.5">
+                          <span class="mb-0.5 shrink-0">
+                            <MindOrb color={mind()?.color ?? "#8a8a8a"} colorEnd={mind()?.colorEnd} size={30} />
+                          </span>
+                          <MessageBubble
+                            side="received"
+                            name={mind()?.name}
+                            time={formatRelativeTime(msg.time)}
+                            class="!max-w-full"
+                          >
+                            <MarkdownContent text={msg.text} />
+                            <Show when={visibleTools(msg).length > 0}>
+                              <div class="mt-2 flex flex-col gap-1.5">
+                                <For each={visibleTools(msg)}>
+                                  {(tc) => (
+                                    <MindTool
+                                      name={tc.name}
+                                      args={typeof tc.arguments === "string" ? tc.arguments : JSON.stringify(tc.arguments ?? {})}
+                                      output={tc.output}
+                                      state={tc.output.trimStart().startsWith("error:") ? "error" : "done"}
+                                    />
+                                  )}
+                                </For>
+                              </div>
+                            </Show>
+                          </MessageBubble>
+                        </div>
+                      </Show>
+                    )}
+                  </For>
+
+                  {/* Live turn: says and tool cards interleaved */}
+                  <Show when={pendingInput()}>
+                    <MessageBubble side="sent" status="sending">
+                      {pendingInput()}
+                    </MessageBubble>
+                  </Show>
+                  <For each={live()?.events ?? []}>
+                    {(item) => (
+                      <Show
+                        when={item.kind === "tool"}
+                        fallback={
+                          <div class="mr-auto flex w-fit max-w-[min(88%,36rem)] items-end gap-2.5">
+                            <span class="mb-0.5 shrink-0">
+                              <MindOrb color={mind()?.color ?? "#8a8a8a"} colorEnd={mind()?.colorEnd} size={30} thinking />
+                            </span>
+                            <MessageBubble side="received" name={mind()?.name} class="!max-w-full">
+                              <MarkdownContent text={(item as { text: string }).text} />
+                            </MessageBubble>
+                          </div>
+                        }
+                      >
+                        {(() => {
+                          const tool = item as {
+                            name: string;
+                            args: string;
+                            output: string;
+                            state: "running" | "done";
+                          };
+                          return (
+                            <div class="max-w-full">
+                              <MindTool
+                                name={tool.name}
+                                args={tool.args}
+                                output={tool.state === "done" ? tool.output : undefined}
+                                state={tool.state === "running" ? "running" : tool.output.trimStart().startsWith("error:") ? "error" : "done"}
+                                defaultOpen={tool.state === "running"}
+                              />
+                            </div>
+                          );
+                        })()}
+                      </Show>
+                    )}
+                  </For>
+                  <Show when={running() && (live()?.events.length ?? 0) === 0}>
+                    <div class="mr-auto flex items-end gap-2.5">
+                      <span class="mb-0.5 shrink-0">
+                        <MindOrb color={mind()?.color ?? "#8a8a8a"} colorEnd={mind()?.colorEnd} size={30} thinking />
+                      </span>
+                      <MessageBubble side="received" name={mind()?.name}>
+                        <span class="inline-flex items-center gap-1.5 text-xs text-ink-muted">
+                          <span class="animate-pulse">{mind()?.name ?? t("minds.title")}…</span>
+                        </span>
+                      </MessageBubble>
+                    </div>
+                  </Show>
+
+                  <Show when={mindsStore.state.error}>
+                    <p class="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+                      {mindsStore.state.error}
+                    </p>
+                  </Show>
+                </div>
+              </div>
+
+              <Show when={!atBottom()}>
+                <button
+                  type="button"
+                  onClick={() => scrollToBottom()}
+                  class="pop-in absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface-raised text-ink shadow-floating transition-transform duration-150 hover:scale-105 active:scale-95"
+                  aria-label={t("chatView.scrollToLatestAria")}
+                >
+                  <ArrowDownIcon size={18} />
+                </button>
+              </Show>
+            </div>
+
+            <div class="shrink-0 border-t border-border bg-bg">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleSend();
+                }}
+                class="w-full px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5"
+              >
+                <Composer
+                  value={draft()}
+                  onChange={setDraft}
+                  disabled={running()}
+                  hideAdd
+                  hideVoice
+                  placeholder={t("minds.messagePlaceholder", { name: mind()?.name ?? t("minds.title") })}
+                  onSubmit={() => void handleSend()}
+                />
+              </form>
+            </div>
           </div>
         </div>
-      </Dialog>
+      </Show>
 
       <Dialog
         open={addingSchedule()}
