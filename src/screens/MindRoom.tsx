@@ -1,6 +1,6 @@
 import { createEffect, createSignal, For, onMount, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
-import { Button } from "@atlas/ui";
+import { Button, GridLoader } from "@atlas/ui";
 import { mindsStore, mindInRoom } from "../store/minds";
 import MindOrb from "../components/MindOrb";
 import MarkdownContent from "../components/MarkdownContent";
@@ -210,6 +210,7 @@ export default function MindRoom() {
                             size={28}
                             thinking
                           />
+                          <GridLoader pattern="hollow" size="sm" />
                           <p class="text-sm text-ink-subtle">
                             {mind()?.name ?? t("minds.title")} · {t("minds.thinking")}…
                           </p>

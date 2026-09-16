@@ -1,6 +1,6 @@
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
-import { Button, Composer, Dialog, TextArea, TextField } from "@atlas/ui";
+import { Button, Composer, Dialog, GridLoader, TextArea, TextField } from "@atlas/ui";
 import { mindsStore } from "../store/minds";
 import { preferences } from "../store/preferences";
 import { session } from "../store/session";
@@ -144,7 +144,18 @@ export default function MindDetail() {
   // Convert persisted runs into a conversational timeline, oldest first.
   const feedMessages = () => {
     const list: Array<Message & { toolCalls?: ChatTurn["toolCalls"] }> = [];
-    const sortedRuns = [...runs()].sort(
+    // Deduplicate runs by id, preferring the non-optimistic (persisted) run
+    const rawRuns = runs();
+    const dedupedMap = new Map<string, typeof rawRuns[0]>();
+    for (const r of rawRuns) {
+      const existing = dedupedMap.get(r.id);
+      if (!existing) {
+        dedupedMap.set(r.id, r);
+      } else if (existing.id.startsWith("live-") && !r.id.startsWith("live-")) {
+        dedupedMap.set(r.id, r);
+      }
+    }
+    const sortedRuns = Array.from(dedupedMap.values()).sort(
       (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
     );
     const userId = session.user()?.id ?? "me";
@@ -732,14 +743,14 @@ export default function MindDetail() {
                   {/* Live typing / thinking indicator formatted like ChatView liveDrafts */}
                   <Show when={running() && (live()?.events.length ?? 0) === 0}>
                     <div class="mt-2.5 flex w-full max-w-[40rem] justify-start">
-                      <div class="max-w-[86%] rounded-[1.1rem] rounded-bl-md border border-dashed border-accent/40 bg-bubble-received/60 px-3 py-1.5 text-bubble-received-ink md:max-w-[28rem]">
-                        <p class="mb-0.5 truncate text-xs font-semibold text-accent">
+                      <div class="max-w-[86%] rounded-[1.1rem] rounded-bl-md border border-dashed border-accent/40 bg-bubble-received/60 px-3.5 py-2.5 text-bubble-received-ink md:max-w-[28rem]">
+                        <p class="mb-1.5 truncate text-xs font-semibold text-accent">
                           {mind()?.name ?? t("minds.title")}
                         </p>
-                        <p class="whitespace-pre-wrap break-words text-[0.95em] leading-snug opacity-70">
+                        <div class="flex items-center gap-2.5 text-sm text-ink-muted">
+                          <GridLoader pattern="hollow" size="sm" />
                           <span class="animate-pulse">{subtitle() || `${mind()?.name ?? t("minds.title")}…`}</span>
-                          <span class="ml-0.5 inline-block animate-pulse font-semibold text-accent">▍</span>
-                        </p>
+                        </div>
                       </div>
                     </div>
                   </Show>

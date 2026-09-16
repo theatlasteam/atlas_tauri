@@ -209,7 +209,10 @@ function createMindsStore() {
     setState("error", null);
     try {
       const run = await api.runMind(mindId, input);
-      setState("runs", mindId, (list) => [run, ...(list ?? [])]);
+      setState("runs", mindId, (list) => {
+        const filtered = (list ?? []).filter((r) => r.id !== run.id);
+        return [run, ...filtered];
+      });
       // Refresh minds to update lastRunAt / lastStatus
       void loadMinds();
       return run;
@@ -269,22 +272,24 @@ function createMindsStore() {
         },
         opts,
       );
-      setState("runs", mindId, (list) => [run, ...(list ?? [])]);
+      setState("runs", mindId, (list) => {
+        const filtered = (list ?? []).filter((r) => r.id !== run.id && !r.id.startsWith("live-"));
+        return [run, ...filtered];
+      });
       void loadMinds();
       return run;
     } catch (e) {
       setError(e, "Failed to run Mind.");
       throw e;
     } finally {
-      // Reconcile with the persisted transcript: if `done` was missed (a
-      // dropped SSE tail), the server-side run still landed in mind_runs —
-      // refetch so the answer appears instead of the run vanishing silently.
-      void loadRuns(mindId);
+      // Clear live events immediately on completion so they don't persist alongside runs
       setState("live", (map) => {
         const next = { ...map };
         delete next[mindId];
         return next;
       });
+      // Reconcile with the persisted transcript from database
+      void loadRuns(mindId);
     }
   };
 

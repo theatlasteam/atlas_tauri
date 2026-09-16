@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::auth::AuthUser;
-use crate::compass::complete_sandboxed;
 use crate::error::{ApiResult, AppError};
 use crate::models::UserRow;
 use crate::state::AppState;
@@ -601,13 +600,30 @@ pub async fn room_turn(
             })
             .collect();
 
-        // A Mind that errors is simply absent from the turn — writing a
-        // placeholder like "(silent)" put a fake line in a real person's mouth
-        // and read as a glitch in the transcript forever after.
-        let Ok(reply) = complete_sandboxed(&state, system, turns).await else {
-            tracing::warn!(mind = %mind.name, %id, "mind reply failed; skipping this turn");
-            continue;
-        };
+        // Minds in Rooms can run tools (web_fetch, browser, shell, etc.)
+        let mut allowed_tools = vec!["browser", "web_fetch", "shell", "say", "set_schedule", "message_owner"];
+        if let Some(obj) = mind.tools.as_object() {
+            allowed_tools.retain(|tool| obj.get(*tool).and_then(|v| v.as_bool()).unwrap_or(true));
+        }
+
+        let task_input = turns
+            .iter()
+            .map(|(role, content)| format!("{}: {}", if role == "assistant" { &mind.name } else { "Context" }, content))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        let res = crate::compass::run_autonomous_agent(
+            &state,
+            mind.id,
+            auth.user_id,
+            &mind.name,
+            system,
+            task_input,
+            &allowed_tools,
+        )
+        .await;
+
+        let reply = res.output;
         if reply.trim().is_empty() {
             continue;
         }

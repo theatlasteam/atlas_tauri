@@ -15,7 +15,7 @@ import { MessageListSkeleton } from "../components/Skeleton";
 import VerifiedBadge from "../components/VerifiedBadge";
 import Popover from "../ui/Popover";
 import { Menu, MenuItem } from "../ui/Menu";
-import { Composer } from "@atlas/ui";
+import { Composer, GridLoader } from "@atlas/ui";
 import ExpressionTray, { type ExpressionTab } from "../components/ExpressionTray";
 import RichComposerField from "../components/RichComposerField";
 import { emojiToken } from "../lib/customEmoji";
@@ -541,8 +541,11 @@ export default function ChatView() {
                       <EyeIcon size={13} class="shrink-0 text-accent" />
                     </Show>
                   </p>
-                  <p class="truncate text-xs" classList={{ "text-accent animate-pulse": !!typingSubtitle(), "text-ink-subtle": !typingSubtitle() }}>
-                    {typingSubtitle() ?? peerSubtitle()}
+                  <p class="flex items-center gap-1.5 truncate text-xs" classList={{ "text-accent animate-pulse": !!typingSubtitle(), "text-ink-subtle": !typingSubtitle() }}>
+                    <Show when={!!typingSubtitle()}>
+                      <GridLoader pattern="hollow" size="sm" class="shrink-0" />
+                    </Show>
+                    <span class="truncate">{typingSubtitle() ?? peerSubtitle()}</span>
                   </p>
                 </div>
               </button>
@@ -728,11 +731,14 @@ export default function ChatView() {
             {([userId, text]) => (
               <div class="mt-2.5 flex w-full max-w-[40rem] justify-start">
                 <div class="max-w-[86%] rounded-[1.1rem] rounded-bl-md border border-dashed border-accent/40 bg-bubble-received/60 px-3 py-1.5 text-bubble-received-ink md:max-w-[28rem]">
-                  <Show when={chat()?.kind === "group"}>
-                    <p class="mb-0.5 truncate text-xs font-semibold text-accent">
-                      {authors()[userId]?.name ?? t("chatView.someone")}
-                    </p>
-                  </Show>
+                  <div class="mb-0.5 flex items-center justify-between gap-2">
+                    <Show when={chat()?.kind === "group"}>
+                      <p class="truncate text-xs font-semibold text-accent">
+                        {authors()[userId]?.name ?? t("chatView.someone")}
+                      </p>
+                    </Show>
+                    <GridLoader pattern="hollow" size="sm" class="ml-auto shrink-0 opacity-75" />
+                  </div>
                   <p class="whitespace-pre-wrap break-words text-[0.95em] leading-snug opacity-70">
                     {text}
                     <span class="ml-0.5 inline-block animate-pulse font-semibold text-accent">▍</span>
