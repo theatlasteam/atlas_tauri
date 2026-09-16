@@ -128,17 +128,18 @@ export default function MascotOrb(props: { state: MascotState; size?: number }) 
             when={st() === "sleeping" || st() === "happy"}
             fallback={
               <g class="mx-eyelid" style={{ transform: blink() ? "scaleY(0.08)" : "scaleY(1)" }}>
-                <circle cx="151.5" cy="178.5" r="52.5" fill="white" />
-                <circle cx="327.796" cy="178.5" r="52.5" fill="white" />
+                {/* Pupil-less eyes: the whites themselves drift toward the
+                    cursor and dart while thinking. */}
                 <g
                   class="mx-pupils"
                   classList={{ "mx-dart": st() === "thinking" }}
                   style={{ transform: `translate(${px()}px, ${py()}px)` }}
                 >
-                  <circle cx="160" cy="184" r="20" fill="#1a1410" opacity="0.62" />
-                  <circle cx="336" cy="184" r="20" fill="#1a1410" opacity="0.62" />
-                  <circle cx="168" cy="176" r="7" fill="white" opacity="0.9" />
-                  <circle cx="344" cy="176" r="7" fill="white" opacity="0.9" />
+                  {/* Eyes are rounded rects, not circles: square proportions
+                      read as circles, but a blink squashes them into a clean
+                      horizontal line instead of a thinning oval. */}
+                  <rect x="99" y="126" width="105" height="105" rx="52" fill="white" />
+                  <rect x="275.3" y="126" width="105" height="105" rx="52" fill="white" />
                 </g>
               </g>
             }
