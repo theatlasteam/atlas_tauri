@@ -22,7 +22,7 @@ function createMindsStore() {
     /** Mind ids currently being waited on, per room. */
     thinking: Record<string, string[]>;
     /** Live streaming state per mind while a run is in flight. */
-    live: Record<string, { status: string; says: string[]; tool: string | null }>;
+    live: Record<string, { status: string; says: string[]; tool: { name: string; args: string } | null }>;
     error: string | null;
   }>({ minds: null, rooms: null, messages: {}, schedules: {}, runs: {}, thinking: {}, live: {}, error: null });
 
@@ -192,7 +192,11 @@ function createMindsStore() {
             if (text) setState("live", mindId, "says", (s) => [...s, text]);
           } else if (ev.kind === "tool_start") {
             const name = typeof ev.data?.name === "string" ? ev.data.name : "working";
-            setState("live", mindId, "tool", name);
+            const args =
+              typeof ev.data?.arguments === "string"
+                ? ev.data.arguments
+                : JSON.stringify(ev.data?.arguments ?? {});
+            setState("live", mindId, "tool", { name, args });
             setState("live", mindId, "status", toolStatus(name));
           } else if (ev.kind === "tool_end") {
             setState("live", mindId, "tool", null);

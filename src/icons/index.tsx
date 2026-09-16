@@ -29,6 +29,9 @@ import {
   MicrophoneSlash,
   MagnifyingGlass,
   X,
+  Clock,
+  CheckCircle,
+  XCircle,
   Paperclip,
   Smiley,
   ArrowBendUpLeft,
@@ -123,6 +126,9 @@ export const MicIcon = wrap(Microphone);
 export const MicSlashIcon = wrap(MicrophoneSlash);
 export const SearchIcon = wrap(MagnifyingGlass);
 export const CloseIcon = wrap(X);
+export const ClockIcon = wrap(Clock);
+export const CheckCircleIcon = wrap(CheckCircle);
+export const XCircleIcon = wrap(XCircle);
 export const AttachIcon = wrap(Paperclip);
 export const SmileyIcon = wrap(Smiley);
 export const ReplyIcon = wrap(ArrowBendUpLeft);

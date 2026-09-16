@@ -4,6 +4,7 @@ import { AiMessage, Button, Composer, Dialog, MessageBubble, TextArea, TextField
 import { mindsStore } from "../store/minds";
 import MindOrb from "../components/MindOrb";
 import MarkdownContent from "../components/MarkdownContent";
+import MindTool from "../components/MindTool";
 import { ArrowDownIcon, BackIcon, PlusIcon, SettingsIcon, TrashIcon } from "../icons";
 import { formatRelativeTime } from "../lib/time";
 import { t, type TranslationKey } from "../lib/i18n";
@@ -254,31 +255,21 @@ export default function MindDetail() {
                     }
                   >
                     <AiMessage name={mind()?.name ?? t("minds.title")}>
+                      <MarkdownContent text={msg.text} />
                       <Show when={visibleTools(msg).length > 0}>
-                        <div class="mb-2 rounded-xl border border-border bg-surface px-2.5 py-2 text-xs">
-                          <p class="mb-1.5 font-semibold text-accent">
-                            {t("minds.liveActions", { n: visibleTools(msg).length })}
-                          </p>
-                          <div class="flex flex-col gap-1.5">
-                            <For each={visibleTools(msg)}>
-                              {(tc) => (
-                                <div class="rounded-lg bg-bg p-2 font-mono text-[11px] text-ink-muted">
-                                  <p class="font-bold text-ink">
-                                    ▸ {tc.name}{" "}
-                                    <span class="font-normal text-[10px] text-ink-subtle">
-                                      {JSON.stringify(tc.arguments)}
-                                    </span>
-                                  </p>
-                                  <p class="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap break-words">
-                                    {tc.output}
-                                  </p>
-                                </div>
-                              )}
-                            </For>
-                          </div>
+                        <div class="mt-2 flex flex-col gap-1.5">
+                          <For each={visibleTools(msg)}>
+                            {(tc) => (
+                              <MindTool
+                                name={tc.name}
+                                args={typeof tc.arguments === "string" ? tc.arguments : JSON.stringify(tc.arguments ?? {})}
+                                output={tc.output}
+                                state={tc.output.trimStart().startsWith("error:") ? "error" : "done"}
+                              />
+                            )}
+                          </For>
                         </div>
                       </Show>
-                      <MarkdownContent text={msg.text} />
                       <p class="mt-1 text-[10px] text-ink-subtle">{formatRelativeTime(msg.time)}</p>
                     </AiMessage>
                   </Show>
@@ -299,6 +290,15 @@ export default function MindDetail() {
                   </AiMessage>
                 )}
               </For>
+              {/* In-flight tool, AI-Elements style: running badge, expands for
+                  input; the completed card lands under the answer instead. */}
+              <Show when={live()?.tool}>
+                {(tool) => (
+                  <div class="max-w-full">
+                    <MindTool name={tool().name} args={tool().args} state="running" defaultOpen />
+                  </div>
+                )}
+              </Show>
               <Show when={running() && (live()?.says.length ?? 0) === 0}>
                 <AiMessage
                   name={mind()?.name ?? t("minds.title")}
