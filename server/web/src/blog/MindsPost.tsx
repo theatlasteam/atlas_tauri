@@ -2,8 +2,11 @@ import { For, onCleanup, onMount } from "solid-js";
 import { ArrowLeft, ArrowUpRight } from "phosphor-solid-js";
 import { locale, t, type TranslationKey } from "../lib/i18n";
 import Reveal from "../components/Reveal";
+import FlipLede from "./FlipLede";
+import "./blog-anim.css";
 import MascotOrb from "./MascotOrb";
 import DemoChat from "./DemoChat";
+import Doccy from "./Doccy";
 import { BlogFooter, blogPath } from "./BlogIndex";
 import { Navbar, NavbarBrand, NavbarLink, NavbarLinks } from "@atlas/ui";
 import LanguageSwitcher from "../components/LanguageSwitcher";
@@ -16,35 +19,6 @@ const SECTIONS: { titleKey: TranslationKey; bodyKey: TranslationKey }[] = [
   { titleKey: "blog.minds.s4.title", bodyKey: "blog.minds.s4.body" },
   { titleKey: "blog.minds.s5.title", bodyKey: "blog.minds.s5.body" },
 ];
-
-/** Lede with an xAI-style 3D pop-in: word by word, each tilting up around
- *  its baseline axis with a fade. Remounts (replays) on locale change via
- *  the caller's key. */
-function FlipLede(props: { text: string; baseDelayMs?: number }) {
-  const words = () => props.text.split(/(\s+)/);
-  const base = () => props.baseDelayMs ?? 500;
-  let n = 0;
-  return (
-    <span class="mx-flip-stage" aria-label={props.text}>
-      <For each={words()}>
-        {(w) => {
-          if (/^\s+$/.test(w)) return <>{w}</>;
-          const i = n++;
-          return (
-            <span class="mx-flip-mask" aria-hidden="true">
-              <span
-                class="mx-flip-char"
-                style={{ "animation-delay": `${Math.round(base() + i * 28)}ms` }}
-              >
-                {w}
-              </span>
-            </span>
-          );
-        }}
-      </For>
-    </span>
-  );
-}
 
 /** The Minds launch post, styled after the xAI Grok Bot landing: black
  *  page, centered hero with the mascot inline in the title, announcement
@@ -82,15 +56,6 @@ export default function MindsPost() {
 
   return (
     <div class="min-h-screen bg-[#0a0a0a] text-white">
-      <style>{`
-        .mx-hero-line { display: inline-block; opacity: 0; filter: blur(14px); transform: translateY(26px); animation: mx-hero-in 0.9s cubic-bezier(0.22,1,0.36,1) forwards; }
-        @keyframes mx-hero-in { to { opacity: 1; filter: blur(0); transform: none; } }
-        .mx-flip-stage { perspective: 700px; }
-        .mx-flip-mask { display: inline-block; overflow: hidden; vertical-align: bottom; padding-bottom: 0.1em; margin-bottom: -0.1em; }
-        .mx-flip-char { display: inline-block; opacity: 0; transform: translateY(70%) rotateX(75deg) scale(0.95); transform-origin: 50% 100%; animation: mx-flip-in 0.45s cubic-bezier(0.22,1,0.36,1) forwards; will-change: transform, opacity; }
-        @keyframes mx-flip-in { to { opacity: 1; transform: none; } }
-        @media (prefers-reduced-motion: reduce) { .mx-hero-line, .mx-flip-char { animation: none; opacity: 1; filter: none; transform: none; } }
-      `}</style>
       <Navbar variant="pill">
         <NavbarBrand href="/" class="text-white">
           <img src={logo} alt="" width="20" height="15" />
@@ -225,6 +190,7 @@ export default function MindsPost() {
       <div>
         <BlogFooter />
       </div>
+      <Doccy slug="minds" faqs={SECTIONS} />
     </div>
   );
 }

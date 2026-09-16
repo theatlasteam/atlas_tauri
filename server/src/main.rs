@@ -214,6 +214,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // for the marketing site, plus an admin summary view)
         .route("/api/metrics/event", post(routes::metrics::event))
         .route("/api/metrics/summary", get(routes::metrics::summary))
+        // Doccy, the blog Q&A Mind: anonymous like the readers, narrow by
+        // design (allowlisted slugs, length caps, per-IP rate limit).
+        .route("/api/blog/ask", post(routes::doccy::ask))
         // plugin store (see routes/plugins.rs). `/mine` is registered before
         // `/api/plugins/{id}` so the literal segment wins over the param.
         .route("/api/plugins", get(routes::plugins::list).post(routes::plugins::create))

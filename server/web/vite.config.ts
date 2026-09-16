@@ -89,6 +89,11 @@ export default defineConfig({
     host: "127.0.0.1",
     allowedHosts: true,
     fs: { allow: [resolve(__dirname, "../..")] },
+    // Local API backend (see server/, default BIND_ADDR 127.0.0.1:8080), so
+    // relative /api calls — metrics, Doccy blog Q&A — hit Rust in dev too.
+    proxy: {
+      "/api": "http://127.0.0.1:8080",
+    },
   },
   build: {
     target: "ESNext",

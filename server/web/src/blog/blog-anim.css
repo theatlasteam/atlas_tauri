@@ -1,0 +1,83 @@
+/* Shared blog motion: hero blur-in, word-flip lede, ambient orbs.
+ * Imported by MindsPost and ArticlePost. */
+.mx-hero-line {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(14px);
+  transform: translateY(26px);
+  animation: mx-hero-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes mx-hero-in {
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+.mx-flip-stage {
+  perspective: 700px;
+}
+.mx-flip-mask {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding-bottom: 0.1em;
+  margin-bottom: -0.1em;
+}
+.mx-flip-char {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(70%) rotateX(75deg) scale(0.95);
+  transform-origin: 50% 100%;
+  animation: mx-flip-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+@keyframes mx-flip-in {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Slow ambient drift for the hero glow orbs behind article titles. */
+.art-orb {
+  animation: art-drift 14s ease-in-out infinite alternate;
+  will-change: transform;
+}
+.art-orb-slow {
+  animation: art-drift 22s ease-in-out infinite alternate-reverse;
+  will-change: transform;
+}
+@keyframes art-drift {
+  from {
+    transform: translate3d(-5%, -3%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(5%, 4%, 0) scale(1.1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mx-hero-line,
+  .mx-flip-char,
+  .art-orb,
+  .art-orb-slow,
+  .doccy-bob {
+    animation: none;
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+/* Doccy's corner peek: one slow, shallow bob. Everything else about him
+ * moves only on click/hover. */
+.doccy-bob {
+  animation: doccy-bob 4.5s ease-in-out infinite;
+}
+@keyframes doccy-bob {
+  0%,
+  100% {
+    margin-bottom: 0;
+  }
+  50% {
+    margin-bottom: 7px;
+  }
+}

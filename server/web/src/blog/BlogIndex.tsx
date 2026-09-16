@@ -8,6 +8,7 @@ import { locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import { GITHUB_REPO_URL } from "../lib/repo";
 import { sortedPosts } from "./posts";
+import Doccy from "./Doccy";
 
 /** Locale-aware path: /ru/blog/… and /en/blog/… both render, so crawlers
  *  and humans each get a deterministic locale. */
@@ -82,6 +83,10 @@ export function BlogFooter() {
 }
 
 export default function BlogIndex() {
+  // Sorted: pinned first. The lead card features the first post large;
+  // the rest render as the grid below.
+  const lead = () => sortedPosts()[0];
+  const rest = () => sortedPosts().slice(1);
   return (
     <div class="min-h-screen">
       <div class="grain-overlay" />
@@ -96,20 +101,69 @@ export default function BlogIndex() {
           </h1>
           <p class="mt-5 max-w-xl text-[15px] leading-relaxed text-ink-muted">{t("blog.lede")}</p>
         </Reveal>
-        <div class="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2">
-          <For each={sortedPosts()}>
+        <Show when={lead()}>
+          {(post) => (
+            <Reveal>
+              <a
+                href={blogPath(post().slug)}
+                class="group mt-14 grid overflow-hidden rounded-2xl border border-border bg-surface transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl sm:grid-cols-2"
+              >
+                <div class="relative overflow-hidden">
+                  <img
+                    src={post().image}
+                    alt=""
+                    loading="eager"
+                    class="aspect-[16/9] h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04] sm:aspect-auto"
+                  />
+                  <Show when={post().pinned}>
+                    <span class="absolute left-4 top-4 flex items-center gap-1 rounded-full bg-ink/80 px-2.5 py-1 text-[11px] font-medium text-bg backdrop-blur">
+                      <PushPin size={12} weight="fill" />
+                      {t("blog.pinned")}
+                    </span>
+                  </Show>
+                </div>
+                <div class="flex flex-col justify-center gap-4 p-8 sm:p-10">
+                  <div class="flex items-center gap-3 text-xs">
+                    <span class="rounded-full bg-accent-soft px-2.5 py-1 font-medium text-accent">
+                      {t(post().tagKey)}
+                    </span>
+                    <span class="text-ink-subtle">{t(post().dateKey)}</span>
+                    <span class="text-ink-subtle">· {t("blog.minRead", { n: String(post().minutes) })}</span>
+                  </div>
+                  <h2 class="font-heading text-3xl font-semibold leading-tight tracking-tight transition-colors group-hover:text-accent sm:text-4xl">
+                    {t(post().titleKey)}
+                  </h2>
+                  <p class="leading-relaxed text-ink-muted">{t(post().excerptKey)}</p>
+                  <span class="mt-2 flex items-center gap-1.5 text-sm font-medium text-accent">
+                    {t("blog.readMore")}
+                    <ArrowUpRight
+                      size={15}
+                      weight="bold"
+                      class="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                    />
+                  </span>
+                </div>
+              </a>
+            </Reveal>
+          )}
+        </Show>
+        <div class="mt-6 grid gap-6 sm:grid-cols-2">
+          <For each={rest()}>
             {(post, i) => (
-              <Reveal delay={i() * 60}>
+              <Reveal
+                delay={(i() % 2) * 60}
+                class={i() === rest().length - 1 && rest().length % 2 === 1 ? "h-full sm:col-span-2" : "h-full"}
+              >
                 <a
                   href={blogPath(post.slug)}
-                  class="group flex h-full flex-col overflow-hidden rounded-2xl bg-surface transition-colors duration-200 hover:bg-surface-raised"
+                  class="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
                 >
-                  <div class="relative">
+                  <div class="relative overflow-hidden">
                     <img
                       src={post.image}
                       alt=""
                       loading="lazy"
-                      class="aspect-[16/9] w-full object-cover"
+                      class="aspect-[16/9] w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
                     />
                     <Show when={post.pinned}>
                       <span class="absolute left-4 top-4 flex items-center gap-1 rounded-full bg-ink/80 px-2.5 py-1 text-[11px] font-medium text-bg backdrop-blur">
@@ -132,7 +186,11 @@ export default function BlogIndex() {
                   <p class="text-sm leading-relaxed text-ink-muted">{t(post.excerptKey)}</p>
                   <span class="mt-auto flex items-center gap-1.5 pt-2 text-sm font-medium text-accent">
                     {t("blog.readMore")}
-                    <ArrowUpRight size={15} weight="bold" />
+                    <ArrowUpRight
+                      size={15}
+                      weight="bold"
+                      class="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                    />
                   </span>
                   </div>
                 </a>
@@ -142,6 +200,7 @@ export default function BlogIndex() {
         </div>
       </main>
       <BlogFooter />
+      <Doccy slug="blog" faqs={sortedPosts().map((p) => ({ titleKey: p.titleKey, bodyKey: p.excerptKey }))} />
     </div>
   );
 }

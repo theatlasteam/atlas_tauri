@@ -299,6 +299,15 @@ const dict = {
     "blog.back": "All posts",
     "blog.notFound": "No such post. It may have moved — back to the list?",
     "blog.pinned": "Pinned",
+    "doccy.name": "Doccy",
+    "doccy.teaser": "Psst — ask me about this post",
+    "doccy.greeting": "Hi, I'm Doccy. I read this post, so quiz me on it.",
+    "doccy.placeholder": "Ask about this post…",
+    "doccy.send": "Send",
+    "doccy.close": "Close",
+    "doccy.typing": "Doccy is reading…",
+    "doccy.fallback": "This post doesn't cover that. It does cover:",
+    "doccy.app": "Ask @compass in the app →",
     "blog.encryption.tag": "Security",
     "blog.encryption.date": "September 2026",
     "blog.encryption.title": "The server stores ciphertext. Period.",
@@ -306,6 +315,7 @@ const dict = {
       "How Atlas seals every DM on your device with X3DH and the Double Ratchet — and what the server never sees.",
     "blog.encryption.hero.lede":
       "Every direct message in Atlas is encrypted on your device before it leaves. The server relays and stores opaque ciphertext: it can't read your chats, and there's nothing to leak. Here's how that works, in plain language.",
+    "blog.encryption.hero.secondary": "See how it seals ↓",
     "blog.encryption.s1.title": "Sealed on your device",
     "blog.encryption.s1.body":
       "When you start a DM, your device runs an X3DH key exchange (X25519 + HKDF-SHA256) with your contact's keys and derives a shared secret. From that moment every message body is encrypted locally — plaintext never touches the network.",
@@ -331,6 +341,7 @@ const dict = {
       "Write a plugin in the developer panel, publish it, and install it from the app — manifest, hooks and UI slots explained.",
     "blog.plugins.hero.lede":
       "Atlas has a plugin runtime built into the app: community plugins from the marketplace, or your own code written in the developer panel at /plugins. No toolchain, no rebuild — a manifest plus JavaScript.",
+    "blog.plugins.hero.secondary": "How plugins work ↓",
     "blog.plugins.s1.title": "A plugin is a folder of files",
     "blog.plugins.s1.body":
       "Every plugin is a manifest.json (id, name, version, entry point, permissions) plus scripts. The runtime evaluates the entry file and calls activate(ctx) — with an optional deactivate(ctx) when the plugin is disabled. Authorship comes from your Atlas account.",
@@ -356,6 +367,7 @@ const dict = {
       "Write a message today, sealed until the date you choose. Even you can't open it early.",
     "blog.capsules.hero.lede":
       "A time capsule is a message with an unlock date. The server withholds the body until that moment arrives — the bubble shows a countdown instead of text, for the recipient and for you alike.",
+    "blog.capsules.hero.secondary": "How capsules work ↓",
     "blog.capsules.s1.title": "Sealed the moment you send",
     "blog.capsules.s1.body":
       "Set an unlock time and the message arrives hollow: no body, just the date. The server refuses to serve the content early, so neither side can peek — not by reopening the chat, not by reinstalling the app.",
@@ -704,6 +716,15 @@ const dict = {
     "blog.back": "Все посты",
     "blog.notFound": "Такого поста нет. Может, он переехал — вернёмся к списку?",
     "blog.pinned": "Закреплено",
+    "doccy.name": "Докси",
+    "doccy.teaser": "Пс-с — спроси меня об этом посте",
+    "doccy.greeting": "Привет, я Докси. Я прочитал этот пост — спрашивай.",
+    "doccy.placeholder": "Спроси об этом посте…",
+    "doccy.send": "Отправить",
+    "doccy.close": "Закрыть",
+    "doccy.typing": "Докси читает…",
+    "doccy.fallback": "В посте про это нет. Зато есть:",
+    "doccy.app": "Спросить @compass в приложении →",
     "blog.encryption.tag": "Безопасность",
     "blog.encryption.date": "Сентябрь 2026",
     "blog.encryption.title": "Сервер хранит шифротекст. Точка.",
@@ -711,6 +732,7 @@ const dict = {
       "Как Atlas запечатывает каждое сообщение на вашем устройстве через X3DH и Double Ratchet — и чего сервер не видит никогда.",
     "blog.encryption.hero.lede":
       "Каждое личное сообщение в Atlas шифруется на вашем устройстве до отправки. Сервер передаёт и хранит непрозрачный шифротекст: он не может читать ваши чаты, и утекать там нечему. Объясняем, как это устроено, простыми словами.",
+    "blog.encryption.hero.secondary": "Как это запечатывается ↓",
     "blog.encryption.s1.title": "Запечатывается на вашем устройстве",
     "blog.encryption.s1.body":
       "Когда вы начинаете диалог, устройство выполняет обмен ключами X3DH (X25519 + HKDF-SHA256) и выводит общий секрет. С этого момента каждое сообщение шифруется локально — открытый текст никогда не попадает в сеть.",
@@ -736,6 +758,7 @@ const dict = {
       "Напишите плагин в панели разработчика, опубликуйте — и установите из приложения. Манифест, хуки и UI-слоты простым языком.",
     "blog.plugins.hero.lede":
       "В Atlas встроена среда выполнения плагинов: маркетплейс сообщества или собственный код, написанный в панели разработчика на /plugins. Без тулчейна и пересборки — манифест плюс JavaScript.",
+    "blog.plugins.hero.secondary": "Как работают плагины ↓",
     "blog.plugins.s1.title": "Плагин — это папка с файлами",
     "blog.plugins.s1.body":
       "Каждый плагин — это manifest.json (id, название, версия, точка входа, права) плюс скрипты. Среда выполняет входной файл и вызывает activate(ctx), а при отключении — deactivate(ctx). Авторство определяется вашим аккаунтом Atlas.",
@@ -761,6 +784,7 @@ const dict = {
       "Напишите сообщение сегодня — оно останется запечатанным до выбранной даты. Даже вы не откроете раньше.",
     "blog.capsules.hero.lede":
       "Капсула времени — сообщение с датой открытия. Сервер не отдаёт тело, пока момент не настанет: вместо текста в bubble — обратный отсчёт. И для получателя, и для вас.",
+    "blog.capsules.hero.secondary": "Как работают капсулы ↓",
     "blog.capsules.s1.title": "Запечатывается в момент отправки",
     "blog.capsules.s1.body":
       "Задайте время открытия — и сообщение придёт пустым: без тела, только дата. Сервер отказывается отдавать содержимое раньше, так что подглядеть не сможет никто — ни переоткрытием чата, ни переустановкой.",

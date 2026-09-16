@@ -1,7 +1,7 @@
 import type { TranslationKey } from "../lib/i18n";
 
-/** The blog is data, not routes: add a slug here (plus a screen and i18n
- *  keys) and it appears in the index with zero plumbing. */
+/** The blog is data, not routes: add a slug here (plus its own bespoke
+ *  screen and i18n keys) and it appears in the index with zero plumbing. */
 export interface BlogPostMeta {
   slug: string;
   dateKey: TranslationKey;
