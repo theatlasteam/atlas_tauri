@@ -43,6 +43,10 @@ function createMindsStore() {
   const loadMinds = async () => {
     try {
       setState("minds", await api.listMinds());
+      // A successful load heals the banner: without this a single stale 404
+      // (e.g. a room fetch fired with a mind id during a deep-link race)
+      // sticks on screen forever, rendered by every Minds surface at once.
+      setState("error", null);
     } catch (e) {
       setError(e, "Couldn't load Minds.");
     }
@@ -51,6 +55,7 @@ function createMindsStore() {
   const loadRooms = async () => {
     try {
       setState("rooms", await api.listMindRooms());
+      setState("error", null);
     } catch (e) {
       setError(e, "Couldn't load rooms.");
     }
@@ -122,6 +127,7 @@ function createMindsStore() {
   const loadMessages = async (roomId: string) => {
     try {
       setState("messages", roomId, await api.listMindMessages(roomId));
+      setState("error", null);
     } catch (e) {
       setError(e, "Couldn't load this room.");
     }
@@ -159,6 +165,7 @@ function createMindsStore() {
     try {
       const runs = await api.listMindRuns(mindId);
       setState("runs", mindId, runs);
+      setState("error", null);
       return runs;
     } catch (e) {
       setError(e, "Couldn't load runs.");
@@ -258,6 +265,7 @@ function createMindsStore() {
     try {
       const list = await api.listMindSchedules(mindId);
       setState("schedules", mindId, list);
+      setState("error", null);
       return list;
     } catch (e) {
       setError(e, "Couldn't load schedules.");
