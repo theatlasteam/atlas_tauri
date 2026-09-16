@@ -234,6 +234,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/ws", get(ws::ws_handler))
         .route("/ws/canvas/{id}", get(ws::canvas::ws_handler))
         .route("/api/minds", get(routes::minds::list_minds).post(routes::minds::create_mind))
+        .route("/api/minds/access", get(routes::minds::access))
         .route("/api/minds/{id}", patch(routes::minds::update_mind).delete(routes::minds::delete_mind))
         .route("/api/minds/rooms", get(routes::minds::list_rooms).post(routes::minds::create_room))
         .route("/api/minds/rooms/{id}", get(routes::minds::get_room).delete(routes::minds::delete_room))

@@ -2,7 +2,6 @@ import { createEffect, createSignal, For, onMount, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
 import { Button } from "@atlas/ui";
 import { mindsStore, mindInRoom } from "../store/minds";
-import { session } from "../store/session";
 import MindOrb from "../components/MindOrb";
 import MarkdownContent from "../components/MarkdownContent";
 import { BackIcon, SendIcon, TrashIcon } from "../icons";
@@ -74,7 +73,7 @@ export default function MindRoom() {
     }
   };
 
-  const allowed = () => session.user()?.atlasX === true;
+  const allowed = () => mindsStore.hasAccess();
 
   return (
     <div class="flex h-full flex-col">

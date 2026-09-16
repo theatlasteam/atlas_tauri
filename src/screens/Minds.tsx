@@ -2,7 +2,6 @@ import { For, Show, createSignal, onMount } from "solid-js";
 import { A, useNavigate } from "@solidjs/router";
 import { Button, TextField, TextArea, Dialog } from "@atlas/ui";
 import { mindsStore } from "../store/minds";
-import { session } from "../store/session";
 import Appbar from "../components/Appbar";
 import MindOrb from "../components/MindOrb";
 import EmptyState from "../components/EmptyState";
@@ -33,7 +32,7 @@ export default function Minds() {
     void mindsStore.refresh();
   });
 
-  const allowed = () => session.user()?.atlasX === true;
+  const allowed = () => mindsStore.hasAccess();
   const minds = () => mindsStore.state.minds ?? [];
   const rooms = () => mindsStore.state.rooms ?? [];
   const loading = () => mindsStore.state.minds === null;

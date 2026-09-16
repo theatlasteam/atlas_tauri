@@ -445,6 +445,10 @@ export const api = {
   // (routes/minds.rs::require_x), which is also what the client keys the whole
   // surface's visibility on.
   listMinds: () => request<MindDto[]>("GET", "/api/minds"),
+  /** Can this account use Minds right now (Atlas X bit or FREE_MINDS flag)?
+   *  The client gates the whole surface on this so flipping the flag lights
+   *  the UI up without a relogin. */
+  mindAccess: () => request<{ allowed: boolean }>("GET", "/api/minds/access"),
   createMind: (body: { name: string; prompt?: string; tools?: Record<string, boolean> }) =>
     request<MindDto>("POST", "/api/minds", body),
   updateMind: (

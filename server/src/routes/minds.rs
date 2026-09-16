@@ -33,12 +33,27 @@ const COLOR_ENDS: [&str; 8] = [
     "#99004D", "#7A4A1C", "#1D4ED8", "#15803D", "#6B21A8", "#991B1B", "#0F766E", "#B45309",
 ];
 
-fn require_x(user: &UserRow) -> Result<(), AppError> {
+fn require_x(cfg: &crate::config::Config, user: &UserRow) -> Result<(), AppError> {
+    // FREE_MINDS=1 opens Minds to every account (see the atlas-vps-control
+    // "activate_free_minds" flag) — the per-account Atlas X check below is
+    // then just the default when the flag is off.
+    if cfg.free_minds {
+        return Ok(());
+    }
     if user.atlas_x || user.verified || user.handle == "atlas" {
         Ok(())
     } else {
         Err(AppError::Forbidden)
     }
+}
+
+/// `GET /api/minds/access` — can this account use Minds right now? The
+/// client gates the whole surface on this (not only on the account's Atlas X
+/// bit) so flipping the flag lights the UI up without a relogin.
+pub async fn access(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<serde_json::Value>> {
+    let me = load_me(&state, auth.user_id).await?;
+    let allowed = require_x(&state.cfg, &me).is_ok();
+    Ok(Json(serde_json::json!({ "allowed": allowed })))
 }
 
 /// The operating prompt for an autonomous Mind.
@@ -227,7 +242,7 @@ const MIND_COLUMNS: &str = "id, name, color, color_end, prompt, is_active, tools
 
 pub async fn list_minds(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<Vec<MindDto>>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let rows: Vec<MindRow> = sqlx::query_as(&format!(
         "SELECT {MIND_COLUMNS} FROM minds WHERE owner_id = $1 ORDER BY created_at",
     ))
@@ -243,7 +258,7 @@ pub async fn create_mind(
     Json(body): Json<NewMind>,
 ) -> ApiResult<Json<MindDto>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let name = body.name.trim();
     if name.is_empty() || name.len() > 40 {
         return Err(AppError::BadRequest("name required".into()));
@@ -288,7 +303,7 @@ pub async fn update_mind(
     Json(body): Json<NewMind>,
 ) -> ApiResult<Json<MindDto>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let name = body.name.trim();
     if name.is_empty() || name.len() > 40 {
         return Err(AppError::BadRequest("name required".into()));
@@ -321,7 +336,7 @@ pub async fn delete_mind(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let n = sqlx::query("DELETE FROM minds WHERE id = $1 AND owner_id = $2")
         .bind(id)
         .bind(auth.user_id)
@@ -363,7 +378,7 @@ async fn room_dto(state: &AppState, owner: Uuid, room_id: Uuid) -> Result<MindRo
 
 pub async fn list_rooms(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<Vec<MindRoomDto>>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let ids: Vec<(Uuid,)> = sqlx::query_as(
         "SELECT id FROM mind_rooms WHERE owner_id = $1 ORDER BY created_at DESC",
     )
@@ -385,7 +400,7 @@ pub async fn get_room(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<MindRoomDto>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     Ok(Json(room_dto(&state, auth.user_id, id).await?))
 }
 
@@ -397,7 +412,7 @@ pub async fn delete_room(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let n = sqlx::query("DELETE FROM mind_rooms WHERE id = $1 AND owner_id = $2")
         .bind(id)
         .bind(auth.user_id)
@@ -416,7 +431,7 @@ pub async fn create_room(
     Json(body): Json<NewRoom>,
 ) -> ApiResult<Json<MindRoomDto>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     if body.mind_ids.is_empty() || body.mind_ids.len() > MAX_ROOM_MINDS {
         return Err(AppError::BadRequest("pick 1–4 Minds".into()));
     }
@@ -472,7 +487,7 @@ pub async fn room_messages(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<MindMessageDto>>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let _ = room_dto(&state, auth.user_id, id).await?;
     let rows: Vec<(Uuid, Option<Uuid>, String, String, DateTime<Utc>)> = sqlx::query_as(
         "SELECT id, mind_id, role, content, created_at FROM mind_messages WHERE room_id = $1 ORDER BY created_at",
@@ -492,7 +507,7 @@ pub async fn room_turn(
     Json(body): Json<RoomTurn>,
 ) -> ApiResult<Json<Vec<MindMessageDto>>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let room = room_dto(&state, auth.user_id, id).await?;
     let text = body.text.trim();
     if text.is_empty() || text.len() > 4000 {
@@ -645,7 +660,7 @@ pub async fn list_schedules(
     Path(mind_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<MindScheduleDto>>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let _ = own_mind(&state, auth.user_id, mind_id).await?;
     let rows: Vec<(Uuid, String, String, String, String, bool, Option<DateTime<Utc>>, Option<DateTime<Utc>>)> =
         sqlx::query_as(
@@ -665,7 +680,7 @@ pub async fn create_schedule(
     Json(body): Json<NewSchedule>,
 ) -> ApiResult<Json<MindScheduleDto>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let _ = own_mind(&state, auth.user_id, mind_id).await?;
     if body.cron_expr.trim().is_empty() || body.cron_expr.split_whitespace().count() != 5 {
         return Err(AppError::BadRequest("cron needs 5 fields, e.g. '0 9 * * *'".into()));
@@ -701,7 +716,7 @@ pub async fn toggle_schedule(
     Path((mind_id, schedule_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<Json<MindScheduleDto>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let _ = own_mind(&state, auth.user_id, mind_id).await?;
     let row: Option<(Uuid, String, String, String, String, bool, Option<DateTime<Utc>>, Option<DateTime<Utc>>)> =
         sqlx::query_as(
@@ -725,7 +740,7 @@ pub async fn delete_schedule(
     Path((mind_id, schedule_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let _ = own_mind(&state, auth.user_id, mind_id).await?;
     let n = sqlx::query("DELETE FROM mind_schedules WHERE id = $1 AND mind_id = $2")
         .bind(schedule_id)
@@ -759,7 +774,7 @@ pub async fn run_mind(
     Path(mind_id): Path<Uuid>,
     Json(body): Json<ManualRun>,
 ) -> ApiResult<Json<MindRunDto>> {    let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let mind = own_mind(&state, auth.user_id, mind_id).await?;
     if !mind.is_active {
         return Err(AppError::BadRequest("this Mind is paused".into()));
@@ -856,7 +871,7 @@ pub async fn run_mind_stream(
     use futures_util::StreamExt;
 
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let mind = own_mind(&state, auth.user_id, mind_id).await?;
     if !mind.is_active {
         return Err(AppError::BadRequest("this Mind is paused".into()));
@@ -1016,7 +1031,7 @@ pub async fn list_runs(
     Path(mind_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<MindRunDto>>> {
     let me = load_me(&state, auth.user_id).await?;
-    require_x(&me)?;
+    require_x(&state.cfg, &me)?;
     let _ = own_mind(&state, auth.user_id, mind_id).await?;
     let rows: Vec<(Uuid, String, String, String, serde_json::Value, String, String, DateTime<Utc>, DateTime<Utc>)> =
         sqlx::query_as(

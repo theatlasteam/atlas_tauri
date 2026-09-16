@@ -9,6 +9,7 @@
 import { createRoot } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { api, type MindDto, type MindMessageDto, type MindRoomDto, type MindRunDto, type MindScheduleDto } from "../data/api";
+import { session } from "./session";
 import { t } from "../lib/i18n";
 
 /** One item of a Mind's live stream, in the exact order it happened. */
@@ -26,6 +27,9 @@ function createMindsStore() {
     runs: Record<string, MindRunDto[]>;
     /** Mind ids currently being waited on, per room. */
     thinking: Record<string, string[]>;
+    /** Server-advertised Minds access (Atlas X bit or FREE_MINDS flag).
+     *  Null until the first check — UI falls back to the account bit. */
+    access: boolean | null;
     /** Live streaming state per mind while a run is in flight. */
     live: Record<string, {
       status: string;
@@ -34,7 +38,7 @@ function createMindsStore() {
       events: LiveEvent[];
     }>;
     error: string | null;
-  }>({ minds: null, rooms: null, messages: {}, schedules: {}, runs: {}, thinking: {}, live: {}, error: null });
+  }>({ minds: null, rooms: null, messages: {}, schedules: {}, runs: {}, thinking: {}, live: {}, access: null, error: null });
 
   const setError = (e: unknown, fallback: string) => {
     setState("error", e instanceof Error ? e.message : fallback);
@@ -50,7 +54,16 @@ function createMindsStore() {
     } catch (e) {
       setError(e, "Couldn't load Minds.");
     }
+    try {
+      setState("access", (await api.mindAccess()).allowed);
+    } catch {
+      /* access stays at its last value; the account bit covers us */
+    }
   };
+
+  /** Server-advertised gate: flag-aware access, falling back to the
+   *  account's own Atlas X bit until the first check lands. */
+  const hasAccess = () => state.access ?? session.user()?.atlasX === true;
 
   const loadRooms = async () => {
     try {
@@ -158,7 +171,7 @@ function createMindsStore() {
 
   /** Forget cached transcripts on sign-out; the next account reloads them. */
   const reset = () => {
-    setState({ minds: null, rooms: null, messages: {}, schedules: {}, runs: {}, thinking: {}, live: {}, error: null });
+    setState({ minds: null, rooms: null, messages: {}, schedules: {}, runs: {}, thinking: {}, live: {}, access: null, error: null });
   };
 
   const loadRuns = async (mindId: string) => {
@@ -304,6 +317,7 @@ function createMindsStore() {
 
   return {
     state,
+    hasAccess,
     refresh,
     loadMinds,
     loadRooms,

@@ -61,6 +61,10 @@ pub struct Config {
     /// Bearer / x-admin-token for official broadcasts. Falls back to
     /// `waitlist_admin_token` when unset.
     pub broadcast_admin_token: Option<String>,
+    /// FREE_MINDS=1 opens Compass Minds to every account (Atlas X check
+    /// bypassed). Flipped live from the VPS control panel's
+    /// `activate_free_minds` flag, then the server restarts to pick it up.
+    pub free_minds: bool,
 }
 
 fn var(key: &str) -> Option<String> {
@@ -128,6 +132,7 @@ impl Config {
                 .to_string(),
             minds_workdir: var("MINDS_WORKDIR").unwrap_or_else(|| "./data/minds_sandbox".into()),
             broadcast_admin_token: var("BROADCAST_ADMIN_TOKEN"),
+            free_minds: var("FREE_MINDS").is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
         })
     }
 }
