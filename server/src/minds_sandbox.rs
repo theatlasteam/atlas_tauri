@@ -266,8 +266,10 @@ pub async fn browser_fetch(state: &AppState, url: &str, wait_seconds: Option<u64
         .timeout(Duration::from_secs(25))
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
         .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+        // No manual Accept-Encoding: this client has no decompression
+        // features enabled, and advertising gzip/br gets us raw compressed
+        // bytes back. Without the header the server sends identity.
         .header("Accept-Language", "en-US,en;q=0.9")
-        .header("Accept-Encoding", "gzip, deflate, br")
         .header("Cache-Control", "max-age=0")
         .header("Sec-Ch-Ua", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"")
         .header("Sec-Ch-Ua-Mobile", "?0")
@@ -373,41 +375,51 @@ pub async fn send_owner_message(
 
 /// Crude but effective: drops tags, scripts, and styles, collapses whitespace.
 /// A Mind checking a price needs "€1,299" — not the seventeen divs around it.
+///
+/// Byte-scans for tag boundaries (`<`/`>` are ASCII, so every such index is
+/// a char boundary) but copies text as `&str` slices. Pushing raw bytes as
+/// chars — `bytes[i] as char`, as this used to — reinterprets every UTF-8
+/// multi-byte sequence as Latin-1 and mojibakes the whole non-ASCII web.
 fn strip_html(html: &str) -> String {
-    let mut out = String::with_capacity(html.len().min(OUTPUT_LIMIT * 2));
-    let mut in_tag = false;
-    let mut in_skip = false; // <script>/<style> bodies
     let bytes = html.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if !in_tag && bytes[i] == b'<' {
-            let rest = &html[i..];
-            let lower = rest.to_lowercase();
-            if lower.starts_with("<script") || lower.starts_with("<style") {
-                in_skip = true;
-            } else if lower.starts_with("</script") || lower.starts_with("</style") {
-                in_skip = false;
-                // skip past the closing tag
-                if let Some(end) = rest.find('>') {
-                    i += end + 1;
-                    continue;
-                }
-            }
-            in_tag = true;
-            i += 1;
-            continue;
+    let mut out = String::with_capacity(html.len().min(OUTPUT_LIMIT * 2));
+    // ASCII case-insensitive prefix match with a word boundary, so
+    // `<scripted>` doesn't count as a script tag.
+    fn starts_word(bytes: &[u8], at: usize, word: &[u8]) -> bool {
+        let end = at + word.len();
+        if end > bytes.len() {
+            return false;
         }
-        if in_tag {
-            if bytes[i] == b'>' {
-                in_tag = false;
-            }
+        bytes[at..end].eq_ignore_ascii_case(word)
+            && !bytes.get(end).is_some_and(|b| b.is_ascii_alphanumeric())
+    }
+    let mut i = 0usize;
+    let mut text_start = 0usize;
+    let mut in_skip = false; // inside <script>/<style>
+    while i < bytes.len() {
+        if bytes[i] != b'<' {
             i += 1;
             continue;
         }
         if !in_skip {
-            out.push(bytes[i] as char);
+            out.push_str(&html[text_start..i]);
         }
-        i += 1;
+        let mut j = i + 1;
+        let closing = bytes.get(j) == Some(&b'/');
+        if closing {
+            j += 1;
+        }
+        if starts_word(bytes, j, b"script") || starts_word(bytes, j, b"style") {
+            in_skip = !closing;
+        }
+        while j < bytes.len() && bytes[j] != b'>' {
+            j += 1;
+        }
+        i = (j + 1).min(bytes.len());
+        text_start = i;
+    }
+    if !in_skip {
+        out.push_str(&html[text_start..]);
     }
     // Collapse whitespace runs; also decode the handful of entities that
     // actually show up in prices and prose.
