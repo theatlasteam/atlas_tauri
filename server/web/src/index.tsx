@@ -9,6 +9,9 @@ import PluginEditor from "./screens/PluginEditor";
 import BotEditor from "./screens/BotEditor";
 import DesignSystem from "./screens/DesignSystem";
 import Docs from "./screens/Docs";
+import BlogIndex from "./blog/BlogIndex";
+import MindsPost from "./blog/MindsPost";
+import { findPost } from "./blog/posts";
 import { initAnalytics } from "./lib/analytics";
 
 initAnalytics();
@@ -32,6 +35,15 @@ function Root() {
   if (path === "/app") {
     window.location.replace("/app/index.html");
     return null;
+  }
+  // Blog: /blog, /blog/{slug}, and the same under /ru and /en (locale comes
+  // from the prefix via detectLocale, so crawlers get deterministic pages).
+  const blogPath = path.replace(/^\/(ru|en)(?=\/|$)/, "") || "/";
+  if (blogPath === "/blog") return <BlogIndex />;
+  if (blogPath.startsWith("/blog/")) {
+    const slug = blogPath.slice("/blog/".length).split("/")[0] ?? "";
+    if (slug === "minds" && findPost(slug)) return <MindsPost />;
+    return <BlogIndex />;
   }
   if (path === "/privacy") return <PrivacyPolicy />;
   if (path === "/terms") return <TermsOfService />;

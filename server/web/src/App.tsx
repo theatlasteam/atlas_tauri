@@ -21,7 +21,7 @@ import LanguageSwitcher from "./components/LanguageSwitcher";
 import Reveal from "./components/Reveal";
 import WaitlistModal from "./components/WaitlistModal";
 import { getWaitlistCount } from "./lib/api";
-import { t, type TranslationKey } from "./lib/i18n";
+import { locale, t, type TranslationKey } from "./lib/i18n";
 import { GITHUB_REPO_URL } from "./lib/repo";
 import {
   assetsByPlatform,
@@ -87,6 +87,7 @@ export default function App() {
   const [waitlistCount, { refetch: refetchWaitlistCount }] = createResource(getWaitlistCount);
 
   const [scrolled, setScrolled] = createSignal(false);
+  const blogHref = () => `/${locale()}/blog`;
   const onScroll = () => setScrolled(window.scrollY > 8);
   onMount(() => {
     onScroll();
@@ -126,6 +127,9 @@ export default function App() {
               </NavbarLink>
               <NavbarLink href="#features" class="text-[#f2ede2]/70 hover:text-[#f2ede2]">
                 {t("nav.features")}
+              </NavbarLink>
+              <NavbarLink href={blogHref()} class="text-[#f2ede2]/70 hover:text-[#f2ede2]">
+                {t("nav.blog")}
               </NavbarLink>
               <NavbarLink href="/plugins" class="text-[#f2ede2]/70 hover:text-[#f2ede2]">
                 {t("nav.plugins")}
@@ -434,6 +438,7 @@ export default function App() {
             <p class="mb-3 font-heading text-sm font-semibold">{t("footer.product")}</p>
             <ul class="space-y-2 text-sm text-ink-muted">
               <li><a href="#features" class="transition hover:text-ink">{t("nav.features")}</a></li>
+              <li><a href={blogHref()} class="transition hover:text-ink">{t("nav.blog")}</a></li>
               <li><a href="/app/" class="transition hover:text-ink">{t("nav.webApp")}</a></li>
               <li><a href="#download" class="transition hover:text-ink">{t("nav.download")}</a></li>
               <li><a href="/plugins" class="transition hover:text-ink">{t("nav.plugins")}</a></li>
