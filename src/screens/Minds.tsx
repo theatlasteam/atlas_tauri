@@ -306,7 +306,7 @@ function MindRow(props: { mindId: string; onDeleted: () => void }) {
       {(m) => (
         <div class="flex items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2.5">
           <A href={`/minds/${m().id}`} class="flex min-w-0 flex-1 items-center gap-3">
-            <MindOrb color={m().color} colorEnd={m().colorEnd} size={38} />
+            <MindOrb color={m().color} colorEnd={m().colorEnd} size={38} sleeping={!m().isActive} />
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-semibold text-ink">{m().name}</p>
               <p class="truncate text-xs text-ink-subtle">{personalitySummary(m().prompt, "")}</p>

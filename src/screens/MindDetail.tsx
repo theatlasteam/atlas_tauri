@@ -204,7 +204,7 @@ export default function MindDetail() {
           {(m) => (
             <>
               <span class="relative shrink-0">
-                <MindOrb color={m().color} colorEnd={m().colorEnd} size={36} thinking={running()} />
+                <MindOrb color={m().color} colorEnd={m().colorEnd} size={36} thinking={running()} sleeping={!m().isActive && !running()} />
                 <span
                   class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-appbar"
                   classList={{

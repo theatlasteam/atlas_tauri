@@ -457,6 +457,88 @@ button:active,
   animation: pulse-dot 1.8s ease-in-out infinite;
 }
 
+/* The Mind orb is a creature, not a logo: it breathes at rest, its pupils
+   dart while it thinks, it blinks, and it sleeps when paused. All motion
+   lives on SVG groups with fill-box origins so it scales to any orb size. */
+.orb-body {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.orb-breathe {
+  animation: orb-breathe 3.4s ease-in-out infinite;
+}
+@keyframes orb-breathe {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(-2.2%) scale(1.015, 0.99); }
+}
+.orb-think-breathe {
+  animation: orb-think-breathe 1.15s ease-in-out infinite;
+}
+@keyframes orb-think-breathe {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-2.6%) rotate(-1.2deg); }
+  75% { transform: translateY(1%) rotate(1.2deg); }
+}
+.orb-sleep-breathe {
+  animation: orb-sleep-breathe 4.6s ease-in-out infinite;
+}
+@keyframes orb-sleep-breathe {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(1.6%) scale(1.03, 0.96); }
+}
+.orb-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.orb-blink {
+  animation: orb-blink 4.8s ease-in-out infinite;
+}
+.orb-blink-fast {
+  animation-duration: 2.6s;
+}
+@keyframes orb-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.08); }
+}
+.orb-pupils {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.orb-drift {
+  animation: pupil-drift 7s ease-in-out infinite;
+}
+@keyframes pupil-drift {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-4%, 2%); }
+  45% { transform: translate(5%, -1%); }
+  70% { transform: translate(-2%, -3%); }
+}
+.orb-dart {
+  animation: pupil-dart 1.3s ease-in-out infinite;
+}
+@keyframes pupil-dart {
+  0%, 100% { transform: translate(-9%, 0); }
+  50% { transform: translate(9%, -2%); }
+}
+.orb-zzz {
+  animation: orb-zzz 3s ease-out infinite;
+  opacity: 0;
+}
+.orb-zzz-late {
+  animation-delay: 1.5s;
+}
+@keyframes orb-zzz {
+  0% { opacity: 0; transform: translateY(6px) scale(0.7); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(-16px) scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb-breathe, .orb-think-breathe, .orb-sleep-breathe,
+  .orb-blink, .orb-drift, .orb-dart, .orb-zzz {
+    animation: none;
+  }
+}
+
 /* Nav icons — same keyframes / origins as the Phosphor demo HTML. Class
    goes on the wrapper; transform-box: view-box so 128px is the SVG centre. */
 .nav-icon-svg {
