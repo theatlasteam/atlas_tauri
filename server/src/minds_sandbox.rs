@@ -32,8 +32,6 @@ use uuid::Uuid;
 use crate::error::AppError;
 use crate::state::AppState;
 
-use base64::Engine;
-
 /// Hard cap on any single tool's output. Tool results feed the model, so an
 /// uncapped `cat` on a huge file would eat the context window alive.
 pub const OUTPUT_LIMIT: usize = 8000;
@@ -355,12 +353,12 @@ pub async fn send_owner_message(
     };
 
     let formatted_body = format!("**[Mind: {mind_name}]**\n{clean}");
-    let raw_bytes = formatted_body.as_bytes();
-    let body_base64 = base64::engine::general_purpose::STANDARD.encode(raw_bytes);
 
     let new_msg = crate::routes::messages::NewMessage {
+        // scheme "plain" is raw UTF-8 (see models::decode_body) — never
+        // base64 here, or the owner sees the encoding instead of the text.
         scheme: "plain",
-        body: &body_base64,
+        body: &formatted_body,
         // persist_and_fanout caps client_tag at 64 chars: keep a short
         // unique tag ("mind-" + 8 + "-" + 8 = 19). A full double-UUID (78)
         // fails every delivery with "client_tag too long".
