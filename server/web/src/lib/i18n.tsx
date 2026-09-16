@@ -298,6 +298,79 @@ const dict = {
     "blog.minRead": "{n} min read",
     "blog.back": "All posts",
     "blog.notFound": "No such post. It may have moved — back to the list?",
+    "blog.pinned": "Pinned",
+    "blog.encryption.tag": "Security",
+    "blog.encryption.date": "September 2026",
+    "blog.encryption.title": "The server stores ciphertext. Period.",
+    "blog.encryption.excerpt":
+      "How Atlas seals every DM on your device with X3DH and the Double Ratchet — and what the server never sees.",
+    "blog.encryption.hero.lede":
+      "Every direct message in Atlas is encrypted on your device before it leaves. The server relays and stores opaque ciphertext: it can't read your chats, and there's nothing to leak. Here's how that works, in plain language.",
+    "blog.encryption.s1.title": "Sealed on your device",
+    "blog.encryption.s1.body":
+      "When you start a DM, your device runs an X3DH key exchange (X25519 + HKDF-SHA256) with your contact's keys and derives a shared secret. From that moment every message body is encrypted locally — plaintext never touches the network.",
+    "blog.encryption.s2.title": "A fresh key for every message",
+    "blog.encryption.s2.body":
+      "Each chat advances a Double Ratchet: every message gets its own key, and old keys are deleted. That's forward secrecy — even if someone records your traffic and steals a key later, they can't decrypt what came before.",
+    "blog.encryption.s3.title": "Signed prekeys",
+    "blog.encryption.s3.body":
+      "Identity keys sign the one-time prekeys your contacts fetch, so the server can't silently swap in its own keys and sit in the middle. If the keys don't match, the handshake doesn't happen.",
+    "blog.encryption.s4.title": "Keys live in the OS keychain",
+    "blog.encryption.s4.body":
+      "Private keys are generated on your device and stored in the OS keychain (app-private storage on mobile). They are never uploaded, never logged, and never included in backups as plaintext.",
+    "blog.encryption.s5.title": "What the server actually sees",
+    "blog.encryption.s5.body":
+      "Ciphertext blobs with a scheme tag, plus the routing metadata any messenger needs: who sent to whom and when. No bodies, no media bytes, no searchable text. A database dump of Atlas is a pile of locked boxes.",
+    "blog.encryption.cta.title": "Chat that stays yours.",
+    "blog.encryption.cta.body": "Download Atlas or open the web app — encryption is on from the first message.",
+    "blog.encryption.cta.button": "Open Atlas",
+    "blog.plugins.tag": "Developers",
+    "blog.plugins.date": "September 2026",
+    "blog.plugins.title": "Extend Atlas without leaving the browser",
+    "blog.plugins.excerpt":
+      "Write a plugin in the developer panel, publish it, and install it from the app — manifest, hooks and UI slots explained.",
+    "blog.plugins.hero.lede":
+      "Atlas has a plugin runtime built into the app: community plugins from the marketplace, or your own code written in the developer panel at /plugins. No toolchain, no rebuild — a manifest plus JavaScript.",
+    "blog.plugins.s1.title": "A plugin is a folder of files",
+    "blog.plugins.s1.body":
+      "Every plugin is a manifest.json (id, name, version, entry point, permissions) plus scripts. The runtime evaluates the entry file and calls activate(ctx) — with an optional deactivate(ctx) when the plugin is disabled. Authorship comes from your Atlas account.",
+    "blog.plugins.s2.title": "Hooks: rewrite, block, observe",
+    "blog.plugins.s2.body":
+      "beforeSend can rewrite or veto outgoing messages (return a string to replace the text, null to block it); onMessage observes incoming ones. Denied capabilities throw at call time, so plugins degrade gracefully instead of crashing.",
+    "blog.plugins.s3.title": "Sending goes through the app pipeline",
+    "blog.plugins.s3.body":
+      "ctx.sendMessage uses the app's own pipeline — hooks run, DMs are E2EE-sealed, rows are optimistic. Plugins can't bypass encryption or other plugins' hooks. ctx.onSent observes messages that actually made it out.",
+    "blog.plugins.s4.title": "Storage, API and events",
+    "blog.plugins.s4.body":
+      "ctx.storage is a key-value store scoped to the plugin that survives restarts. ctx.api is an HTTP client rooted at the Atlas API with auth attached. ctx.events.on subscribes to app events like chatOpened, and ctx.notify / ctx.toast handle notifications.",
+    "blog.plugins.s5.title": "Replace app chrome",
+    "blog.plugins.s5.body":
+      "With the ui permission, plugins mount their own Solid components into slots like nav.bottom or nav.side. .tsx files compile on the fly and can import solid-js and atlas/ui. Only install plugins you trust — they run with full access to the app.",
+    "blog.plugins.cta.title": "Ship your first plugin today.",
+    "blog.plugins.cta.body": "Open the developer panel, sign in with your Atlas account, and publish — installs land in the app's marketplace.",
+    "blog.plugins.cta.button": "Open developer panel",
+    "blog.capsules.tag": "Features",
+    "blog.capsules.date": "September 2026",
+    "blog.capsules.title": "Messages to the future",
+    "blog.capsules.excerpt":
+      "Write a message today, sealed until the date you choose. Even you can't open it early.",
+    "blog.capsules.hero.lede":
+      "A time capsule is a message with an unlock date. The server withholds the body until that moment arrives — the bubble shows a countdown instead of text, for the recipient and for you alike.",
+    "blog.capsules.s1.title": "Sealed the moment you send",
+    "blog.capsules.s1.body":
+      "Set an unlock time and the message arrives hollow: no body, just the date. The server refuses to serve the content early, so neither side can peek — not by reopening the chat, not by reinstalling the app.",
+    "blog.capsules.s2.title": "A countdown, not a message",
+    "blog.capsules.s2.body":
+      "Until it opens, the bubble renders a sealed state with the unlock date. When the moment comes, the app refetches the message and the real content appears in place — reactions, replies and attachments included.",
+    "blog.capsules.s3.title": "Good for more than birthdays",
+    "blog.capsules.s3.body":
+      "Predictions with friends, a note to your future self, embargoed announcements, advent calendars — anywhere the value is in not knowing yet. The countdown does the teasing for you.",
+    "blog.capsules.s4.title": "No backdoors, including for you",
+    "blog.capsules.s4.body":
+      "Sealing is enforced server-side, not just hidden in the UI. That's what makes a capsule a commitment device instead of a reminder: once sent, the words are out of your hands until the date.",
+    "blog.capsules.cta.title": "Send something to the future.",
+    "blog.capsules.cta.body": "Open Atlas, write a message, set the date — and wait.",
+    "blog.capsules.cta.button": "Open Atlas",
     "blog.minds.tag": "Minds",
     "blog.minds.date": "September 2026",
     "blog.minds.title": "Minds: agents that do the checking for you",
@@ -630,6 +703,79 @@ const dict = {
     "blog.minRead": "{n} мин чтения",
     "blog.back": "Все посты",
     "blog.notFound": "Такого поста нет. Может, он переехал — вернёмся к списку?",
+    "blog.pinned": "Закреплено",
+    "blog.encryption.tag": "Безопасность",
+    "blog.encryption.date": "Сентябрь 2026",
+    "blog.encryption.title": "Сервер хранит шифротекст. Точка.",
+    "blog.encryption.excerpt":
+      "Как Atlas запечатывает каждое сообщение на вашем устройстве через X3DH и Double Ratchet — и чего сервер не видит никогда.",
+    "blog.encryption.hero.lede":
+      "Каждое личное сообщение в Atlas шифруется на вашем устройстве до отправки. Сервер передаёт и хранит непрозрачный шифротекст: он не может читать ваши чаты, и утекать там нечему. Объясняем, как это устроено, простыми словами.",
+    "blog.encryption.s1.title": "Запечатывается на вашем устройстве",
+    "blog.encryption.s1.body":
+      "Когда вы начинаете диалог, устройство выполняет обмен ключами X3DH (X25519 + HKDF-SHA256) и выводит общий секрет. С этого момента каждое сообщение шифруется локально — открытый текст никогда не попадает в сеть.",
+    "blog.encryption.s2.title": "Свежий ключ для каждого сообщения",
+    "blog.encryption.s2.body":
+      "Каждый чат продвигает Double Ratchet: у каждого сообщения свой ключ, старые удаляются. Это forward secrecy — даже если кто-то записал ваш трафик и позже украл ключ, прошлое расшифровать нельзя.",
+    "blog.encryption.s3.title": "Подписанные prekeys",
+    "blog.encryption.s3.body":
+      "Ключи идентификации подписывают одноразовые prekeys, которые забирают ваши собеседники, — сервер не может незаметно подменить ключи и встать посередине. Не сошлись ключи — не будет рукопожатия.",
+    "blog.encryption.s4.title": "Ключи живут в системном хранилище",
+    "blog.encryption.s4.body":
+      "Приватные ключи создаются на устройстве и хранятся в системном хранилище (на мобильных — в приватном хранилище приложения). Они никогда не загружаются на сервер и не попадают в логи.",
+    "blog.encryption.s5.title": "Что сервер видит на самом деле",
+    "blog.encryption.s5.body":
+      "Блобы шифротекста с меткой схемы плюс служебные метаданные: кто, кому и когда. Ни тел сообщений, ни медиа, ни текста для поиска. Дамп базы Atlas — это гора запертых ящиков.",
+    "blog.encryption.cta.title": "Переписка, которая остаётся вашей.",
+    "blog.encryption.cta.body": "Скачайте Atlas или откройте веб-приложение — шифрование работает с первого сообщения.",
+    "blog.encryption.cta.button": "Открыть Atlas",
+    "blog.plugins.tag": "Разработчикам",
+    "blog.plugins.date": "Сентябрь 2026",
+    "blog.plugins.title": "Расширяйте Atlas, не выходя из браузера",
+    "blog.plugins.excerpt":
+      "Напишите плагин в панели разработчика, опубликуйте — и установите из приложения. Манифест, хуки и UI-слоты простым языком.",
+    "blog.plugins.hero.lede":
+      "В Atlas встроена среда выполнения плагинов: маркетплейс сообщества или собственный код, написанный в панели разработчика на /plugins. Без тулчейна и пересборки — манифест плюс JavaScript.",
+    "blog.plugins.s1.title": "Плагин — это папка с файлами",
+    "blog.plugins.s1.body":
+      "Каждый плагин — это manifest.json (id, название, версия, точка входа, права) плюс скрипты. Среда выполняет входной файл и вызывает activate(ctx), а при отключении — deactivate(ctx). Авторство определяется вашим аккаунтом Atlas.",
+    "blog.plugins.s2.title": "Хуки: переписать, блокировать, наблюдать",
+    "blog.plugins.s2.body":
+      "beforeSend может переписать или запретить исходящее сообщение (верните строку для замены, null для блокировки); onMessage наблюдает за входящими. Недостающие права бросают ошибку в момент вызова — плагин деградирует, а не падает.",
+    "blog.plugins.s3.title": "Отправка — через конвейер приложения",
+    "blog.plugins.s3.body":
+      "ctx.sendMessage идёт через собственный конвейер: хуки выполняются, личные сообщения шифруются. Плагин не может обойти шифрование или хуки других плагинов. ctx.onSent наблюдает за реально отправленными сообщениями.",
+    "blog.plugins.s4.title": "Хранилище, API и события",
+    "blog.plugins.s4.body":
+      "ctx.storage — хранилище ключ-значение плагина, переживающее перезапуск. ctx.api — HTTP-клиент к API Atlas с уже прикреплённой авторизацией. ctx.events.on подписывает на события вроде chatOpened, а ctx.notify и ctx.toast показывают уведомления.",
+    "blog.plugins.s5.title": "Замена интерфейса",
+    "blog.plugins.s5.body":
+      "С правом ui плагины монтируют собственные Solid-компоненты в слоты вроде nav.bottom или nav.side. Файлы .tsx компилируются на лету и могут импортировать solid-js и atlas/ui. Устанавливайте только те плагины, которым доверяете, — они работают с полным доступом к приложению.",
+    "blog.plugins.cta.title": "Опубликуйте первый плагин сегодня.",
+    "blog.plugins.cta.body": "Откройте панель разработчика, войдите с аккаунтом Atlas — и публикуйте: установки появятся в маркетплейсе приложения.",
+    "blog.plugins.cta.button": "Панель разработчика",
+    "blog.capsules.tag": "Возможности",
+    "blog.capsules.date": "Сентябрь 2026",
+    "blog.capsules.title": "Сообщения в будущее",
+    "blog.capsules.excerpt":
+      "Напишите сообщение сегодня — оно останется запечатанным до выбранной даты. Даже вы не откроете раньше.",
+    "blog.capsules.hero.lede":
+      "Капсула времени — сообщение с датой открытия. Сервер не отдаёт тело, пока момент не настанет: вместо текста в bubble — обратный отсчёт. И для получателя, и для вас.",
+    "blog.capsules.s1.title": "Запечатывается в момент отправки",
+    "blog.capsules.s1.body":
+      "Задайте время открытия — и сообщение придёт пустым: без тела, только дата. Сервер отказывается отдавать содержимое раньше, так что подглядеть не сможет никто — ни переоткрытием чата, ни переустановкой.",
+    "blog.capsules.s2.title": "Обратный отсчёт вместо сообщения",
+    "blog.capsules.s2.body":
+      "До открытия bubble показывает запечатанное состояние с датой. Когда момент наступает, приложение перезапрашивает сообщение — и настоящий текст появляется на месте, вместе с ответами, реакциями и вложениями.",
+    "blog.capsules.s3.title": "Не только дни рождения",
+    "blog.capsules.s3.body":
+      "Споры с друзьями, письмо себе будущему, эмбарго на анонсы, адвент-календари — везде, где ценность в незнании. Обратный отсчёт дразнит за вас.",
+    "blog.capsules.s4.title": "Без бэкдоров. Даже для вас",
+    "blog.capsules.s4.body":
+      "Запечатывание enforced на сервере, а не просто спрятано в интерфейсе. Поэтому капсула — это обязательство, а не напоминание: отправленное уже не в ваших руках до самой даты.",
+    "blog.capsules.cta.title": "Отправьте что-нибудь в будущее.",
+    "blog.capsules.cta.body": "Откройте Atlas, напишите сообщение, задайте дату — и ждите.",
+    "blog.capsules.cta.button": "Открыть Atlas",
     "blog.minds.tag": "Разумы",
     "blog.minds.date": "Сентябрь 2026",
     "blog.minds.title": "Разумы: агенты, которые проверяют за вас",

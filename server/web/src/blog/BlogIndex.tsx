@@ -1,5 +1,5 @@
-import { For } from "solid-js";
-import { ArrowUpRight } from "phosphor-solid-js";
+import { For, Show } from "solid-js";
+import { ArrowUpRight, PushPin } from "phosphor-solid-js";
 import logo from "../assets/logo.svg";
 import { Navbar, NavbarBrand, NavbarLink, NavbarLinks } from "@atlas/ui";
 import LanguageSwitcher from "../components/LanguageSwitcher";
@@ -7,7 +7,7 @@ import Reveal from "../components/Reveal";
 import { locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import { GITHUB_REPO_URL } from "../lib/repo";
-import { POSTS } from "./posts";
+import { sortedPosts } from "./posts";
 
 /** Locale-aware path: /ru/blog/… and /en/blog/… both render, so crawlers
  *  and humans each get a deterministic locale. */
@@ -97,19 +97,27 @@ export default function BlogIndex() {
           <p class="mt-5 max-w-xl text-[15px] leading-relaxed text-ink-muted">{t("blog.lede")}</p>
         </Reveal>
         <div class="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2">
-          <For each={POSTS}>
+          <For each={sortedPosts()}>
             {(post, i) => (
               <Reveal delay={i() * 60}>
                 <a
                   href={blogPath(post.slug)}
                   class="group flex h-full flex-col overflow-hidden rounded-2xl bg-surface transition-colors duration-200 hover:bg-surface-raised"
                 >
-                  <img
-                    src={post.image}
-                    alt=""
-                    loading="lazy"
-                    class="aspect-[16/9] w-full object-cover"
-                  />
+                  <div class="relative">
+                    <img
+                      src={post.image}
+                      alt=""
+                      loading="lazy"
+                      class="aspect-[16/9] w-full object-cover"
+                    />
+                    <Show when={post.pinned}>
+                      <span class="absolute left-4 top-4 flex items-center gap-1 rounded-full bg-ink/80 px-2.5 py-1 text-[11px] font-medium text-bg backdrop-blur">
+                        <PushPin size={12} weight="fill" />
+                        {t("blog.pinned")}
+                      </span>
+                    </Show>
+                  </div>
                   <div class="flex flex-1 flex-col gap-4 p-7">
                   <div class="flex items-center gap-3 text-xs">
                     <span class="rounded-full bg-accent-soft px-2.5 py-1 font-medium text-accent">

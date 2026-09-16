@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#131110"/>
+      <stop offset="1" stop-color="#2b2118"/>
+    </linearGradient>
+    <linearGradient id="lock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f5c518"/>
+      <stop offset="1" stop-color="#e8933c"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <g opacity="0.14" stroke="#f5c518" stroke-width="2">
+    <path d="M-40 520 L300 180 M120 700 L460 360 M280 700 L620 360 M440 700 L780 360 M600 700 L940 360 M760 700 L1100 360 M920 700 L1240 380"/>
+    <path d="M-40 180 L340 520 M120 0 L460 340 M280 0 L620 340 M440 0 L780 340 M600 0 L940 340 M760 0 L1100 340 M920 0 L1240 320"/>
+  </g>
+  <g transform="translate(600 300)">
+    <rect x="-110" y="-40" width="220" height="170" rx="28" fill="none" stroke="url(#lock)" stroke-width="14"/>
+    <path d="M-70 -40 v-30 a70 70 0 0 1 140 0 v30" fill="none" stroke="url(#lock)" stroke-width="14"/>
+    <circle cx="0" cy="45" r="20" fill="#f5c518"/>
+    <rect x="-8" y="45" width="16" height="42" rx="8" fill="#f5c518"/>
+  </g>
+  <text x="600" y="520" text-anchor="middle" font-family="Inter, sans-serif" font-size="44" font-weight="700" fill="#f7f5f1">Server stores ciphertext</text>
+  <text x="600" y="568" text-anchor="middle" font-family="Inter, sans-serif" font-size="24" fill="#f7f5f1" opacity="0.6">X3DH + Double Ratchet, keys on your device</text>
+</svg>

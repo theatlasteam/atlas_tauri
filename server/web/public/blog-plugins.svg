@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101418"/>
+      <stop offset="1" stop-color="#1c2b3a"/>
+    </linearGradient>
+    <linearGradient id="pu" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b8cff"/>
+      <stop offset="1" stop-color="#2dd4bf"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <g opacity="0.16" fill="none" stroke="#5b8cff" stroke-width="2">
+    <rect x="80" y="80" width="1040" height="515" rx="24"/>
+    <rect x="130" y="130" width="1040" height="515" rx="24" transform="translate(-30 -30)"/>
+  </g>
+  <g transform="translate(600 290)">
+    <rect x="-150" y="-90" width="130" height="130" rx="26" fill="url(#pu)" opacity="0.9"/>
+    <rect x="20" y="-90" width="130" height="130" rx="26" fill="none" stroke="url(#pu)" stroke-width="10"/>
+    <rect x="-150" y="60" width="130" height="130" rx="26" fill="none" stroke="url(#pu)" stroke-width="10"/>
+    <rect x="20" y="60" width="130" height="130" rx="26" fill="url(#pu)" opacity="0.55"/>
+    <text x="-85" y="-6" text-anchor="middle" font-family="monospace" font-size="52" font-weight="700" fill="#0b0e12">{ }</text>
+    <text x="85" y="144" text-anchor="middle" font-family="monospace" font-size="52" font-weight="700" fill="#eaf2ff">+</text>
+  </g>
+  <text x="600" y="540" text-anchor="middle" font-family="Inter, sans-serif" font-size="44" font-weight="700" fill="#f2f6fb">Plugins run where chats live</text>
+  <text x="600" y="588" text-anchor="middle" font-family="monospace" font-size="24" fill="#9fb6cc">activate(ctx) — manifest, hooks, UI slots</text>
+</svg>

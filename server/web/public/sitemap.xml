@@ -25,4 +25,64 @@
   <url>
     <loc>https://atlasmsg.app/canvas</loc>
   </url>
+  <url>
+    <loc>https://atlasmsg.app/ru/blog</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://atlasmsg.app/ru/blog" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://atlasmsg.app/en/blog" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://atlasmsg.app/ru/blog" />
+  </url>
+  <url>
+    <loc>https://atlasmsg.app/en/blog</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://atlasmsg.app/ru/blog" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://atlasmsg.app/en/blog" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://atlasmsg.app/ru/blog" />
+  </url>
+  <url>
+    <loc>https://atlasmsg.app/ru/blog/minds</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://atlasmsg.app/ru/blog/minds" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://atlasmsg.app/en/blog/minds" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://atlasmsg.app/ru/blog/minds" />
+  </url>
+  <url>
+    <loc>https://atlasmsg.app/en/blog/minds</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://atlasmsg.app/ru/blog/minds" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://atlasmsg.app/en/blog/minds" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://atlasmsg.app/ru/blog/minds" />
+  </url>
+  <url>
+    <loc>https://atlasmsg.app/ru/blog/encryption</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://atlasmsg.app/ru/blog/encryption" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://atlasmsg.app/en/blog/encryption" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://atlasmsg.app/ru/blog/encryption" />
+  </url>
+  <url>
+    <loc>https://atlasmsg.app/en/blog/encryption</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://atlasmsg.app/ru/blog/encryption" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://atlasmsg.app/en/blog/encryption" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://atlasmsg.app/ru/blog/encryption" />
+  </url>
+  <url>
+    <loc>https://atlasmsg.app/ru/blog/plugins</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://atlasmsg.app/ru/blog/plugins" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://atlasmsg.app/en/blog/plugins" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://atlasmsg.app/ru/blog/plugins" />
+  </url>
+  <url>
+    <loc>https://atlasmsg.app/en/blog/plugins</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://atlasmsg.app/ru/blog/plugins" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://atlasmsg.app/en/blog/plugins" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://atlasmsg.app/ru/blog/plugins" />
+  </url>
+  <url>
+    <loc>https://atlasmsg.app/ru/blog/capsules</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://atlasmsg.app/ru/blog/capsules" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://atlasmsg.app/en/blog/capsules" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://atlasmsg.app/ru/blog/capsules" />
+  </url>
+  <url>
+    <loc>https://atlasmsg.app/en/blog/capsules</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://atlasmsg.app/ru/blog/capsules" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://atlasmsg.app/en/blog/capsules" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://atlasmsg.app/ru/blog/capsules" />
+  </url>
 </urlset>

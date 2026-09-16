@@ -11,6 +11,7 @@ import DesignSystem from "./screens/DesignSystem";
 import Docs from "./screens/Docs";
 import BlogIndex from "./blog/BlogIndex";
 import MindsPost from "./blog/MindsPost";
+import ArticlePost from "./blog/ArticlePost";
 import { findPost } from "./blog/posts";
 import { initAnalytics } from "./lib/analytics";
 
@@ -43,6 +44,7 @@ function Root() {
   if (blogPath.startsWith("/blog/")) {
     const slug = blogPath.slice("/blog/".length).split("/")[0] ?? "";
     if (slug === "minds" && findPost(slug)) return <MindsPost />;
+    if (slug && findPost(slug)) return <ArticlePost slug={slug} />;
     return <BlogIndex />;
   }
   if (path === "/privacy") return <PrivacyPolicy />;
