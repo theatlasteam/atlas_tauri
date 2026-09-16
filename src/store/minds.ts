@@ -244,6 +244,10 @@ function createMindsStore() {
       setError(e, "Failed to run Mind.");
       throw e;
     } finally {
+      // Reconcile with the persisted transcript: if `done` was missed (a
+      // dropped SSE tail), the server-side run still landed in mind_runs —
+      // refetch so the answer appears instead of the run vanishing silently.
+      void loadRuns(mindId);
       setState("live", (map) => {
         const next = { ...map };
         delete next[mindId];

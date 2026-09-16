@@ -361,7 +361,14 @@ pub async fn send_owner_message(
     let new_msg = crate::routes::messages::NewMessage {
         scheme: "plain",
         body: &body_base64,
-        client_tag: Some(format!("mind-{mind_id}-{}", Uuid::new_v4())),
+        // persist_and_fanout caps client_tag at 64 chars: keep a short
+        // unique tag ("mind-" + 8 + "-" + 8 = 19). A full double-UUID (78)
+        // fails every delivery with "client_tag too long".
+        client_tag: Some(format!(
+            "mind-{}-{}",
+            &mind_id.to_string()[..8],
+            &Uuid::new_v4().to_string()[..8]
+        )),
         reply_to_id: None,
         attachment_id: None,
         unlock_at: None,
