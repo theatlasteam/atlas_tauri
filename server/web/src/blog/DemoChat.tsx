@@ -50,7 +50,7 @@ export default function DemoChat() {
         </div>
       </div>
 
-      <div class="flex flex-col gap-2.5 px-4 py-4">
+      <div class="flex min-h-[290px] flex-col gap-2.5 px-4 py-4">
         {/* Yours, right */}
         <div class="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-[#2f7bf6] px-4 py-2.5 text-[15px] leading-snug text-white">
           {t("blog.demo.user")}

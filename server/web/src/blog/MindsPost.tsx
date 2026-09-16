@@ -24,13 +24,31 @@ const SECTIONS: { titleKey: TranslationKey; bodyKey: TranslationKey }[] = [
 export default function MindsPost() {
   // The post is a black page end to end (footer included): pin the theme
   // while mounted, restore whatever the visitor had on the way out.
+  // Same for the tab: mascot favicon + post title instead of the generic
+  // messenger ones, restored on the way out.
   onMount(() => {
     const root = document.documentElement;
     const prev = root.dataset.theme;
     root.dataset.theme = "dark";
+    const prevTitle = document.title;
+    document.title = `${t("blog.minds.title")} — Atlas`;
+    const head = document.head;
+    const prevIcons: HTMLLinkElement[] = [];
+    head.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="apple-touch-icon"]').forEach((el) => {
+      prevIcons.push(el);
+      el.remove();
+    });
+    const mascot = document.createElement("link");
+    mascot.rel = "icon";
+    mascot.type = "image/svg+xml";
+    mascot.href = "/minds-icon.svg";
+    head.appendChild(mascot);
     onCleanup(() => {
       if (prev) root.dataset.theme = prev;
       else delete root.dataset.theme;
+      document.title = prevTitle;
+      mascot.remove();
+      prevIcons.forEach((el) => head.appendChild(el));
     });
   });
 
