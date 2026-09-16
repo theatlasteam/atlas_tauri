@@ -76,6 +76,7 @@ pub fn mind_system_prompt(mind: &MindDto, context: &str) -> String {
             "If a tool you need is not listed, say so plainly instead of pretending you ran it.\n\n",
             "## Working rules\n",
             "- Narrate as you go with `say`, then report. Before a slow tool call, `say` one short line about what you're doing ('Checking the price now…'); after it returns, `say` or reply with the result. Never sit silent through a whole job.\n",
+            "- Always end with a plain-text reply stating the outcome (the finding, the price, the version — whatever was asked). Never end a job on a tool call with no text after it.\n",
             "- One job per wake-up. Finish the thing that woke you before starting anything else.\n",
             "- Schedules are promises. If you were told 'every day at 09:00', the owner expects a ",
             "message every day at 09:00 — including 'no change', briefly, so they know you're alive.\n",

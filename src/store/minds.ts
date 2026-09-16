@@ -22,7 +22,14 @@ function createMindsStore() {
     /** Mind ids currently being waited on, per room. */
     thinking: Record<string, string[]>;
     /** Live streaming state per mind while a run is in flight. */
-    live: Record<string, { status: string; says: string[]; tool: { name: string; args: string } | null }>;
+    live: Record<string, {
+      status: string;
+      says: string[];
+      tool: { name: string; args: string } | null;
+      /** Finished tools, in order — rendered as collapsed cards while the
+       *  run streams so the trace grows instead of flashing one card. */
+      doneTools: { name: string; args: string; output: string }[];
+    }>;
     error: string | null;
   }>({ minds: null, rooms: null, messages: {}, schedules: {}, runs: {}, thinking: {}, live: {}, error: null });
 
@@ -178,7 +185,7 @@ function createMindsStore() {
    */
   const runMindLive = async (mindId: string, input: string, opts?: { signal?: AbortSignal }) => {
     setState("error", null);
-    setState("live", mindId, { status: t("minds.statusTyping"), says: [], tool: null });
+    setState("live", mindId, { status: t("minds.statusTyping"), says: [], tool: null, doneTools: [] });
     try {
       const run = await api.runMindStream(
         mindId,
@@ -199,7 +206,14 @@ function createMindsStore() {
             setState("live", mindId, "tool", { name, args });
             setState("live", mindId, "status", toolStatus(name));
           } else if (ev.kind === "tool_end") {
+            const name = typeof ev.data?.name === "string" ? ev.data.name : "working";
+            const output = typeof ev.data?.outputPreview === "string" ? ev.data.outputPreview : "";
+            const current = state.live[mindId];
+            const args = current?.tool?.name === name ? (current.tool?.args ?? "") : "";
             setState("live", mindId, "tool", null);
+            if (name !== "say") {
+              setState("live", mindId, "doneTools", (list) => [...list, { name, args, output }]);
+            }
           }
         },
         opts,

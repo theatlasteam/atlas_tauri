@@ -591,12 +591,20 @@ pub async fn run_autonomous_agent_stream(
     let mut tool_calls_log: Vec<serde_json::Value> = Vec::new();
     let max_turns = 10;
     let mut final_content = String::new();
+    // Every `say` note, in order. If the model never writes a final answer
+    // (only tool calls + narration), these become the reply — a streamed
+    // "Checking the price now…" followed by silence and a canned "Task
+    // completed." reads as the Mind ignoring its owner.
+    let mut said: Vec<String> = Vec::new();
 
     emit_ev(AgentEvent::Status("typing".into()));
     for _turn_idx in 0..max_turns {
         let turn = match complete_agent_turn(state, messages.clone(), allowed_tools).await {
             Ok(t) => t,
             Err(e) => {
+                if final_content.trim().is_empty() && !said.is_empty() {
+                    final_content = said.join("\n");
+                }
                 let res = AutonomousAgentResult {
                     output: final_content,
                     tool_calls_log,
@@ -635,6 +643,7 @@ pub async fn run_autonomous_agent_stream(
                     let text = args_parsed.get("text").and_then(|v| v.as_str()).unwrap_or_default();
                     let note = text.trim().chars().take(500).collect::<String>();
                     if !note.is_empty() {
+                        said.push(note.clone());
                         emit_ev(AgentEvent::Say(note.clone()));
                     }
                     "shown in chat.".to_string()
@@ -714,6 +723,9 @@ pub async fn run_autonomous_agent_stream(
         }
     }
 
+    if final_content.trim().is_empty() && !said.is_empty() {
+        final_content = said.join("\n");
+    }
     let res = AutonomousAgentResult {
         output: final_content,
         tool_calls_log,

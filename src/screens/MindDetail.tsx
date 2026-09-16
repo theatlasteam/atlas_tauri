@@ -292,6 +292,20 @@ export default function MindDetail() {
               </For>
               {/* In-flight tool, AI-Elements style: running badge, expands for
                   input; the completed card lands under the answer instead. */}
+              <Show when={(live()?.doneTools.length ?? 0) > 0}>
+                <div class="flex flex-col gap-1.5">
+                  <For each={live()?.doneTools ?? []}>
+                    {(tool) => (
+                      <MindTool
+                        name={tool.name}
+                        args={tool.args}
+                        output={tool.output}
+                        state={tool.output.trimStart().startsWith("error:") ? "error" : "done"}
+                      />
+                    )}
+                  </For>
+                </div>
+              </Show>
               <Show when={live()?.tool}>
                 {(tool) => (
                   <div class="max-w-full">
