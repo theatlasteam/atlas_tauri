@@ -13,6 +13,7 @@ pub mod minds;
 pub mod metrics;
 pub mod plugins;
 pub mod spaces;
+pub mod status;
 pub mod turn;
 pub mod users;
 pub mod waitlist;

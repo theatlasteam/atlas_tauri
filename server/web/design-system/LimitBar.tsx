@@ -4,6 +4,10 @@ import { cx } from "./lib/cx";
 export type LimitBarItem = {
   value: number;
   label?: string;
+  /** Native tooltip, e.g. a date range on a status segment. */
+  title?: string;
+  /** Keeps a very short slice visible, e.g. "3px". */
+  minWidth?: string;
   color?: string;
   class?: string;
 };
@@ -32,21 +36,31 @@ export default function LimitBar(props: {
           <span class="tabular-nums">{usedPct()}%</span>
         </div>
       </Show>
-      <div class="flex h-3.5 w-full gap-1">
+      <div class="flex h-8 w-full items-center gap-1">
         <For each={props.items}>
           {(item, i) => (
             <Show when={item.value > 0}>
               <div
-                class={cx(
-                  "min-w-0 rounded-[3px]",
-                  item.class ?? (item.color ? undefined : FALLBACK[i() % FALLBACK.length]),
-                )}
+                class="group/seg relative flex h-full min-w-0 items-center"
                 style={{
                   "flex-grow": Math.max(0, item.value),
                   "flex-basis": "0px",
-                  ...(item.color ? { background: item.color } : {}),
+                  ...(item.minWidth ? { "min-width": item.minWidth } : {}),
                 }}
-              />
+              >
+                <div
+                  class={cx(
+                    "h-3.5 w-full rounded-[3px]",
+                    item.class ?? (item.color ? undefined : FALLBACK[i() % FALLBACK.length]),
+                  )}
+                  style={item.color ? { background: item.color } : undefined}
+                />
+                <Show when={item.title}>
+                  <span class="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 -translate-x-1/2 whitespace-nowrap rounded-lg bg-ink px-2 py-1 text-[11px] font-medium text-bg opacity-0 shadow-floating transition group-hover/seg:opacity-100">
+                    {item.title}
+                  </span>
+                </Show>
+              </div>
             </Show>
           )}
         </For>

@@ -263,6 +263,8 @@ export const api = {
     request<ChatDto>("POST", "/api/chats", { kind: "group", name, memberIds }),
   setMuted: (chatId: string, muted: boolean) =>
     request<{ ok: boolean }>("POST", `/api/chats/${chatId}/mute`, { muted }),
+  setHidden: (chatId: string, hidden: boolean) =>
+    request<{ ok: boolean }>("POST", `/api/chats/${chatId}/hidden`, { hidden }),
   listChatMembers: (chatId: string) => request<{ id: string }[]>("GET", `/api/chats/${chatId}/members`),
 
   // messages

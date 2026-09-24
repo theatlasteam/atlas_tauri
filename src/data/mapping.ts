@@ -157,6 +157,8 @@ export function toChat(dto: ChatDto, myUserId: string): Chat {
     blockedByMe: dto.blockedByMe,
     blockedMe: dto.blockedMe,
     peerIsBot: dto.peerIsBot,
+    systemKey: dto.systemKey,
+    hidden: dto.hidden,
     botWelcome: dto.botWelcome || undefined,
   };
 }

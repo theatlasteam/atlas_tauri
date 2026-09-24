@@ -340,6 +340,13 @@ pub struct ChatDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub bot_welcome: Option<String>,
+    /// `saved` | `replies` | `incidents` for kind `system`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub system_key: Option<String>,
+    /// Hidden from the main chat list. Still reachable from the Hidden filter.
+    #[serde(default)]
+    pub hidden: bool,
 }
 
 /// A user I've blocked, as returned by GET /api/blocks.

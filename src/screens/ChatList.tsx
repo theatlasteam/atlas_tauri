@@ -10,6 +10,7 @@ import { ChatListSkeleton } from "../components/Skeleton";
 import VerifiedBadge from "../components/VerifiedBadge";
 import { formatRelativeTime } from "../lib/time";
 import { t } from "../lib/i18n";
+import { openNativeOrNavigate } from "../lib/mobileWindows";
 import { BellSlashIcon, ChatIcon, CompassIcon, PlusIcon, SearchIcon } from "../icons";
 import { IconButton } from "@atlas/ui";
 
@@ -22,14 +23,21 @@ export default function ChatList() {
   const folderTabs = () => [
     { id: "all", name: t("chatList.all") },
     { id: "unread", name: t("chatList.unread") },
+    ...(chatsState.chats.some((c) => c.hidden) ? [{ id: "hidden", name: t("chatList.hidden") }] : []),
     ...chatsState.folders,
   ];
 
+  const chatName = (chat: { name: string; systemKey?: string }) =>
+    chat.systemKey ? t(`system.${chat.systemKey}`) : chat.name;
+
   const visibleChats = () => {
     const folder = activeFolder();
-    if (folder === "all") return chatsState.chats;
-    if (folder === "unread") return chatsState.chats.filter((c) => c.unreadCount > 0);
-    return chatsState.chats.filter((c) => c.folderIds.includes(folder));
+    const list = chatsState.chats;
+    if (folder === "hidden") return list.filter((c) => c.hidden);
+    const shown = list.filter((c) => !c.hidden);
+    if (folder === "all") return shown;
+    if (folder === "unread") return shown.filter((c) => c.unreadCount > 0);
+    return shown.filter((c) => c.folderIds.includes(folder));
   };
 
   // Shared with the chat header, which used to be the only place that named
@@ -48,7 +56,7 @@ export default function ChatList() {
           <IconButton ariaLabel={t("chatList.searchAria")} onClick={() => setSearchOpen(true)}>
             <SearchIcon size={21} />
           </IconButton>
-          <IconButton ariaLabel={t("chatList.newChatAria")} onClick={() => navigate("/new-chat")}>
+          <IconButton ariaLabel={t("chatList.newChatAria")} onClick={() => void openNativeOrNavigate(navigate, "/new-chat")}>
             <PlusIcon size={21} />
           </IconButton>
         </div>
@@ -114,11 +122,12 @@ export default function ChatList() {
                         userId={chat.peerUserId}
                         hasPhoto={chat.peerHasAvatar}
                         atlasLogo={chat.kind === "broadcast"}
+                        systemKey={chat.systemKey}
                       />
                       <div class="min-w-0 flex-1">
                         <div class="flex items-baseline justify-between gap-2">
                           <p class="flex min-w-0 items-center gap-1.5 truncate font-semibold text-ink">
-                            <span class="truncate">{chat.name}</span>
+                            <span class="truncate">{chatName(chat)}</span>
                             <Show when={chat.peerVerified}>
                               <VerifiedBadge size={14} name={chat.name} />
                             </Show>

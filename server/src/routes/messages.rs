@@ -221,13 +221,17 @@ pub async fn persist_and_fanout(
         }
     }
 
-    let chat_kind: String = sqlx::query_scalar("SELECT kind FROM chats WHERE id = $1")
-        .bind(chat_id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let chat_meta: Option<(String, Option<String>)> =
+        sqlx::query_as("SELECT kind, system_key FROM chats WHERE id = $1")
+            .bind(chat_id)
+            .fetch_optional(&state.db)
+            .await?;
+    let (chat_kind, system_key) = chat_meta.ok_or(AppError::NotFound)?;
     if chat_kind == "broadcast" && author_id != state.official_user_id && new.reply_to_id.is_none() {
         return Err(AppError::BadRequest("reply to an announcement to comment".into()));
+    }
+    if chat_kind == "system" && system_key.as_deref() != Some("saved") {
+        return Err(AppError::BadRequest("this chat only receives messages".into()));
     }
 
     require_membership(state, chat_id, author_id).await?;

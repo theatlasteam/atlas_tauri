@@ -37,6 +37,8 @@ struct ChatListRow {
     blocked_me: bool,
     peer_is_bot: Option<bool>,
     bot_welcome: Option<String>,
+    system_key: Option<String>,
+    hidden: bool,
     lm_id: Option<Uuid>,
     lm_author: Option<Uuid>,
     lm_scheme: Option<String>,
@@ -52,7 +54,7 @@ struct ChatListRow {
 /// scan on (chat_id, id) — UUIDv7 ids make `id > last_read` a time comparison.
 const CHAT_LIST_SQL: &str = "
     SELECT
-        c.id, c.kind, c.name, c.avatar_color, cm.muted,
+        c.id, c.kind, c.name, c.avatar_color, c.system_key, cm.muted, cm.hidden,
         p.user_id AS peer_id,
         p.last_read_message_id AS peer_read_up_to,
         pu.name AS peer_name,
@@ -158,7 +160,51 @@ fn row_to_dto(row: ChatListRow, folder_ids: Vec<Uuid>, online: bool) -> ChatDto 
         } else {
             None
         },
+        system_key: row.system_key,
+        hidden: row.hidden,
     }
+}
+
+async fn ensure_system_chats(db: &sqlx::PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
+    const CHATS: &[(&str, &str, &str)] = &[
+        ("saved", "Saved", "#c9772e"),
+        ("replies", "Replies", "#2f6fc9"),
+        ("incidents", "Incidents", "#c4453a"),
+    ];
+    for (key, name, color) in CHATS {
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+               SELECT 1 FROM chats c
+               JOIN chat_members cm ON cm.chat_id = c.id
+               WHERE cm.user_id = $1 AND c.system_key = $2
+             )",
+        )
+        .bind(user_id)
+        .bind(key)
+        .fetch_one(db)
+        .await?;
+        if exists {
+            continue;
+        }
+        let id = Uuid::now_v7();
+        sqlx::query(
+            "INSERT INTO chats (id, kind, name, avatar_color, created_by, system_key)
+             VALUES ($1, 'system', $2, $3, $4, $5)",
+        )
+        .bind(id)
+        .bind(name)
+        .bind(color)
+        .bind(user_id)
+        .bind(key)
+        .execute(db)
+        .await?;
+        sqlx::query("INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)")
+            .bind(id)
+            .bind(user_id)
+            .execute(db)
+            .await?;
+    }
+    Ok(())
 }
 
 async fn folder_map(state: &AppState, user_id: Uuid) -> sqlx::Result<HashMap<Uuid, Vec<Uuid>>> {
@@ -180,6 +226,7 @@ pub async fn list_chats(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> ApiResult<Json<Vec<ChatDto>>> {
+    ensure_system_chats(&state.db, auth.user_id).await?;
     let rows: Vec<ChatListRow> = sqlx::query_as(CHAT_LIST_SQL)
         .bind(auth.user_id)
         .fetch_all(&state.db)
@@ -421,6 +468,33 @@ pub async fn set_muted(
         .bind(payload.muted)
         .execute(&state.db)
         .await?;
+    if res.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(Json(json!({ "ok": true })))
+}
+
+#[derive(Deserialize)]
+pub struct HidePayload {
+    hidden: bool,
+}
+
+pub async fn set_hidden(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(chat_id): Path<Uuid>,
+    Json(payload): Json<HidePayload>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let res = sqlx::query(
+        "UPDATE chat_members SET hidden = $3
+         WHERE chat_id = $1 AND user_id = $2
+           AND EXISTS(SELECT 1 FROM chats c WHERE c.id = $1 AND c.kind = 'system')",
+    )
+    .bind(chat_id)
+    .bind(auth.user_id)
+    .bind(payload.hidden)
+    .execute(&state.db)
+    .await?;
     if res.rows_affected() == 0 {
         return Err(AppError::NotFound);
     }

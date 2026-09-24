@@ -42,6 +42,12 @@ pub struct Config {
     /// /api/metrics/summary`). Separate from `waitlist_admin_token` so the
     /// two can be rotated/shared independently.
     pub metrics_admin_token: Option<String>,
+    /// JSON file the status page reads. The VPS control panel writes the
+    /// same path (`STATUS_PATH`, default `./data/status.json` from the
+    /// server working directory).
+    pub status_path: String,
+    /// Host that serves the status page at `/` (default `status.atlasmsg.app`).
+    pub status_hostname: String,
     /// Hostname (from the request's `Host` header, no port) that gets the
     /// API only — no static site fallback. Lets the same binary serve the
     /// marketing site on the apex domain and act as a bare backend on a
@@ -123,6 +129,10 @@ impl Config {
             }),
             waitlist_admin_token: var("WAITLIST_ADMIN_TOKEN"),
             metrics_admin_token: var("METRICS_ADMIN_TOKEN"),
+            status_path: var("STATUS_PATH").unwrap_or_else(|| "./data/status.json".into()),
+            status_hostname: var("STATUS_HOSTNAME")
+                .unwrap_or_else(|| "status.atlasmsg.app".into())
+                .to_lowercase(),
             api_only_hostname: var("API_ONLY_HOSTNAME").map(|h| h.to_lowercase()),
             compass_api_key: var("COMPASS_API_KEY"),
             compass_model: var("COMPASS_MODEL").unwrap_or_else(|| "kimi-k3".into()),

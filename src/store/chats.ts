@@ -146,6 +146,11 @@ function createChatsStore() {
     await api.setMuted(chatId, muted);
   };
 
+  const setHidden = async (chatId: string, hidden: boolean) => {
+    patchChat(chatId, { hidden });
+    await api.setHidden(chatId, hidden);
+  };
+
   const createFolder = async (name: string) => {
     const folder = await api.createFolder(name);
     setState("folders", (f) => [...f, { id: folder.id, name: folder.name }]);
@@ -392,6 +397,7 @@ function createChatsStore() {
     /** Users with this exact conversation open right now (never me). */
     presentIn: (chatId: string) => state.present[chatId] ?? [],
     setMuted,
+    setHidden,
     createFolder,
     deleteFolder,
     assignFolder,
@@ -429,5 +435,6 @@ export const chatsState = chatsStore.state;
 export const refreshChats = chatsStore.refresh;
 export const markRead = chatsStore.markRead;
 export const setMuted = chatsStore.setMuted;
+export const setHidden = chatsStore.setHidden;
 export const createFolder = chatsStore.createFolder;
 export const deleteFolder = chatsStore.deleteFolder;

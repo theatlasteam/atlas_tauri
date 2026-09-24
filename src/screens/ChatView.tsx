@@ -1,6 +1,6 @@
 import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
-import { chatsState, chatsStore, lastOpenChatId, typingLabel } from "../store/chats";
+import { chatsState, chatsStore, lastOpenChatId, setHidden, typingLabel } from "../store/chats";
 import { messagesStore } from "../store/messages";
 import { calls } from "../store/calls";
 import { session } from "../store/session";
@@ -22,6 +22,7 @@ import { emojiToken } from "../lib/customEmoji";
 import { unwrapFx, wrapFx } from "../lib/textEffects";
 import { canvasShareUrl } from "../lib/canvasShare";
 import { useIsDesktopLayout } from "../lib/platform";
+import { openNativeOrNavigate } from "../lib/mobileWindows";
 import {
   ArrowDownIcon,
   AttachIcon,
@@ -367,7 +368,7 @@ export default function ChatView() {
       const board = await api.createCanvas();
       const url = canvasShareUrl(board.id);
       await submit(undefined, url);
-      navigate(`/canvas/${board.id}`);
+      await openNativeOrNavigate(navigate, `/canvas/${board.id}`);
     } catch {
       /* create failed */
     }
@@ -513,7 +514,7 @@ export default function ChatView() {
             <>
               <button
                 type="button"
-                onClick={() => c().peerUserId && navigate(`/user/${c().peerUserId}`)}
+                onClick={() => c().peerUserId && void openNativeOrNavigate(navigate, `/user/${c().peerUserId}`)}
                 disabled={c().kind !== "dm"}
                 class="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-1 text-left transition-colors duration-150 enabled:hover:bg-surface enabled:active:bg-surface"
               >
@@ -525,10 +526,11 @@ export default function ChatView() {
                   userId={c().peerUserId}
                   hasPhoto={c().peerHasAvatar}
                   atlasLogo={c().kind === "broadcast"}
+                  systemKey={c().systemKey}
                 />
                 <div class="min-w-0 flex-1">
                   <p class="flex items-center gap-1.5 truncate font-semibold leading-tight">
-                    <span class="truncate">{isCommentThread() ? t("chatView.commentsTitle") : c().name}</span>
+                    <span class="truncate">{isCommentThread() ? t("chatView.commentsTitle") : c().systemKey ? t(`system.${c().systemKey}`) : c().name}</span>
                     <Show when={c().peerVerified}>
                       <VerifiedBadge size={14} name={c().name} />
                     </Show>
@@ -668,11 +670,11 @@ export default function ChatView() {
                           author={authors()[message.authorId]}
                           isFirstInGroup={isFirst()}
                           isLastInGroup={isLast()}
-                          onReply={(m) =>
-                            chat()?.kind === "broadcast"
-                              ? navigate(`/chat/${chatId()}/comments/${m.replyTo?.id ?? m.id}`)
-                              : setReplyTo(m)
-                          }
+                           onReply={(m) =>
+                             chat()?.kind === "broadcast"
+                               ? void openNativeOrNavigate(navigate, `/chat/${chatId()}/comments/${m.replyTo?.id ?? m.id}`)
+                               : setReplyTo(m)
+                           }
                           onActions={(m, anchor) => setActionsFor({ message: m, anchor })}
                           onButton={(btn) => {
                             if (btn.app) {
@@ -693,7 +695,7 @@ export default function ChatView() {
                                     commentCount() === 1
                                       ? t("chatView.commentCountOne")
                                       : t("chatView.commentsCount", { n: commentCount() }),
-                                  onClick: () => navigate(`/chat/${chatId()}/comments/${message.id}`),
+                                   onClick: () => void openNativeOrNavigate(navigate, `/chat/${chatId()}/comments/${message.id}`),
                                   leading:
                                     commenters().length > 0 ? (
                                       <span class="flex shrink-0 -space-x-1.5">
@@ -872,7 +874,7 @@ export default function ChatView() {
               {chat()?.blockedByMe ? t("chatView.blockedByMe") : t("chatView.cantMessage")}
             </div>
         </Show>
-        <Show when={!blocked() && (chat()?.kind !== "broadcast" || isCommentThread())}>
+        <Show when={!blocked() && chat()?.systemKey !== "replies" && chat()?.systemKey !== "incidents" && (chat()?.kind !== "broadcast" || isCommentThread())}>
         <form
           onSubmit={(e) => void submit(e)}
           class="w-full px-[max(var(--safe-left),0.75rem)] pb-[max(var(--safe-bottom),0.75rem)] pt-2.5"
@@ -995,6 +997,16 @@ export default function ChatView() {
           >
             <TrashIcon size={16} />
             <span>{t("chatView.clearHistory")}</span>
+          </MenuItem>
+        </Show>
+        <Show when={chat()?.kind === "system"}>
+          <MenuItem
+            onSelect={() => {
+              setMenuOpen(false);
+              void setHidden(chatId(), !chat()?.hidden);
+            }}
+          >
+            <span>{chat()?.hidden ? t("chatView.unhide") : t("chatView.hide")}</span>
           </MenuItem>
         </Show>
         <MenuItem

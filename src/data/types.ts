@@ -91,7 +91,10 @@ export interface Message {
 
 export interface Chat {
   id: string;
-  kind: "dm" | "group" | "broadcast";
+  kind: "dm" | "group" | "broadcast" | "system";
+  /** saved | replies | incidents */
+  systemKey?: string;
+  hidden?: boolean;
   name: string;
   avatarColor: string;
   avatarInitial: string;

@@ -35,4 +35,12 @@ blockedByMe: boolean,
 /**
  * For DMs: whether the peer has blocked me. Always false for groups.
  */
-blockedMe: boolean, peerIsBot: boolean, botWelcome?: string, };
+blockedMe: boolean, peerIsBot: boolean, botWelcome?: string, 
+/**
+ * `saved` | `replies` | `incidents` for kind `system`.
+ */
+systemKey?: string, 
+/**
+ * Hidden from the main chat list. Still reachable from the Hidden filter.
+ */
+hidden: boolean, };

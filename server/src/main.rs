@@ -127,6 +127,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/chats/{id}", get(routes::chats::get_chat))
         .route("/api/chats/{id}/members", get(routes::chats::list_members))
         .route("/api/chats/{id}/mute", post(routes::chats::set_muted))
+        .route("/api/chats/{id}/hidden", post(routes::chats::set_hidden))
         .route("/api/chats/{id}/history", delete(routes::chats::clear_history))
         .route("/api/chats/{id}/callback", post(routes::bots::chat_callback))
         .route(
@@ -215,6 +216,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // for the marketing site, plus an admin summary view)
         .route("/api/metrics/event", post(routes::metrics::event))
         .route("/api/metrics/summary", get(routes::metrics::summary))
+        .route("/api/status", get(routes::status::get_status))
         // Doccy, the blog Q&A Mind: anonymous like the readers, narrow by
         // design (allowlisted slugs, length caps, per-IP rate limit).
         .route("/api/blog/ask", post(routes::doccy::ask))
@@ -311,6 +313,17 @@ async fn static_or_api_only(State(state): State<AppState>, req: Request) -> Resp
     }
 
     let path = req.uri().path();
+    // status.atlasmsg.app is the same process. `/` on that host is the
+    // status page; shared hashed assets still come from the site dist.
+    if host.as_deref() == Some(state.cfg.status_hostname.as_str())
+        && (path == "/" || path == "/index.html")
+    {
+        let page = ServeFile::new(format!("{dir}/status/index.html"));
+        return match page.oneshot(req).await {
+            Ok(resp) => resp.map(Body::new).into_response(),
+            Err(err) => match err {},
+        };
+    }
     // The messenger PWA lives at /app. Client-side routes (/app/chat/…,
     // /app/settings, …) must still get app/index.html — not the marketing
     // site's index.html, which is the default SPA fallback below.

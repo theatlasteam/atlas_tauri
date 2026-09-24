@@ -113,6 +113,7 @@ export default defineConfig({
         oferta: resolve(__dirname, "oferta/index.html"),
         canvas: resolve(__dirname, "canvas/index.html"),
         app: resolve(__dirname, "app/index.html"),
+        status: resolve(__dirname, "status/index.html"),
       },
     },
   },
