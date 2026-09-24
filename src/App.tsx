@@ -27,7 +27,10 @@ import UpdateBanner from "./components/UpdateBanner";
 import Onboarding from "./screens/Onboarding";
 import { session } from "./store/session";
 import { SpinnerIcon } from "./icons";
+import { initWindowRole } from "./lib/mobileWindows";
 import "./App.css";
+
+initWindowRole();
 
 const DesignSystem = lazy(() => import("./screens/settings/DesignSystem"));
 

@@ -9,6 +9,7 @@ import MindOrb from "../components/MindOrb";
 import { CompassIcon, MindsIcon, PlusIcon, TrashIcon } from "../icons";
 import { formatRelativeTime } from "../lib/time";
 import { t } from "../lib/i18n";
+import { openNativeOrNavigate } from "../lib/mobileWindows";
 
 /**
  * List of local-only Compass conversations, one device's own — mirrors
@@ -19,7 +20,7 @@ export default function CompassList() {
 
   const startNew = () => {
     const id = compassChat.create();
-    navigate(`/compass/${id}`);
+    void openNativeOrNavigate(navigate, `/compass/${id}`);
   };
 
   const remove = (e: MouseEvent, id: string) => {
@@ -112,7 +113,7 @@ export default function CompassList() {
                   {(mind) => (
                     <button
                       type="button"
-                      onClick={() => navigate(`/minds/${mind.id}`)}
+                      onClick={() => void openNativeOrNavigate(navigate, `/minds/${mind.id}`)}
                       class="flex w-20 shrink-0 flex-col items-center gap-1.5 rounded-2xl border border-border bg-surface px-2 py-3 transition hover:border-accent active:scale-95"
                       style={{ opacity: mind.isActive ? "1" : "0.5" }}
                     >

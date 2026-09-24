@@ -1,4 +1,7 @@
 /* @refresh reload */
+import { bootMark } from "./lib/bootPerf";
+
+bootMark("index evaluate");
 // @babel/standalone (used by the plugin loader to compile .tsx) references
 // `process.env` at module init in the webview. Provide a stub so it loads.
 (globalThis as { process?: unknown }).process ??= { env: {}, browser: true };
@@ -11,6 +14,7 @@ import "./App.css";
 
 // Load installed plugins once the webview exists — independent of auth, so a
 // signed-out session still gets plugin-provided UI.
-void initPlugins();
+void initPlugins().then(() => bootMark("plugins init done"));
 
 render(() => <App />, document.getElementById("root") as HTMLElement);
+bootMark("first render");

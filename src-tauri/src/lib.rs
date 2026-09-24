@@ -68,6 +68,11 @@ pub fn run() {
     #[cfg(target_os = "linux")]
     install_linux_app_icon();
 
+    // iPad multi-window: each user-requested scene gets a dynamic label
+    // (`main-1`, `main-2`, …) covered by the `main-*` capability pattern.
+    #[cfg(target_os = "ios")]
+    let mut scene_counter = 0u32;
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
@@ -112,6 +117,27 @@ pub fn run() {
             plugins::plugin_save,
             plugins::plugin_remove,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(move |app, event| {
+            // iPad "New window" (long-press icon / Stage Manager): host the
+            // new scene in its own webview window. Phones don't reach here —
+            // iOS replaces the current UI instead of stacking.
+            #[cfg(target_os = "ios")]
+            if let tauri::RunEvent::SceneRequested { .. } = event {
+                scene_counter += 1;
+                let label = format!("main-{scene_counter}");
+                if let Err(e) = tauri::WebviewWindowBuilder::new(
+                    app,
+                    label.as_str(),
+                    tauri::WebviewUrl::default(),
+                )
+                .build()
+                {
+                    eprintln!("[atlas] failed to create scene window {label}: {e}");
+                }
+            }
+            #[cfg(not(target_os = "ios"))]
+            let _ = (app, event);
+        });
 }

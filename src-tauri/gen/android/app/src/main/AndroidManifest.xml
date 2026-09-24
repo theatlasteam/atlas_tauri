@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Audio/video calls (WebRTC in the system WebView) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -25,6 +26,10 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.atlas"
         android:usesCleartextTraffic="${usesCleartextTraffic}">
+        <!-- Multi-window: opt into Activity Embedding (tablets/foldables). -->
+        <property
+            android:name="android.window.PROPERTY_ACTIVITY_EMBEDDING_SPLITS_ENABLED"
+            android:value="true" />
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
             android:launchMode="singleTask"
@@ -38,6 +43,13 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".SecondaryActivity"
+            android:label="@string/main_activity_title"
+            android:theme="@style/Theme.atlas"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:exported="false" />
 
         <!-- "Native Experimental" prototype (see src/screens/settings/Dev.tsx): a
              plain-Views chat list + chat screen that talks to the same REST API
@@ -91,6 +103,16 @@
         <receiver
             android:name=".push.CallActionReceiver"
             android:exported="false" />
+
+        <provider
+          android:name="androidx.startup.InitializationProvider"
+          android:authorities="${applicationId}.androidx-startup"
+          android:exported="false"
+          tools:node="merge">
+          <meta-data
+            android:name="get.ahmed.atlas.SplitInitializer"
+            android:value="androidx.startup" />
+        </provider>
 
         <provider
           android:name="androidx.core.content.FileProvider"

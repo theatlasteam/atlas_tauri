@@ -10,6 +10,7 @@ import { CheckIcon, PlusIcon, TrashIcon, UsersIcon } from "../icons";
 import { t } from "../lib/i18n";
 import { MAX_MINDS, MAX_ROOM_MINDS, MIND_PALETTE, darkenColor, personalitySummary, roomRoster } from "../lib/minds";
 import { formatRelativeTime } from "../lib/time";
+import { openNativeOrNavigate } from "../lib/mobileWindows";
 
 /**
  * Atlas X — Compass Minds. Two lists in one screen: the Minds you've made
@@ -56,7 +57,7 @@ export default function Minds() {
       setPicking(false);
       setSelected([]);
       setRoomTitle("");
-      navigate(`/minds/${room.id}`);
+      await openNativeOrNavigate(navigate, `/minds/${room.id}`);
     } catch {
       /* the store keeps the error; the dialog stays open so it's visible */
     } finally {

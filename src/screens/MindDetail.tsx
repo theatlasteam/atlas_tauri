@@ -13,6 +13,7 @@ import { ArrowDownIcon, BackIcon, PlusIcon, SettingsIcon, SpinnerIcon, TrashIcon
 import { t, type TranslationKey } from "../lib/i18n";
 import { useIsDesktopLayout } from "../lib/platform";
 import { MIND_PALETTE, darkenColor } from "../lib/minds";
+import { goBackOrClose } from "../lib/mobileWindows";
 
 interface ChatTurn {
   id: string;
@@ -92,7 +93,7 @@ export default function MindDetail() {
     if (!m) return;
     if (!confirm(t("minds.deleteConfirm", { name: m.name }))) return;
     await mindsStore.deleteMind(m.id);
-    navigate("/minds", { replace: true });
+    await goBackOrClose(navigate, "/minds");
   };
 
   let scrollRef: HTMLDivElement | undefined;

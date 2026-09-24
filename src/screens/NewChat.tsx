@@ -7,6 +7,7 @@ import { repository } from "../data/repository";
 import { chatsStore } from "../store/chats";
 import type { User } from "../data/types";
 import { t } from "../lib/i18n";
+import { openNativeOrNavigate } from "../lib/mobileWindows";
 import { CheckIcon, UsersIcon } from "../icons";
 
 /**
@@ -52,7 +53,7 @@ export default function NewChat() {
     setBusy(true);
     try {
       const chat = await chatsStore.openDm(user.id);
-      navigate(`/chat/${chat.id}`);
+      await openNativeOrNavigate(navigate, `/chat/${chat.id}`);
     } finally {
       setBusy(false);
     }
@@ -67,7 +68,7 @@ export default function NewChat() {
         groupName().trim(),
         selected().map((u) => u.id),
       );
-      navigate(`/chat/${chat.id}`);
+      await openNativeOrNavigate(navigate, `/chat/${chat.id}`);
     } finally {
       setBusy(false);
     }

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Activity Embedding: on screens >= 840dp wide, show the pushed detail
+     activity side-by-side with the main list instead of covering it. -->
+<resources
+  xmlns:window="http://schemas.android.com/apk/res-auto">
+  <SplitPairRule
+    window:splitRatio="0.33"
+    window:splitLayoutDirection="locale"
+    window:splitMinWidthDp="840"
+    window:splitMaxAspectRatioInPortrait="alwaysAllow"
+    window:finishPrimaryWithSecondary="never"
+    window:finishSecondaryWithPrimary="never"
+    window:clearTop="false">
+    <SplitPairFilter
+      window:primaryActivityName=".MainActivity"
+      window:secondaryActivityName=".SecondaryActivity" />
+  </SplitPairRule>
+</resources>

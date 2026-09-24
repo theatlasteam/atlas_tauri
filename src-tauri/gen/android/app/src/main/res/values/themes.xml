@@ -1,6 +1,9 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Theme.atlas" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <!-- Customize your theme here. -->
+        <!-- Paint the app background instantly at activity launch so new
+             windows never flash white while the WebView boots. Matches the
+             web bg token (light); see values-night for dark. -->
+        <item name="android:windowBackground">@color/atlas_bg</item>
     </style>
 </resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark app background (mirrors the web bg token). -->
+    <color name="atlas_bg">#FF131110</color>
+</resources>

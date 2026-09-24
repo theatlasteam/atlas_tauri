@@ -1,4 +1,4 @@
-import { createEffect, Show } from "solid-js";
+import { createEffect, onMount, Show } from "solid-js";
 import { useBeforeLeave, useLocation, useNavigate, type RouteSectionProps } from "@solidjs/router";
 import BottomNav from "./BottomNav";
 import SideNav from "./SideNav";
@@ -10,6 +10,18 @@ import { bindNavigate } from "../plugins/nav";
 import { emitPluginEvent } from "../plugins/runtime";
 import { getNavDirection, withViewTransition } from "../lib/pageTransition";
 import { useIsDesktopLayout } from "../lib/platform";
+import { isMobilePlatform } from "../lib/platform";
+import { isTauri } from "../lib/platform";
+import {
+  closeCurrentWindow,
+  isMainWindow,
+  isPwa,
+  isPushRoute,
+  isTabRoot,
+  multiWindowSync,
+  openNativeOrNavigate,
+} from "../lib/mobileWindows";
+import { bootMark } from "../lib/bootPerf";
 import { lastOpenChatId, setLastOpenChatId } from "../store/chats";
 
 export default function Shell(props: RouteSectionProps) {
@@ -39,6 +51,42 @@ export default function Shell(props: RouteSectionProps) {
   // Plugin SDK: hand the router's navigate over (useNavigate can't be called
   // from a plain object context), and surface chat opens/closes as events.
   bindNavigate((to) => navigate(to));
+  onMount(() => bootMark("shell mounted"));
+
+  // Native multi-window link interception (mobile Tauri only; desktop/PWA
+  // never reach here). Declarative `<A href>` links bypass navigate(), so a
+  // single bubble-phase listener on the shell routes them before the
+  // router's document-level handler: in the main window, pushes open a new
+  // native activity; in a secondary, tab-root links ("back out") close the
+  // activity instead of stacking UI inside it.
+  const interceptNativeLinks = (e: MouseEvent) => {
+    if (!isTauri() || !isMobilePlatform() || isPwa()) return;
+    // Gate unresolved/unsupported → leave the SPA default alone.
+    if (multiWindowSync() !== true) return;
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const target = e.target as Element | null;
+    const anchor = target?.closest?.("a[href]") as HTMLAnchorElement | null;
+    if (!anchor) return;
+    const href = anchor.getAttribute("href");
+    if (!href || !href.startsWith("/") || href.startsWith("//")) return;
+    // Only divert when the destination actually changes windowing: pushes
+    // out of the main window, tab-roots out of a secondary. Everything else
+    // falls through to the router untouched (no double navigation).
+    if (isMainWindow()) {
+      if (!isPushRoute(href)) return;
+    } else if (!isTabRoot(href)) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    void (async () => {
+      if (isMainWindow()) {
+        await openNativeOrNavigate((to) => navigate(to as string), href);
+      } else if (!(await closeCurrentWindow())) {
+        navigate(href);
+      }
+    })();
+  };
 
   const showPinnedChat = () => {
     if (!isDesktop()) return false;
@@ -86,6 +134,7 @@ export default function Shell(props: RouteSectionProps) {
 
   return (
     <div
+      onClick={interceptNativeLinks}
       class="relative flex h-full w-full overflow-hidden bg-bg pl-[var(--safe-left)] pr-[var(--safe-right)] text-ink"
       classList={{ "flex-col": !isDesktop(), "flex-row": isDesktop() }}
     >

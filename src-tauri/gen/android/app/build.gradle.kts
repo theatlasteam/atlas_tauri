@@ -68,6 +68,9 @@ dependencies {
     // Native Experimental prototype (native/ package): plain Views, no Compose.
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    // Multi-window (Activity Embedding on tablets/foldables, back-stack on phones).
+    implementation("androidx.window:window:1.5.0")
+    implementation("androidx.startup:startup-runtime:1.2.0")
     // Push notifications (push/ package). The BOM pins transitive Firebase
     // versions; messaging is the only component used.
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))

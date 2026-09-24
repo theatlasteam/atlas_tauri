@@ -6,6 +6,7 @@ import MindOrb from "../components/MindOrb";
 import MarkdownContent from "../components/MarkdownContent";
 import { BackIcon, SendIcon, TrashIcon } from "../icons";
 import { t } from "../lib/i18n";
+import { goBackOrClose } from "../lib/mobileWindows";
 import { useIsDesktopLayout } from "../lib/platform";
 
 /**
@@ -112,7 +113,7 @@ export default function MindRoom() {
                 onClick={async () => {
                   if (!confirm(t("minds.deleteRoomConfirm"))) return;
                   await mindsStore.deleteRoom(r().id);
-                  navigate("/minds");
+                  await goBackOrClose(navigate, "/minds");
                 }}
               >
                 <TrashIcon size={16} />

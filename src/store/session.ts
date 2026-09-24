@@ -14,6 +14,7 @@ import { e2ee } from "./e2ee";
 import { deviceFingerprint } from "../lib/fingerprint";
 import { requestNotificationPermission } from "../lib/notify";
 import { preferences } from "./preferences";
+import { bootMark } from "../lib/bootPerf";
 
 const TOKEN_KEY = "auth_token";
 /** Mirror of the active API base, written so the Android push notification
@@ -90,14 +91,17 @@ function createSessionStore() {
 
   /** Restore a persisted session on app start. */
   const bootstrap = async () => {
+    bootMark("session bootstrap start");
     const token = await secretGet(TOKEN_KEY);
     try {
       if (!token) {
         setStatus("signedOut");
+        bootMark("session signedOut (no token)");
         return;
       }
       setToken(token);
       const me = await api.me();
+      bootMark("session api.me ok");
       // Refreshed on every restore, not just sign-in: the server URL can be
       // changed from the config dialog while a session is already active.
       await secretSet(SERVER_URL_KEY, apiBase()).catch(() => {});

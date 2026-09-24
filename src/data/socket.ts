@@ -11,6 +11,7 @@ import { createSignal } from "solid-js";
 import type { ClientMsg, ServerEvent } from "./generated";
 import { getToken, wsUrl } from "./api";
 import type { ConnectionState } from "./types";
+import { bootMark } from "../lib/bootPerf";
 
 const [connectionState, setConnectionState] = createSignal<ConnectionState>("offline");
 export { connectionState };
@@ -106,6 +107,7 @@ function open() {
     if (event.type === "ready") {
       attempt = 0;
       setConnectionState("online");
+      bootMark("socket ready");
       for (const l of [...resyncListeners]) l();
     }
     for (const h of [...handlers]) h(event);

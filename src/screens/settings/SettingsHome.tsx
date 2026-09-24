@@ -6,6 +6,7 @@ import { session } from "../../store/session";
 import { t } from "../../lib/i18n";
 import { applyAppUpdate, isWebApp } from "../../lib/app-update";
 import { BellIcon, FolderIcon, InfoIcon, PaletteIcon, PluginsIcon, ProfileIcon, ShieldIcon, VerifiedIcon } from "../../icons";
+import { openNativeOrNavigate } from "../../lib/mobileWindows";
 
 const SECRET_TAP_COUNT = 7;
 const SECRET_TAP_WINDOW_MS = 2500;
@@ -27,7 +28,7 @@ export default function SettingsHome() {
     if (tapTimer) clearTimeout(tapTimer);
     if (tapCount >= SECRET_TAP_COUNT) {
       tapCount = 0;
-      navigate("/settings/dev");
+      void openNativeOrNavigate(navigate, "/settings/dev");
       return;
     }
     tapTimer = setTimeout(() => {

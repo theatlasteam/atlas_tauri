@@ -11,6 +11,7 @@ import { t } from "../lib/i18n";
 import { PhoneIcon, VideoIcon } from "../icons";
 import { IconButton } from "@atlas/ui";
 import AnimatedNavIcon from "../components/AnimatedNavIcon";
+import { openNativeOrNavigate } from "../lib/mobileWindows";
 
 function isCallPreview(text: string) {
   return /call/i.test(text);
@@ -37,7 +38,7 @@ function CallRow(props: { chat: Chat; recent?: boolean }) {
       <button
         type="button"
         class="flex min-w-0 flex-1 items-center gap-3 text-left"
-        onClick={() => navigate(`/chat/${props.chat.id}`)}
+        onClick={() => void openNativeOrNavigate(navigate, `/chat/${props.chat.id}`)}
       >
         <Avatar
           userId={props.chat.peerUserId}

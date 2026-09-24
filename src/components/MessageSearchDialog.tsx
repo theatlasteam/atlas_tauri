@@ -9,6 +9,7 @@ import { session } from "../store/session";
 import type { Message } from "../data/types";
 import { formatRelativeTime } from "../lib/time";
 import { t } from "../lib/i18n";
+import { openNativeOrNavigate } from "../lib/mobileWindows";
 
 /**
  * Server-side search across all my chats (plaintext messages; E2EE bodies are
@@ -43,7 +44,7 @@ export default function MessageSearchDialog(props: { open: boolean; onOpenChange
     props.onOpenChange(false);
     setQuery("");
     setResults([]);
-    navigate(`/chat/${message.chatId}`);
+    void openNativeOrNavigate(navigate, `/chat/${message.chatId}`);
   };
 
   return (

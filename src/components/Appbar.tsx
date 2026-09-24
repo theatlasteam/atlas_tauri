@@ -1,6 +1,7 @@
 import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
-import { A } from "@solidjs/router";
+import { useNavigate } from "@solidjs/router";
 import { BackIcon } from "../icons";
+import { goBackOrClose } from "../lib/mobileWindows";
 import { renderSlotComponent, slotComponent } from "../plugins/ui-slots";
 
 interface AppbarProps {
@@ -28,17 +29,21 @@ interface AppbarProps {
  */
 export default function Appbar(props: AppbarProps) {
   const [scrolled, setScrolled] = createSignal(false);
+  const navigate = useNavigate();
   let headerRef: HTMLElement | undefined;
 
+  // In a pushed native window this closes the activity (system-back
+  // equivalent); in main/desktop/PWA it navigates to the parent path.
   const backButton = () =>
     props.back ? (
-      <A
-        href={props.back}
+      <button
+        type="button"
+        onClick={() => void goBackOrClose(navigate, props.back!)}
         class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-muted transition hover:bg-bg hover:text-ink"
         aria-label="Back"
       >
         <BackIcon size={22} />
-      </A>
+      </button>
     ) : undefined;
 
   onMount(() => {
